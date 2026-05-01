@@ -24,6 +24,9 @@ pnpm-debug.log*
 coverage/
 .vitest-cache/
 
+# TypeScript incremental build cache
+*.tsbuildinfo
+
 # Env
 .env
 .env.local

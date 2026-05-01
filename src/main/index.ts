@@ -1,21 +1,18 @@
 import { app, BrowserWindow, ipcMain } from "electron";
-import { fileURLToPath } from "node:url";
 import path from "node:path";
 import { resolveWindowConfig } from "./window";
 import { API_CHANNELS } from "../preload/api";
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-
-// `vite-plugin-electron` injects this at build time.
-declare const VITE_DEV_SERVER_URL: string | undefined;
-
+// `vite-plugin-electron` sets this on process.env at dev-server start.
 const DEV_URL =
-  typeof VITE_DEV_SERVER_URL === "string" ? VITE_DEV_SERVER_URL : undefined;
+  typeof process.env.VITE_DEV_SERVER_URL === "string"
+    ? process.env.VITE_DEV_SERVER_URL
+    : undefined;
 
 let mainWindow: BrowserWindow | null = null;
 
 function createWindow(): void {
-  const preloadPath = path.join(__dirname, "../preload/preload.mjs");
+  const preloadPath = path.join(__dirname, "../preload/preload.js");
 
   const cfg = resolveWindowConfig({
     preloadPath,
@@ -51,7 +48,7 @@ function registerIpc(): void {
   ipcMain.handle(API_CHANNELS.ping, () => Date.now());
 }
 
-app.whenReady().then(() => {
+void app.whenReady().then(() => {
   registerIpc();
   createWindow();
 

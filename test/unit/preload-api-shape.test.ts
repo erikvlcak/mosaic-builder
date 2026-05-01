@@ -9,7 +9,7 @@ describe("preload API contract", () => {
   it("MosaicApi.ping returns a Promise<number>", () => {
     // Type-level assertion via a no-op assignable check.
     const fake: MosaicApi = {
-      ping: async () => 123,
+      ping: () => Promise.resolve(123),
     };
     expect(typeof fake.ping).toBe("function");
   });
