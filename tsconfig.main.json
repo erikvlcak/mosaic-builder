@@ -14,7 +14,7 @@
     "skipLibCheck": true,
     "isolatedModules": true,
     "outDir": "./dist-electron/main",
-    "rootDir": "./src/main"
+    "rootDir": "./src"
   },
-  "include": ["src/main/**/*.ts"]
+  "include": ["src/main/**/*.ts", "src/preload/api.ts"]
 }
