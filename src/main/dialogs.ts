@@ -70,3 +70,36 @@ export async function pickPdfSavePath(
     { name: "PDF document", extensions: ["pdf"] },
   ]);
 }
+
+export async function pickMosaicSavePath(
+  input: PickPathInput,
+): Promise<PickPathResult> {
+  return showSave(
+    input.parentWindow,
+    "Save mosaic project",
+    input.defaultName,
+    [{ name: "Mosaic project", extensions: ["mosaic"] }],
+  );
+}
+
+export interface PickOpenInput {
+  parentWindow: BrowserWindow | null;
+}
+
+export async function pickMosaicOpenPath(
+  input: PickOpenInput,
+): Promise<PickPathResult> {
+  const opts = {
+    title: "Open mosaic project",
+    filters: [{ name: "Mosaic project", extensions: ["mosaic"] }],
+    properties: ["openFile"] as const,
+  };
+  const r =
+    input.parentWindow !== null
+      ? await dialog.showOpenDialog(input.parentWindow, opts)
+      : await dialog.showOpenDialog(opts);
+  if (r.canceled || r.filePaths.length === 0) {
+    return { canceled: true, filePath: undefined };
+  }
+  return { canceled: false, filePath: r.filePaths[0]! };
+}

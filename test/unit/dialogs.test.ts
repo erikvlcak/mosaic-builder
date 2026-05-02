@@ -7,13 +7,15 @@ interface SaveOpts {
 }
 
 const showSaveDialog = vi.fn();
+const showOpenDialog = vi.fn();
 
 vi.mock("electron", () => ({
-  dialog: { showSaveDialog },
+  dialog: { showSaveDialog, showOpenDialog },
 }));
 
 beforeEach(() => {
   showSaveDialog.mockReset();
+  showOpenDialog.mockReset();
 });
 
 function callOpts(callIndex = 0): SaveOpts {
@@ -71,6 +73,46 @@ describe("pickPdfSavePath", () => {
     showSaveDialog.mockResolvedValueOnce({ canceled: true, filePath: undefined });
     const { pickPdfSavePath } = await import("../../src/main/dialogs");
     const r = await pickPdfSavePath({ parentWindow: null, defaultName: "x.pdf" });
+    expect(r.canceled).toBe(true);
+  });
+});
+
+describe("pickMosaicSavePath", () => {
+  it("uses .mosaic extension and the Mosaic project filter", async () => {
+    showSaveDialog.mockResolvedValueOnce({
+      canceled: false,
+      filePath: "/tmp/figure.mosaic",
+    });
+    const { pickMosaicSavePath } = await import("../../src/main/dialogs");
+    const r = await pickMosaicSavePath({
+      parentWindow: null,
+      defaultName: "figure.mosaic",
+    });
+    expect(r).toEqual({ canceled: false, filePath: "/tmp/figure.mosaic" });
+    expect(callOpts().filters).toEqual([
+      { name: "Mosaic project", extensions: ["mosaic"] },
+    ]);
+  });
+});
+
+describe("pickMosaicOpenPath", () => {
+  it("returns the picked file path", async () => {
+    showOpenDialog.mockResolvedValueOnce({
+      canceled: false,
+      filePaths: ["/tmp/figure.mosaic"],
+    });
+    const { pickMosaicOpenPath } = await import("../../src/main/dialogs");
+    const r = await pickMosaicOpenPath({ parentWindow: null });
+    expect(r).toEqual({ canceled: false, filePath: "/tmp/figure.mosaic" });
+  });
+
+  it("returns canceled when user dismisses the dialog", async () => {
+    showOpenDialog.mockResolvedValueOnce({
+      canceled: true,
+      filePaths: [],
+    });
+    const { pickMosaicOpenPath } = await import("../../src/main/dialogs");
+    const r = await pickMosaicOpenPath({ parentWindow: null });
     expect(r.canceled).toBe(true);
   });
 });
