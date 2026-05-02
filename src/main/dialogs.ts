@@ -89,10 +89,10 @@ export interface PickOpenInput {
 export async function pickMosaicOpenPath(
   input: PickOpenInput,
 ): Promise<PickPathResult> {
-  const opts = {
+  const opts: Electron.OpenDialogOptions = {
     title: "Open mosaic project",
     filters: [{ name: "Mosaic project", extensions: ["mosaic"] }],
-    properties: ["openFile"] as const,
+    properties: ["openFile"],
   };
   const r =
     input.parentWindow !== null
