@@ -1,13 +1,17 @@
 import type { ImagePoolItem } from "./pool";
 import type { Panel } from "./panels";
 import type { FigureState } from "./figure-state";
+import { resizePanels } from "./grid-resize";
 
 export type FigureAction =
   | { type: "ADD_TO_POOL"; item: ImagePoolItem }
   | { type: "PLACE_INTO_PANEL"; imageId: string; panelId: string }
   | { type: "SWAP_PANELS"; aPanelId: string; bPanelId: string }
   | { type: "REPLACE_INTO_PANEL"; imageId: string; panelId: string }
-  | { type: "REMOVE_FROM_POOL"; imageId: string };
+  | { type: "REMOVE_FROM_POOL"; imageId: string }
+  | { type: "RESIZE_GRID"; rows: number; cols: number }
+  | { type: "SET_GUTTER_PX"; gutterPx: number }
+  | { type: "SET_GUTTER_COLOR"; gutterColor: string };
 
 export const addToPool = (item: ImagePoolItem): FigureAction => ({
   type: "ADD_TO_POOL",
@@ -28,6 +32,19 @@ export const replaceIntoPanel = (
 export const removeFromPool = (imageId: string): FigureAction => ({
   type: "REMOVE_FROM_POOL",
   imageId,
+});
+export const resizeGrid = (rows: number, cols: number): FigureAction => ({
+  type: "RESIZE_GRID",
+  rows,
+  cols,
+});
+export const setGutterPx = (gutterPx: number): FigureAction => ({
+  type: "SET_GUTTER_PX",
+  gutterPx,
+});
+export const setGutterColor = (gutterColor: string): FigureAction => ({
+  type: "SET_GUTTER_COLOR",
+  gutterColor,
 });
 
 function isImageInPool(s: FigureState, imageId: string): boolean {
@@ -116,7 +133,38 @@ export function figureReducer(s: FigureState, a: FigureAction): FigureState {
         panels,
       };
     }
+
+    case "RESIZE_GRID": {
+      const rows = clampInt(a.rows, 1, 10);
+      const cols = clampInt(a.cols, 1, 10);
+      if (rows === s.rows && cols === s.cols) return s;
+      const r = resizePanels(s.panels, s.rows, s.cols, rows, cols);
+      // Released imageIds simply stay in the pool unplaced — no pool mutation.
+      return { ...s, rows, cols, panels: r.panels };
+    }
+
+    case "SET_GUTTER_PX": {
+      const gutterPx = clampInt(a.gutterPx, 0, 40);
+      if (gutterPx === s.gutterPx) return s;
+      return { ...s, gutterPx };
+    }
+
+    case "SET_GUTTER_COLOR": {
+      if (!isHexColor(a.gutterColor)) return s;
+      if (a.gutterColor === s.gutterColor) return s;
+      return { ...s, gutterColor: a.gutterColor };
+    }
   }
+}
+
+function clampInt(n: number, lo: number, hi: number): number {
+  if (!Number.isFinite(n)) return lo;
+  const i = Math.round(n);
+  return Math.max(lo, Math.min(hi, i));
+}
+
+function isHexColor(s: string): boolean {
+  return /^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(s);
 }
 
 function assignImage(p: Panel, imageId: string | undefined): Panel {

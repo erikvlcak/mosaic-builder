@@ -157,4 +157,59 @@ describe("figureReducer (panel-id actions)", () => {
     expect(s.pool.map((i) => i.id)).toEqual(["b"]);
     expect(s.panels.find((p) => p.id === p1)?.imageId).toBeUndefined();
   });
+
+  it("RESIZE_GRID grows the grid and adds 1x1 panels", () => {
+    const s0 = initialFigureState();
+    const s1 = figureReducer(
+      s0,
+      { type: "RESIZE_GRID", rows: 3, cols: 3 } as const,
+    );
+    expect(s1.rows).toBe(3);
+    expect(s1.cols).toBe(3);
+    expect(s1.panels).toHaveLength(9);
+  });
+
+  it("RESIZE_GRID clamps to 1..10", () => {
+    const s0 = initialFigureState();
+    const s1 = figureReducer(
+      s0,
+      { type: "RESIZE_GRID", rows: 99, cols: 0 } as const,
+    );
+    expect(s1.rows).toBe(10);
+    expect(s1.cols).toBe(1);
+  });
+
+  it("RESIZE_GRID is no-op when the shape is unchanged", () => {
+    const s0 = initialFigureState();
+    const s1 = figureReducer(
+      s0,
+      { type: "RESIZE_GRID", rows: 2, cols: 2 } as const,
+    );
+    expect(s1).toBe(s0);
+  });
+
+  it("SET_GUTTER_PX clamps and updates", () => {
+    let s = initialFigureState();
+    s = figureReducer(s, { type: "SET_GUTTER_PX", gutterPx: 20 } as const);
+    expect(s.gutterPx).toBe(20);
+    s = figureReducer(s, { type: "SET_GUTTER_PX", gutterPx: -5 } as const);
+    expect(s.gutterPx).toBe(0);
+    s = figureReducer(s, { type: "SET_GUTTER_PX", gutterPx: 999 } as const);
+    expect(s.gutterPx).toBe(40);
+  });
+
+  it("SET_GUTTER_COLOR accepts hex and rejects junk", () => {
+    let s = initialFigureState();
+    s = figureReducer(
+      s,
+      { type: "SET_GUTTER_COLOR", gutterColor: "#000000" } as const,
+    );
+    expect(s.gutterColor).toBe("#000000");
+    const before = s;
+    s = figureReducer(
+      s,
+      { type: "SET_GUTTER_COLOR", gutterColor: "purple" } as const,
+    );
+    expect(s).toBe(before);
+  });
 });
