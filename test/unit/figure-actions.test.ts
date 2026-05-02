@@ -20,6 +20,7 @@ import {
   swapPanels,
   replaceIntoPanel,
   removeFromPool,
+  resetToState,
   setPanelTransform,
   setPanelFit,
   rotatePanel90,
@@ -953,7 +954,7 @@ describe("RESET_TO_STATE", () => {
       gutterPx: 99,
       gutterColor: "#123456",
     };
-    const next = figureReducer(a, { type: "RESET_TO_STATE", state: b });
+    const next = figureReducer(a, resetToState(b));
     expect(next).toBe(b); // identity preserved — it's a wholesale replace
   });
 });
