@@ -1,89 +1,92 @@
-import { describe, it, expect } from "vitest";
-import type { ImagePoolItem } from "../../src/renderer/model/pool";
+import { describe, it, expect, beforeEach } from "vitest";
 import {
-  cellKey,
   initialFigureState,
+  figureReducer,
+  __resetPanelIdsForTests,
   type FigureState,
 } from "../../src/renderer/model/figure-state";
+import { addToPool, placeIntoPanel } from "../../src/renderer/model/figure-actions";
+import { findPanelAt } from "../../src/renderer/model/panels";
 import { dispatchDrop } from "../../src/renderer/dnd/dispatch-drop";
+import type { ImagePoolItem } from "../../src/renderer/model/pool";
 
-const A: ImagePoolItem = {
-  id: "a",
-  filename: "a.png",
-  filePath: "/a.png",
-  mime: "image/png",
-  width: 1,
-  height: 1,
+const IMG_A: ImagePoolItem = {
+  id: "a", filename: "a.png", filePath: "/x", mime: "image/png", width: 1, height: 1,
 };
-const B: ImagePoolItem = {
-  ...A,
-  id: "b",
-  filename: "b.png",
-  filePath: "/b.png",
+const IMG_B: ImagePoolItem = {
+  id: "b", filename: "b.png", filePath: "/x", mime: "image/png", width: 1, height: 1,
 };
 
-function withPool(...items: ImagePoolItem[]): FigureState {
-  const s = initialFigureState();
-  return { ...s, pool: items };
+function panelIdAt(s: FigureState, row: number, col: number): string {
+  const p = findPanelAt(s.panels, row, col);
+  if (p === null) throw new Error("no panel");
+  return p.id;
 }
 
 describe("dispatchDrop", () => {
-  it("tray → empty cell ⇒ PLACE_FROM_TRAY", () => {
-    const s = withPool(A);
-    const r = dispatchDrop(s, {
-      from: { kind: "tray", imageId: "a" },
-      target: { row: 0, col: 0 },
-    });
-    expect(r).toEqual({
-      type: "PLACE_FROM_TRAY",
-      imageId: "a",
-      target: { row: 0, col: 0 },
-    });
+  beforeEach(() => {
+    __resetPanelIdsForTests();
   });
 
-  it("tray → occupied cell ⇒ REPLACE_FROM_TRAY", () => {
-    const s = withPool(A, B);
-    s.placements.set(cellKey(0, 0), "a");
-    const r = dispatchDrop(s, {
+  it("tray → empty panel emits PLACE_INTO_PANEL", () => {
+    let s = initialFigureState();
+    s = figureReducer(s, addToPool(IMG_A));
+    const pid = panelIdAt(s, 0, 0);
+    const action = dispatchDrop(s, {
+      from: { kind: "tray", imageId: "a" },
+      targetPanelId: pid,
+    });
+    expect(action).toEqual({ type: "PLACE_INTO_PANEL", imageId: "a", panelId: pid });
+  });
+
+  it("tray → occupied panel emits REPLACE_INTO_PANEL", () => {
+    let s = initialFigureState();
+    s = figureReducer(s, addToPool(IMG_A));
+    s = figureReducer(s, addToPool(IMG_B));
+    const pid = panelIdAt(s, 0, 0);
+    s = figureReducer(s, placeIntoPanel("a", pid));
+    const action = dispatchDrop(s, {
       from: { kind: "tray", imageId: "b" },
-      target: { row: 0, col: 0 },
+      targetPanelId: pid,
     });
-    expect(r).toEqual({
-      type: "REPLACE_FROM_TRAY",
+    expect(action).toEqual({
+      type: "REPLACE_INTO_PANEL",
       imageId: "b",
-      target: { row: 0, col: 0 },
+      panelId: pid,
     });
   });
 
-  it("cell → cell ⇒ SWAP_CELLS", () => {
-    const s = withPool(A);
-    s.placements.set(cellKey(0, 0), "a");
-    const r = dispatchDrop(s, {
-      from: { kind: "cell", row: 0, col: 0 },
-      target: { row: 1, col: 1 },
-    });
-    expect(r).toEqual({
-      type: "SWAP_CELLS",
-      a: { row: 0, col: 0 },
-      b: { row: 1, col: 1 },
-    });
-  });
-
-  it("cell → same cell ⇒ null", () => {
-    const r = dispatchDrop(initialFigureState(), {
-      from: { kind: "cell", row: 0, col: 0 },
-      target: { row: 0, col: 0 },
-    });
-    expect(r).toBe(null);
-  });
-
-  it("tray → cell where image already placed elsewhere ⇒ null", () => {
-    const s = withPool(A);
-    s.placements.set(cellKey(0, 1), "a");
-    const r = dispatchDrop(s, {
+  it("tray drop with already-placed image is no-op", () => {
+    let s = initialFigureState();
+    s = figureReducer(s, addToPool(IMG_A));
+    const p1 = panelIdAt(s, 0, 0);
+    const p2 = panelIdAt(s, 0, 1);
+    s = figureReducer(s, placeIntoPanel("a", p1));
+    const action = dispatchDrop(s, {
       from: { kind: "tray", imageId: "a" },
-      target: { row: 1, col: 0 },
+      targetPanelId: p2,
     });
-    expect(r).toBe(null);
+    expect(action).toBe(null);
+  });
+
+  it("panel → other panel emits SWAP_PANELS", () => {
+    const s = initialFigureState();
+    const p1 = panelIdAt(s, 0, 0);
+    const p2 = panelIdAt(s, 1, 1);
+    const action = dispatchDrop(s, {
+      from: { kind: "panel", panelId: p1 },
+      targetPanelId: p2,
+    });
+    expect(action).toEqual({ type: "SWAP_PANELS", aPanelId: p1, bPanelId: p2 });
+  });
+
+  it("panel → same panel is no-op", () => {
+    const s = initialFigureState();
+    const p1 = panelIdAt(s, 0, 0);
+    const action = dispatchDrop(s, {
+      from: { kind: "panel", panelId: p1 },
+      targetPanelId: p1,
+    });
+    expect(action).toBe(null);
   });
 });

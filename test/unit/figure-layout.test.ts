@@ -62,3 +62,49 @@ describe("computePanelRects", () => {
     expect(rects[0]?.h).toBe(48);
   });
 });
+
+describe("computePanelRects with merged panels", () => {
+  it("a 1x2 merged top-row panel spans the full content width on a 2x2", () => {
+    const rects = computePanelRects({
+      canvas: { widthPx: 800, heightPx: 600, background: "#FFFFFF" },
+      grid: { rows: 2, cols: 2, gutterPx: 12, gutterColor: "#FFFFFF" },
+      panels: [
+        // hero: row 0, col 0..1
+        { row: 0, col: 0, kind: "placeholder", label: "A", rowSpan: 1, colSpan: 2 },
+        { row: 1, col: 0, kind: "placeholder", label: "C" },
+        { row: 1, col: 1, kind: "placeholder", label: "D" },
+      ],
+    });
+    // cellW = (800 - 3*12) / 2 = 382
+    // hero w = 2*382 + 1*12 = 776; covers cols 0..1, includes col 1 = last col so remainder absorbed (=0)
+    expect(rects).toHaveLength(3);
+    expect(rects[0]).toEqual({ x: 12, y: 12, w: 776, h: 282 });
+    expect(rects[1]?.x).toBe(12);
+    expect(rects[1]?.y).toBe(12 + 282 + 12);
+    expect(rects[2]?.x).toBe(12 + 382 + 12);
+  });
+
+  it("a 2x1 merged left-col panel spans full content height on a 2x2", () => {
+    const rects = computePanelRects({
+      canvas: { widthPx: 800, heightPx: 600, background: "#FFFFFF" },
+      grid: { rows: 2, cols: 2, gutterPx: 12, gutterColor: "#FFFFFF" },
+      panels: [
+        { row: 0, col: 0, kind: "placeholder", label: "A", rowSpan: 2, colSpan: 1 },
+        { row: 0, col: 1, kind: "placeholder", label: "B" },
+        { row: 1, col: 1, kind: "placeholder", label: "D" },
+      ],
+    });
+    // cellH = (600 - 3*12) / 2 = 282
+    // tall h = 2*282 + 12 = 576
+    expect(rects[0]).toEqual({ x: 12, y: 12, w: 382, h: 576 });
+  });
+
+  it("treats omitted rowSpan/colSpan as 1", () => {
+    const rects = computePanelRects({
+      canvas: { widthPx: 100, heightPx: 100, background: "#FFFFFF" },
+      grid: { rows: 1, cols: 1, gutterPx: 0, gutterColor: "#FFFFFF" },
+      panels: [{ row: 0, col: 0, kind: "placeholder", label: "A" }],
+    });
+    expect(rects[0]).toEqual({ x: 0, y: 0, w: 100, h: 100 });
+  });
+});

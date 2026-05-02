@@ -9,10 +9,12 @@ export interface PanelRect {
 
 /**
  * Computes the integer pixel rectangle for each panel in figure.panels,
- * in the same order. Outer gutter is included on all four edges.
+ * in the same order. Outer gutter is included on all four edges; internal
+ * gutters between merged-panel cells are absorbed into the merged panel.
  *
- * Width remainder distribution: cells get floor(avail/cols); the trailing
- * cell absorbs the remainder so the right edge lands on `widthPx - gutter`.
+ * Width remainder distribution: cells get floor(avail/cols); the panel
+ * whose right edge sits on the grid's last column absorbs `wRemainder`,
+ * so the right edge always lands on `widthPx - gutter`. Same for rows.
  */
 export function computePanelRects(figure: Figure): PanelRect[] {
   const { widthPx, heightPx } = figure.canvas;
@@ -26,10 +28,15 @@ export function computePanelRects(figure: Figure): PanelRect[] {
   const hRemainder = availH - cellH * rows;
 
   return figure.panels.map((p: HardCodedPanel): PanelRect => {
-    const isLastCol = p.col === cols - 1;
-    const isLastRow = p.row === rows - 1;
-    const w = cellW + (isLastCol ? wRemainder : 0);
-    const h = cellH + (isLastRow ? hRemainder : 0);
+    const rowSpan = p.rowSpan ?? 1;
+    const colSpan = p.colSpan ?? 1;
+    const lastColInPanel = p.col + colSpan - 1;
+    const lastRowInPanel = p.row + rowSpan - 1;
+
+    const baseW = colSpan * cellW + (colSpan - 1) * gutterPx;
+    const baseH = rowSpan * cellH + (rowSpan - 1) * gutterPx;
+    const w = baseW + (lastColInPanel === cols - 1 ? wRemainder : 0);
+    const h = baseH + (lastRowInPanel === rows - 1 ? hRemainder : 0);
     const x = gutterPx + p.col * (cellW + gutterPx);
     const y = gutterPx + p.row * (cellH + gutterPx);
     return { x, y, w, h };
