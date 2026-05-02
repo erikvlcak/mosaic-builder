@@ -74,18 +74,33 @@ interface Props {
 
 interface DragState {
   pointerId: number;
-  /** "create-arrow" | "create-box" | "move" */
-  kind: "create-arrow" | "create-box" | "move";
+  /**
+   * "create-arrow" | "create-box" | "move" | "arrow-endpoint" | "box-corner"
+   *
+   * - "move": translate whole annotation (body hit-rect drag).
+   * - "arrow-endpoint": drag one endpoint of an arrow (other endpoint stays put).
+   * - "box-corner": drag one corner of a box (resize from that corner).
+   */
+  kind:
+    | "create-arrow"
+    | "create-box"
+    | "move"
+    | "arrow-endpoint"
+    | "box-corner";
   /** Origin in figure-px. */
   startFx: number;
   startFy: number;
   /** Current pointer in figure-px (updated as we move). */
   curFx: number;
   curFy: number;
-  /** Annotation being moved (for "move"). */
+  /** Annotation being moved/resized (for "move", "arrow-endpoint", "box-corner"). */
   movingId?: string;
-  /** Original annotation snapshot (for "move"). */
+  /** Original annotation snapshot (for "move", "arrow-endpoint", "box-corner"). */
   startAnno?: UserAnno;
+  /** Which arrow endpoint is being dragged ("arrow-endpoint" only). */
+  endpoint?: "start" | "end";
+  /** Which box corner is being dragged ("box-corner" only). */
+  corner?: "tl" | "tr" | "bl" | "br";
 }
 
 interface PendingScalebar {
@@ -123,6 +138,16 @@ const Z_SCALEBAR = 10;
 
 // Minimum hit-rect dimension in CSS px so very small annotations remain selectable.
 const MIN_HIT_PX = 8;
+
+// Minimum box width/height (in figure-px) when resizing via corner handles.
+// Prevents the box from collapsing to zero and becoming unselectable.
+const MIN_BOX_DIM = 4;
+
+// Endpoint/corner handle size in CSS px (square hit-rect).
+const HANDLE_PX = 8;
+
+// How long the scalebar error banner stays visible (ms).
+const SCALEBAR_ERROR_TTL_MS = 2500;
 
 function newAnnoId(): string {
   return crypto.randomUUID();
@@ -215,6 +240,39 @@ export function AnnotationInteractionLayer({
   const [pendingText, setPendingText] = useState<PendingText | null>(null);
   const [scalebarLength, setScalebarLength] = useState<string>("100");
   const [scalebarUnit, setScalebarUnit] = useState<"um" | "mm">("um");
+  /**
+   * Transient error banner shown when the scalebar tool clicks an
+   * uncalibrated/empty panel. Auto-dismissed after SCALEBAR_ERROR_TTL_MS.
+   * Coordinates are CSS-px relative to the layer.
+   */
+  const [scalebarError, setScalebarError] = useState<
+    { message: string; cssX: number; cssY: number } | null
+  >(null);
+  const scalebarErrorTimerRef = useRef<number | null>(null);
+
+  /**
+   * Show the transient scalebar error banner. Replaces any existing timer
+   * so rapid repeated clicks reset the fade-out.
+   */
+  function flashScalebarError(message: string, cssX: number, cssY: number): void {
+    if (scalebarErrorTimerRef.current !== null) {
+      window.clearTimeout(scalebarErrorTimerRef.current);
+    }
+    setScalebarError({ message, cssX, cssY });
+    scalebarErrorTimerRef.current = window.setTimeout(() => {
+      setScalebarError(null);
+      scalebarErrorTimerRef.current = null;
+    }, SCALEBAR_ERROR_TTL_MS);
+  }
+
+  // Clean up the error timer on unmount.
+  useEffect(() => {
+    return () => {
+      if (scalebarErrorTimerRef.current !== null) {
+        window.clearTimeout(scalebarErrorTimerRef.current);
+      }
+    };
+  }, []);
 
   const cssToFigX = figurePxW / cssW;
   const cssToFigY = figurePxH / cssH;
@@ -268,6 +326,7 @@ export function AnnotationInteractionLayer({
           `[scalebar] Cannot add scale bar: panel ${panel?.panelId ?? "(none)"} requires a calibrated image. ` +
           `Use the "Calibrate…" button on the panel toolbar first.`,
         );
+        flashScalebarError("Place an image first.", c.cssX, c.cssY);
         return;
       }
       const img = imagesById.get(panel.imageId);
@@ -275,6 +334,11 @@ export function AnnotationInteractionLayer({
         console.warn(
           `[scalebar] Cannot add scale bar: panel ${panel?.panelId ?? "(none)"} requires a calibrated image. ` +
           `Use the "Calibrate…" button on the panel toolbar first.`,
+        );
+        flashScalebarError(
+          "Calibrate this image first (Calibrate… button).",
+          c.cssX,
+          c.cssY,
         );
         return;
       }
@@ -420,6 +484,173 @@ export function AnnotationInteractionLayer({
 
   function onHitPointerUp(e: React.PointerEvent<HTMLDivElement>): void {
     if (drag === null || drag.kind !== "move" || drag.pointerId !== e.pointerId) return;
+    if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    }
+    setDrag(null);
+  }
+
+  // -------------------------------------------------------------------
+  // SELECT MODE — endpoint/corner handles (per-endpoint resize).
+  //
+  // Endpoint handles only render when the arrow is selected; whole-arrow
+  // drag remains active on the body hit-rect. Same for box corners.
+  // Handles are rendered ABOVE the body hit-rect in DOM order so clicks
+  // on a handle take precedence over body drag (stopPropagation also
+  // prevents the body's pointerdown from firing).
+  // -------------------------------------------------------------------
+
+  function onArrowEndpointPointerDown(
+    e: React.PointerEvent<HTMLDivElement>,
+    a: ArrowAnnotation,
+    endpoint: "start" | "end",
+  ): void {
+    if (e.button !== 0) return;
+    e.stopPropagation();
+    onSelectAnnotation(a.id);
+    const c = clientToFigure(e);
+    if (c === null) return;
+    e.currentTarget.setPointerCapture(e.pointerId);
+    setDrag({
+      pointerId: e.pointerId,
+      kind: "arrow-endpoint",
+      startFx: c.fx,
+      startFy: c.fy,
+      curFx: c.fx,
+      curFy: c.fy,
+      movingId: a.id,
+      startAnno: a,
+      endpoint,
+    });
+  }
+
+  function onArrowEndpointPointerMove(
+    e: React.PointerEvent<HTMLDivElement>,
+  ): void {
+    if (drag === null || drag.kind !== "arrow-endpoint" || drag.pointerId !== e.pointerId) {
+      return;
+    }
+    const c = clientToFigure(e);
+    if (c === null) return;
+    if (drag.movingId === undefined || drag.endpoint === undefined) return;
+    const start = drag.startAnno;
+    if (start === undefined || start.kind !== "arrow") return;
+    const dx = c.fx - drag.startFx;
+    const dy = c.fy - drag.startFy;
+    const patch =
+      drag.endpoint === "start"
+        ? { x1: start.x1 + dx, y1: start.y1 + dy }
+        : { x2: start.x2 + dx, y2: start.y2 + dy };
+    dispatch(updateAnnotation(drag.movingId, patch));
+  }
+
+  function onArrowEndpointPointerUp(
+    e: React.PointerEvent<HTMLDivElement>,
+  ): void {
+    if (drag === null || drag.kind !== "arrow-endpoint" || drag.pointerId !== e.pointerId) {
+      return;
+    }
+    if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    }
+    setDrag(null);
+  }
+
+  function onBoxCornerPointerDown(
+    e: React.PointerEvent<HTMLDivElement>,
+    a: BoxAnnotation,
+    corner: "tl" | "tr" | "bl" | "br",
+  ): void {
+    if (e.button !== 0) return;
+    e.stopPropagation();
+    onSelectAnnotation(a.id);
+    const c = clientToFigure(e);
+    if (c === null) return;
+    e.currentTarget.setPointerCapture(e.pointerId);
+    setDrag({
+      pointerId: e.pointerId,
+      kind: "box-corner",
+      startFx: c.fx,
+      startFy: c.fy,
+      curFx: c.fx,
+      curFy: c.fy,
+      movingId: a.id,
+      startAnno: a,
+      corner,
+    });
+  }
+
+  function onBoxCornerPointerMove(e: React.PointerEvent<HTMLDivElement>): void {
+    if (drag === null || drag.kind !== "box-corner" || drag.pointerId !== e.pointerId) {
+      return;
+    }
+    const c = clientToFigure(e);
+    if (c === null) return;
+    if (drag.movingId === undefined || drag.corner === undefined) return;
+    const start = drag.startAnno;
+    if (start === undefined || start.kind !== "box") return;
+    const dx = c.fx - drag.startFx;
+    const dy = c.fy - drag.startFy;
+
+    // Compute new (x, y, w, h) per-corner. The opposite corner stays put.
+    // Then clamp against MIN_BOX_DIM to prevent collapse.
+    let nx = start.x;
+    let ny = start.y;
+    let nw = start.w;
+    let nh = start.h;
+    switch (drag.corner) {
+      case "tl":
+        // Anchor: bottom-right (start.x + start.w, start.y + start.h).
+        nx = start.x + dx;
+        ny = start.y + dy;
+        nw = start.w - dx;
+        nh = start.h - dy;
+        if (nw < MIN_BOX_DIM) {
+          nx = start.x + start.w - MIN_BOX_DIM;
+          nw = MIN_BOX_DIM;
+        }
+        if (nh < MIN_BOX_DIM) {
+          ny = start.y + start.h - MIN_BOX_DIM;
+          nh = MIN_BOX_DIM;
+        }
+        break;
+      case "tr":
+        // Anchor: bottom-left (start.x, start.y + start.h).
+        ny = start.y + dy;
+        nw = start.w + dx;
+        nh = start.h - dy;
+        if (nw < MIN_BOX_DIM) nw = MIN_BOX_DIM;
+        if (nh < MIN_BOX_DIM) {
+          ny = start.y + start.h - MIN_BOX_DIM;
+          nh = MIN_BOX_DIM;
+        }
+        break;
+      case "bl":
+        // Anchor: top-right (start.x + start.w, start.y).
+        nx = start.x + dx;
+        nw = start.w - dx;
+        nh = start.h + dy;
+        if (nw < MIN_BOX_DIM) {
+          nx = start.x + start.w - MIN_BOX_DIM;
+          nw = MIN_BOX_DIM;
+        }
+        if (nh < MIN_BOX_DIM) nh = MIN_BOX_DIM;
+        break;
+      case "br":
+        // Anchor: top-left (start.x, start.y).
+        nw = start.w + dx;
+        nh = start.h + dy;
+        if (nw < MIN_BOX_DIM) nw = MIN_BOX_DIM;
+        if (nh < MIN_BOX_DIM) nh = MIN_BOX_DIM;
+        break;
+    }
+    dispatch(updateAnnotation(drag.movingId, { x: nx, y: ny, w: nw, h: nh }));
+  }
+
+  function onBoxCornerPointerUp(e: React.PointerEvent<HTMLDivElement>): void {
+    if (drag === null || drag.kind !== "box-corner" || drag.pointerId !== e.pointerId) {
+      return;
+    }
     if (e.currentTarget.hasPointerCapture(e.pointerId)) {
       e.currentTarget.releasePointerCapture(e.pointerId);
     }
@@ -596,6 +827,71 @@ export function AnnotationInteractionLayer({
         />
       )}
 
+      {/* Arrow endpoint handles (only when a selected arrow exists). */}
+      {activeTool === "select" && selected !== undefined && selected.kind === "arrow" && (
+        <>
+          {(["start", "end"] as const).map((endpoint) => {
+            const fx = endpoint === "start" ? selected.x1 : selected.x2;
+            const fy = endpoint === "start" ? selected.y1 : selected.y2;
+            return (
+              <div
+                key={`arrow-handle-${endpoint}`}
+                data-testid={`anno-arrow-handle-${endpoint}`}
+                onPointerDown={(e) => onArrowEndpointPointerDown(e, selected, endpoint)}
+                onPointerMove={onArrowEndpointPointerMove}
+                onPointerUp={onArrowEndpointPointerUp}
+                onPointerCancel={onArrowEndpointPointerUp}
+                style={{
+                  position: "absolute",
+                  left: fx * figToCssX - HANDLE_PX / 2,
+                  top: fy * figToCssY - HANDLE_PX / 2,
+                  width: HANDLE_PX,
+                  height: HANDLE_PX,
+                  background: "#0066FF",
+                  pointerEvents: "auto",
+                  cursor: "crosshair",
+                  zIndex: 4,
+                }}
+              />
+            );
+          })}
+        </>
+      )}
+
+      {/* Box corner handles (only when a selected box exists). */}
+      {activeTool === "select" && selected !== undefined && selected.kind === "box" && (
+        <>
+          {(
+            [
+              ["tl", selected.x, selected.y, "nwse-resize"],
+              ["tr", selected.x + selected.w, selected.y, "nesw-resize"],
+              ["bl", selected.x, selected.y + selected.h, "nesw-resize"],
+              ["br", selected.x + selected.w, selected.y + selected.h, "nwse-resize"],
+            ] as const
+          ).map(([corner, fx, fy, cursor]) => (
+            <div
+              key={`box-handle-${corner}`}
+              data-testid={`anno-box-handle-${corner}`}
+              onPointerDown={(e) => onBoxCornerPointerDown(e, selected, corner)}
+              onPointerMove={onBoxCornerPointerMove}
+              onPointerUp={onBoxCornerPointerUp}
+              onPointerCancel={onBoxCornerPointerUp}
+              style={{
+                position: "absolute",
+                left: fx * figToCssX - HANDLE_PX / 2,
+                top: fy * figToCssY - HANDLE_PX / 2,
+                width: HANDLE_PX,
+                height: HANDLE_PX,
+                background: "#0066FF",
+                pointerEvents: "auto",
+                cursor,
+                zIndex: 4,
+              }}
+            />
+          ))}
+        </>
+      )}
+
       {/* Transient preview during arrow/box creation. */}
       {drag !== null && drag.kind === "create-box" && (
         <div
@@ -720,6 +1016,32 @@ export function AnnotationInteractionLayer({
           >
             Cancel
           </button>
+        </div>
+      )}
+
+      {/* Scalebar error banner: transient cue near the click for the no-op
+          scalebar paths (no image / no calibration). Auto-dismissed after
+          SCALEBAR_ERROR_TTL_MS. The console.warn above stays for devs. */}
+      {scalebarError !== null && (
+        <div
+          data-testid="anno-scalebar-error"
+          style={{
+            position: "absolute",
+            left: scalebarError.cssX,
+            top: scalebarError.cssY,
+            background: "#FFF",
+            border: "1px solid #C00",
+            color: "#C00",
+            padding: "4px 8px",
+            borderRadius: 3,
+            fontSize: 11,
+            pointerEvents: "none",
+            boxShadow: "0 2px 6px rgba(0,0,0,0.15)",
+            zIndex: 6,
+            whiteSpace: "nowrap",
+          }}
+        >
+          {scalebarError.message}
         </div>
       )}
 
