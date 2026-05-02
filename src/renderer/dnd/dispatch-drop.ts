@@ -25,10 +25,11 @@ export function dispatchDrop(
   }
 
   // Tray drop: refuse if the image is already placed somewhere.
-  if (state.panels.some((p) => p.imageId === ev.from.imageId)) return null;
+  const imageId = ev.from.imageId;
+  if (state.panels.some((p) => p.imageId === imageId)) return null;
 
   if (target.imageId !== undefined) {
-    return replaceIntoPanel(ev.from.imageId, ev.targetPanelId);
+    return replaceIntoPanel(imageId, ev.targetPanelId);
   }
-  return placeIntoPanel(ev.from.imageId, ev.targetPanelId);
+  return placeIntoPanel(imageId, ev.targetPanelId);
 }

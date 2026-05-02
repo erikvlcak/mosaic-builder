@@ -1,9 +1,5 @@
 import { useState } from "react";
-import {
-  cellKey,
-  type CellCoord,
-  type FigureState,
-} from "../../model/figure-state";
+import type { FigureState } from "../../model/figure-state";
 import { computePanelRects } from "../../render/coords";
 import {
   DRAG_MIME,
@@ -14,7 +10,7 @@ import {
 
 export interface DropEvent {
   from: DragPayload;
-  target: CellCoord;
+  targetPanelId: string;
 }
 
 interface Props {
@@ -25,7 +21,6 @@ interface Props {
   /** Wrapper's actual rendered CSS width/height in px. */
   cssW: number;
   cssH: number;
-  gutterPx: number;
   onDrop: (e: DropEvent) => void;
 }
 
@@ -35,19 +30,28 @@ export function GridCells({
   figurePxH,
   cssW,
   cssH,
-  gutterPx,
   onDrop,
 }: Props): JSX.Element {
-  const [hoverKey, setHoverKey] = useState<string | null>(null);
+  const [hoverPanelId, setHoverPanelId] = useState<string | null>(null);
 
+  // Build a Figure-shaped object purely for layout. We map state.panels
+  // (which already carry rowSpan/colSpan) directly so rect computation
+  // matches the rendered figure exactly.
   const rects = computePanelRects({
     canvas: { widthPx: figurePxW, heightPx: figurePxH, background: "#000" },
-    grid: { rows: state.rows, cols: state.cols, gutterPx, gutterColor: "#000" },
-    panels: Array.from({ length: state.rows * state.cols }, (_, i) => ({
-      row: Math.floor(i / state.cols),
-      col: i % state.cols,
+    grid: {
+      rows: state.rows,
+      cols: state.cols,
+      gutterPx: state.gutterPx,
+      gutterColor: state.gutterColor,
+    },
+    panels: state.panels.map((p) => ({
+      row: p.row,
+      col: p.col,
       kind: "placeholder" as const,
       label: "",
+      rowSpan: p.rowSpan,
+      colSpan: p.colSpan,
     })),
   });
 
@@ -63,28 +67,27 @@ export function GridCells({
         pointerEvents: "none",
       }}
     >
-      {rects.map((r, i) => {
-        const row = Math.floor(i / state.cols);
-        const col = i % state.cols;
-        const k = cellKey(row, col);
-        const occupied = state.placements.has(k);
+      {state.panels.map((panel, i) => {
+        const r = rects[i];
+        if (r === undefined) return null;
+        const occupied = panel.imageId !== undefined;
 
         function onDragOver(e: React.DragEvent<HTMLDivElement>): void {
           if (!e.dataTransfer.types.includes(DRAG_MIME)) return;
           e.preventDefault();
           e.dataTransfer.dropEffect = "move";
-          if (hoverKey !== k) setHoverKey(k);
+          if (hoverPanelId !== panel.id) setHoverPanelId(panel.id);
         }
         function onDragLeave(): void {
-          if (hoverKey === k) setHoverKey(null);
+          if (hoverPanelId === panel.id) setHoverPanelId(null);
         }
         function onDropEvt(e: React.DragEvent<HTMLDivElement>): void {
           e.preventDefault();
-          setHoverKey(null);
+          setHoverPanelId(null);
           const raw = e.dataTransfer.getData(DRAG_MIME);
           const from = parseDrag(raw);
           if (from === null) return;
-          onDrop({ from, target: { row, col } });
+          onDrop({ from, targetPanelId: panel.id });
         }
         function onDragStart(e: React.DragEvent<HTMLDivElement>): void {
           if (!occupied) {
@@ -93,20 +96,21 @@ export function GridCells({
           }
           e.dataTransfer.setData(
             DRAG_MIME,
-            serializeDrag({ kind: "cell", row, col }),
+            serializeDrag({ kind: "panel", panelId: panel.id }),
           );
           e.dataTransfer.effectAllowed = "move";
         }
 
         return (
           <div
-            key={k}
+            key={panel.id}
             draggable={occupied}
             onDragStart={onDragStart}
             onDragOver={onDragOver}
             onDragLeave={onDragLeave}
             onDrop={onDropEvt}
-            data-testid={`cell-${row}-${col}`}
+            data-testid={`panel-${panel.row}-${panel.col}`}
+            data-panel-id={panel.id}
             style={{
               position: "absolute",
               left: r.x * sx,
@@ -116,7 +120,9 @@ export function GridCells({
               pointerEvents: "auto",
               cursor: occupied ? "grab" : "default",
               outline:
-                hoverKey === k ? "3px solid #4C9AFF" : "1px dashed transparent",
+                hoverPanelId === panel.id
+                  ? "3px solid #4C9AFF"
+                  : "1px dashed transparent",
               outlineOffset: -2,
               transition: "outline-color 80ms ease",
               boxSizing: "border-box",
