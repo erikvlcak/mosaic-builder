@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { EditorCanvas } from "./components/Canvas/EditorCanvas";
+import { ExportButton } from "./components/Toolbar/ExportButton";
 import {
   HARDCODED_FIGURE,
   SAMPLE_IMAGE_ID,
@@ -43,7 +44,7 @@ export function App(): JSX.Element {
         {loadError !== null && (
           <span style={{ color: "#B00" }}>image load error: {loadError}</span>
         )}
-        {/* ExportButton lands in Task 11. */}
+        <ExportButton figure={HARDCODED_FIGURE} images={images} />
       </header>
       <EditorCanvas figure={HARDCODED_FIGURE} images={images} />
     </main>
