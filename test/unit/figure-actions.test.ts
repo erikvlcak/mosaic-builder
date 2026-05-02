@@ -943,3 +943,17 @@ describe("figureReducer (M6 annotations)", () => {
     expect(ids).toEqual(["a1", "b1", "t1"]);
   });
 });
+
+describe("RESET_TO_STATE", () => {
+  it("replaces the entire FigureState with the provided one", () => {
+    __resetPanelIdsForTests();
+    const a = initialFigureState();
+    const b: FigureState = {
+      ...initialFigureState(),
+      gutterPx: 99,
+      gutterColor: "#123456",
+    };
+    const next = figureReducer(a, { type: "RESET_TO_STATE", state: b });
+    expect(next).toBe(b); // identity preserved — it's a wholesale replace
+  });
+});
