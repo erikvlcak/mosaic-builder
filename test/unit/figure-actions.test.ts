@@ -12,8 +12,6 @@ import {
   swapPanels,
   replaceIntoPanel,
   removeFromPool,
-  mergeCells,
-  unmergePanelAction,
 } from "../../src/renderer/model/figure-actions";
 import { findPanelAt } from "../../src/renderer/model/panels";
 

@@ -1,23 +1,34 @@
 import { useCallback, useMemo, useReducer, useRef, useState } from "react";
 import { EditorCanvas } from "./components/Canvas/EditorCanvas";
 import { ExportButton } from "./components/Toolbar/ExportButton";
+import { GridControls } from "./components/Toolbar/GridControls";
+import { MergeControls } from "./components/Toolbar/MergeControls";
 import { Tray } from "./components/Sidebar/Tray";
 import { GridCells, type DropEvent } from "./components/Grid/GridCells";
 import {
   initialFigureState,
   type FigureState,
 } from "./model/figure-state";
-import { addToPool, figureReducer } from "./model/figure-actions";
+import {
+  addToPool,
+  figureReducer,
+  resizeGrid,
+  setGutterPx,
+  setGutterColor,
+  mergeCells,
+  unmergePanelAction,
+} from "./model/figure-actions";
 import { newImageId, type ImagePoolItem } from "./model/pool";
 import { deriveFigure } from "./model/figure-derivations";
 import { decodeImageBytes } from "./image/decode-bytes";
 import { dispatchDrop } from "./dnd/dispatch-drop";
+import { canMergeSelection } from "./model/merge";
+import { useMergeSelection } from "./hooks/useMergeSelection";
+import { useKeyboardShortcuts } from "./hooks/useKeyboardShortcuts";
 
 const FIGURE_PX_W = 800;
 const FIGURE_PX_H = 600;
-const GUTTER_PX = 12;
 const CANVAS_BG = "#FFFFFF";
-const GUTTER_COLOR = "#FFFFFF";
 const CANVAS_CSS_W = 800;
 const CANVAS_CSS_H = 600;
 
@@ -32,8 +43,11 @@ export function App(): JSX.Element {
   );
   const [bitmaps, setBitmaps] = useState<Map<string, ImageBitmap>>(new Map());
   const [error, setError] = useState<string | null>(null);
+  const [focusedPanelId, setFocusedPanelId] = useState<string | null>(null);
   const stateRef = useRef<FigureState>(state);
   stateRef.current = state;
+
+  const selection = useMergeSelection();
 
   const figure = useMemo(
     () =>
@@ -43,14 +57,18 @@ export function App(): JSX.Element {
           heightPx: FIGURE_PX_H,
           background: CANVAS_BG,
         },
-        grid: { gutterPx: GUTTER_PX, gutterColor: GUTTER_COLOR },
       }),
     [state],
   );
 
   const placedIds = useMemo(
-    () => new Set(state.placements.values()),
-    [state.placements],
+    () =>
+      new Set(
+        state.panels
+          .map((p) => p.imageId)
+          .filter((x): x is string => x !== undefined),
+      ),
+    [state.panels],
   );
 
   const onAddImagesClick = useCallback(async (): Promise<void> => {
@@ -95,6 +113,40 @@ export function App(): JSX.Element {
     if (action !== null) dispatch(action);
   }, []);
 
+  const onMerge = useCallback(() => {
+    const cells = selection.asCoords();
+    const check = canMergeSelection(stateRef.current.panels, cells);
+    if (!check.ok) return;
+    dispatch(mergeCells(cells));
+    selection.clear();
+  }, [selection]);
+
+  const onUnmerge = useCallback(() => {
+    if (focusedPanelId === null) return;
+    const p = stateRef.current.panels.find((x) => x.id === focusedPanelId);
+    if (p === undefined) return;
+    if (p.rowSpan === 1 && p.colSpan === 1) return;
+    dispatch(unmergePanelAction(focusedPanelId));
+  }, [focusedPanelId]);
+
+  useKeyboardShortcuts({
+    onMerge,
+    onUnmerge,
+    onEscape: selection.clear,
+  });
+
+  const canMerge = useMemo(() => {
+    const check = canMergeSelection(state.panels, selection.asCoords());
+    return check.ok;
+  }, [state.panels, selection]);
+
+  const focusedPanel = focusedPanelId
+    ? state.panels.find((p) => p.id === focusedPanelId)
+    : undefined;
+  const canUnmerge =
+    focusedPanel !== undefined &&
+    (focusedPanel.rowSpan > 1 || focusedPanel.colSpan > 1);
+
   return (
     <main
       style={{
@@ -111,11 +163,28 @@ export function App(): JSX.Element {
           borderBottom: "1px solid #DDD",
           display: "flex",
           alignItems: "center",
-          gap: 16,
+          gap: 12,
+          flexWrap: "wrap",
         }}
       >
         <h1 style={{ margin: 0, fontSize: 16 }}>Mosaic Builder</h1>
         <ExportButton figure={figure} images={bitmaps} />
+        <GridControls
+          rows={state.rows}
+          cols={state.cols}
+          gutterPx={state.gutterPx}
+          gutterColor={state.gutterColor}
+          onChangeRows={(rows) => dispatch(resizeGrid(rows, state.cols))}
+          onChangeCols={(cols) => dispatch(resizeGrid(state.rows, cols))}
+          onChangeGutterPx={(px) => dispatch(setGutterPx(px))}
+          onChangeGutterColor={(c) => dispatch(setGutterColor(c))}
+        />
+        <MergeControls
+          canMerge={canMerge}
+          canUnmerge={canUnmerge}
+          onMerge={onMerge}
+          onUnmerge={onUnmerge}
+        />
         {error !== null && (
           <span style={{ color: "#B00", fontSize: 12 }}>{error}</span>
         )}
@@ -153,8 +222,11 @@ export function App(): JSX.Element {
               figurePxH={FIGURE_PX_H}
               cssW={CANVAS_CSS_W}
               cssH={CANVAS_CSS_H}
-              gutterPx={GUTTER_PX}
               onDrop={onDrop}
+              selection={selection.selected}
+              onCellShiftClick={selection.toggle}
+              focusedPanelId={focusedPanelId}
+              onPanelClick={setFocusedPanelId}
             />
           </div>
         </section>

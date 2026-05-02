@@ -70,7 +70,7 @@ describe("dispatchDrop", () => {
   });
 
   it("panel → other panel emits SWAP_PANELS", () => {
-    let s = initialFigureState();
+    const s = initialFigureState();
     const p1 = panelIdAt(s, 0, 0);
     const p2 = panelIdAt(s, 1, 1);
     const action = dispatchDrop(s, {

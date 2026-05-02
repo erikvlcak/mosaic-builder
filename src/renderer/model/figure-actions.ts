@@ -85,8 +85,13 @@ function setPanelImage(
 }
 
 function omitImageId(p: Panel): Panel {
-  const { imageId: _drop, ...rest } = p;
-  return { ...rest, rowSpan: p.rowSpan, colSpan: p.colSpan };
+  return {
+    id: p.id,
+    row: p.row,
+    col: p.col,
+    rowSpan: p.rowSpan,
+    colSpan: p.colSpan,
+  };
 }
 
 export function figureReducer(s: FigureState, a: FigureAction): FigureState {
@@ -192,8 +197,13 @@ function isHexColor(s: string): boolean {
 
 function assignImage(p: Panel, imageId: string | undefined): Panel {
   if (imageId === undefined) {
-    const { imageId: _drop, ...rest } = p;
-    return rest;
+    return {
+      id: p.id,
+      row: p.row,
+      col: p.col,
+      rowSpan: p.rowSpan,
+      colSpan: p.colSpan,
+    };
   }
   return { ...p, imageId };
 }

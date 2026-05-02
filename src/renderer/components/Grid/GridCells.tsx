@@ -1,5 +1,6 @@
 import { useState } from "react";
 import type { FigureState } from "../../model/figure-state";
+import { cellKey } from "../../model/figure-state";
 import { computePanelRects } from "../../render/coords";
 import {
   DRAG_MIME,
@@ -22,6 +23,12 @@ interface Props {
   cssW: number;
   cssH: number;
   onDrop: (e: DropEvent) => void;
+  /** Per-cell merge selection. Shift-click toggles. */
+  selection: ReadonlySet<string>;
+  onCellShiftClick: (row: number, col: number) => void;
+  /** Tracks "focused panel" for the Unmerge action. */
+  focusedPanelId: string | null;
+  onPanelClick: (panelId: string) => void;
 }
 
 export function GridCells({
@@ -31,6 +38,10 @@ export function GridCells({
   cssW,
   cssH,
   onDrop,
+  selection,
+  onCellShiftClick,
+  focusedPanelId,
+  onPanelClick,
 }: Props): JSX.Element {
   const [hoverPanelId, setHoverPanelId] = useState<string | null>(null);
 
@@ -67,6 +78,54 @@ export function GridCells({
         pointerEvents: "none",
       }}
     >
+      {/* Selection layer — one box per cell, shift-click to toggle.
+          Sits underneath the per-panel drop layer; only handles shift-click. */}
+      {Array.from({ length: state.rows * state.cols }).map((_, idx) => {
+        const row = Math.floor(idx / state.cols);
+        const col = idx % state.cols;
+        const k = cellKey(row, col);
+        const sel = selection.has(k);
+
+        // Compute single-cell rect inline, so this layer doesn't need the panels.
+        const availW = figurePxW - state.gutterPx * (state.cols + 1);
+        const availH = figurePxH - state.gutterPx * (state.rows + 1);
+        const cellW = Math.floor(availW / state.cols);
+        const cellH = Math.floor(availH / state.rows);
+        const x = state.gutterPx + col * (cellW + state.gutterPx);
+        const y = state.gutterPx + row * (cellH + state.gutterPx);
+
+        function onClick(e: React.MouseEvent<HTMLDivElement>): void {
+          if (!e.shiftKey) return;
+          // Shift-click toggles selection; stop propagation so the panel
+          // layer's onClick (which handles "focus this panel") does not fire.
+          e.stopPropagation();
+          onCellShiftClick(row, col);
+        }
+
+        return (
+          <div
+            key={`sel-${k}`}
+            onClick={onClick}
+            data-testid={`cell-sel-${row}-${col}`}
+            style={{
+              position: "absolute",
+              left: x * sx,
+              top: y * sy,
+              width: cellW * sx,
+              height: cellH * sy,
+              pointerEvents: "auto",
+              boxSizing: "border-box",
+              outline: sel
+                ? "2px solid #FFC400"
+                : "1px dashed transparent",
+              outlineOffset: -2,
+              background: sel ? "rgba(255,196,0,0.10)" : "transparent",
+              transition: "outline-color 80ms ease, background 80ms ease",
+            }}
+          />
+        );
+      })}
+
       {state.panels.map((panel, i) => {
         const r = rects[i];
         if (r === undefined) return null;
@@ -109,8 +168,10 @@ export function GridCells({
             onDragOver={onDragOver}
             onDragLeave={onDragLeave}
             onDrop={onDropEvt}
+            onClick={() => onPanelClick(panel.id)}
             data-testid={`panel-${panel.row}-${panel.col}`}
             data-panel-id={panel.id}
+            data-focused={focusedPanelId === panel.id ? "true" : undefined}
             style={{
               position: "absolute",
               left: r.x * sx,
@@ -122,7 +183,9 @@ export function GridCells({
               outline:
                 hoverPanelId === panel.id
                   ? "3px solid #4C9AFF"
-                  : "1px dashed transparent",
+                  : focusedPanelId === panel.id
+                    ? "2px solid #00875A"
+                    : "1px dashed transparent",
               outlineOffset: -2,
               transition: "outline-color 80ms ease",
               boxSizing: "border-box",
