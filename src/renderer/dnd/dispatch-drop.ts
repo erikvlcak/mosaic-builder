@@ -1,37 +1,34 @@
+import type { FigureState } from "../model/figure-state";
 import {
-  cellKey,
-  type CellCoord,
-  type FigureState,
-} from "../model/figure-state";
-import {
-  placeFromTray,
-  replaceFromTray,
-  swapCells,
+  placeIntoPanel,
+  replaceIntoPanel,
+  swapPanels,
   type FigureAction,
 } from "../model/figure-actions";
 import type { DragPayload } from "./drag-payload";
 
 export interface DropEvent {
   from: DragPayload;
-  target: CellCoord;
+  targetPanelId: string;
 }
 
 export function dispatchDrop(
   state: FigureState,
   ev: DropEvent,
 ): FigureAction | null {
-  const tk = cellKey(ev.target.row, ev.target.col);
-  if (ev.from.kind === "cell") {
-    if (ev.from.row === ev.target.row && ev.from.col === ev.target.col) {
-      return null;
-    }
-    return swapCells({ row: ev.from.row, col: ev.from.col }, ev.target);
+  const target = state.panels.find((p) => p.id === ev.targetPanelId);
+  if (target === undefined) return null;
+
+  if (ev.from.kind === "panel") {
+    if (ev.from.panelId === ev.targetPanelId) return null;
+    return swapPanels(ev.from.panelId, ev.targetPanelId);
   }
-  for (const v of state.placements.values()) {
-    if (v === ev.from.imageId) return null;
+
+  // Tray drop: refuse if the image is already placed somewhere.
+  if (state.panels.some((p) => p.imageId === ev.from.imageId)) return null;
+
+  if (target.imageId !== undefined) {
+    return replaceIntoPanel(ev.from.imageId, ev.targetPanelId);
   }
-  if (state.placements.has(tk)) {
-    return replaceFromTray(ev.from.imageId, ev.target);
-  }
-  return placeFromTray(ev.from.imageId, ev.target);
+  return placeIntoPanel(ev.from.imageId, ev.targetPanelId);
 }
