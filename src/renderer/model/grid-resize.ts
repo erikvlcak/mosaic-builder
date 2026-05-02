@@ -66,6 +66,7 @@ export function resizePanels(
         const np: Panel = { id: freshId(), row: r, col: c, rowSpan: 1, colSpan: 1 };
         if (tlInside && r === p.row && c === p.col && p.imageId !== undefined) {
           np.imageId = p.imageId;
+          if (p.transform !== undefined) np.transform = p.transform;
           imageAssigned = true;
         }
         out.push(np);

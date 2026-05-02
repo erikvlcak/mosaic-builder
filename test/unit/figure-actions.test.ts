@@ -12,8 +12,14 @@ import {
   swapPanels,
   replaceIntoPanel,
   removeFromPool,
+  setPanelTransform,
+  setPanelFit,
+  rotatePanel90,
+  flipPanelH,
+  flipPanelV,
+  resetPanelTransform,
 } from "../../src/renderer/model/figure-actions";
-import { findPanelAt } from "../../src/renderer/model/panels";
+import { findPanelAt, DEFAULT_TRANSFORM } from "../../src/renderer/model/panels";
 
 const IMG_A: ImagePoolItem = {
   id: "a",
@@ -267,6 +273,218 @@ describe("figureReducer (panel-id actions)", () => {
       type: "UNMERGE_PANEL",
       panelId: "ghost",
     } as const);
+    expect(s1).toBe(s0);
+  });
+});
+
+describe("figureReducer (transform actions)", () => {
+  beforeEach(() => {
+    __resetPanelIdsForTests();
+  });
+
+  it("PLACE_INTO_PANEL stamps DEFAULT_TRANSFORM on the target", () => {
+    const s0 = withPool(IMG_A);
+    const pid = panelIdAt(s0, 0, 0);
+    const s1 = figureReducer(s0, placeIntoPanel("a", pid));
+    const target = s1.panels.find((p) => p.id === pid);
+    expect(target?.transform).toEqual(DEFAULT_TRANSFORM);
+  });
+
+  it("SWAP_PANELS swaps imageId AND transform together", () => {
+    let s = withPool(IMG_A, IMG_B);
+    const p1 = panelIdAt(s, 0, 0);
+    const p2 = panelIdAt(s, 1, 1);
+    s = figureReducer(s, placeIntoPanel("a", p1));
+    s = figureReducer(s, placeIntoPanel("b", p2));
+    // Mutate p1's transform so we can detect it travels with the image.
+    const customA = { ...DEFAULT_TRANSFORM, fit: "cover" as const, panX: 17 };
+    s = figureReducer(s, setPanelTransform(p1, customA));
+    s = figureReducer(s, swapPanels(p1, p2));
+    expect(s.panels.find((p) => p.id === p1)?.imageId).toBe("b");
+    expect(s.panels.find((p) => p.id === p1)?.transform).toEqual(
+      DEFAULT_TRANSFORM,
+    );
+    expect(s.panels.find((p) => p.id === p2)?.imageId).toBe("a");
+    expect(s.panels.find((p) => p.id === p2)?.transform).toEqual(customA);
+  });
+
+  it("SWAP_PANELS into an empty panel moves transform with image; vacated panel has no transform", () => {
+    let s = withPool(IMG_A);
+    const p1 = panelIdAt(s, 0, 0);
+    const p2 = panelIdAt(s, 0, 1);
+    s = figureReducer(s, placeIntoPanel("a", p1));
+    s = figureReducer(s, swapPanels(p1, p2));
+    const dst = s.panels.find((p) => p.id === p2);
+    const src = s.panels.find((p) => p.id === p1);
+    expect(dst?.imageId).toBe("a");
+    expect(dst?.transform).toEqual(DEFAULT_TRANSFORM);
+    expect(src?.imageId).toBeUndefined();
+    expect(src?.transform).toBeUndefined();
+  });
+
+  it("REPLACE_INTO_PANEL resets transform for the incoming image", () => {
+    let s = withPool(IMG_A, IMG_B);
+    const p1 = panelIdAt(s, 0, 0);
+    s = figureReducer(s, placeIntoPanel("a", p1));
+    const custom = { ...DEFAULT_TRANSFORM, zoom: 3 };
+    s = figureReducer(s, setPanelTransform(p1, custom));
+    s = figureReducer(s, replaceIntoPanel("b", p1));
+    const target = s.panels.find((p) => p.id === p1);
+    expect(target?.imageId).toBe("b");
+    expect(target?.transform).toEqual(DEFAULT_TRANSFORM);
+  });
+
+  it("REMOVE_FROM_POOL strips both imageId and transform", () => {
+    let s = withPool(IMG_A);
+    const p1 = panelIdAt(s, 0, 0);
+    s = figureReducer(s, placeIntoPanel("a", p1));
+    s = figureReducer(s, removeFromPool("a"));
+    const target = s.panels.find((p) => p.id === p1);
+    expect(target?.imageId).toBeUndefined();
+    expect(target?.transform).toBeUndefined();
+  });
+
+  it("SET_PANEL_TRANSFORM stores the transform", () => {
+    let s = withPool(IMG_A);
+    const p1 = panelIdAt(s, 0, 0);
+    s = figureReducer(s, placeIntoPanel("a", p1));
+    const custom = { ...DEFAULT_TRANSFORM, panX: 5, panY: -3, zoom: 2 };
+    s = figureReducer(s, setPanelTransform(p1, custom));
+    expect(s.panels.find((p) => p.id === p1)?.transform).toEqual(custom);
+  });
+
+  it("SET_PANEL_TRANSFORM no-ops on unknown panel id", () => {
+    const s0 = withPool(IMG_A);
+    const s1 = figureReducer(s0, setPanelTransform("ghost", DEFAULT_TRANSFORM));
+    expect(s1).toBe(s0);
+  });
+
+  it("SET_PANEL_TRANSFORM no-ops when panel has no image", () => {
+    const s0 = initialFigureState();
+    const pid = panelIdAt(s0, 0, 0);
+    const s1 = figureReducer(s0, setPanelTransform(pid, DEFAULT_TRANSFORM));
+    expect(s1).toBe(s0);
+  });
+
+  it("SET_PANEL_FIT to same fit is a referential no-op", () => {
+    let s = withPool(IMG_A);
+    const p1 = panelIdAt(s, 0, 0);
+    s = figureReducer(s, placeIntoPanel("a", p1));
+    const before = s;
+    const after = figureReducer(s, setPanelFit(p1, "contain"));
+    expect(after).toBe(before);
+  });
+
+  it("SET_PANEL_FIT changes fit and resets pan/zoom but preserves rotation/flips", () => {
+    let s = withPool(IMG_A);
+    const p1 = panelIdAt(s, 0, 0);
+    s = figureReducer(s, placeIntoPanel("a", p1));
+    s = figureReducer(s, setPanelTransform(p1, {
+      ...DEFAULT_TRANSFORM,
+      panX: 10,
+      panY: 20,
+      zoom: 3,
+      rotation: 90,
+      flipH: true,
+    }));
+    s = figureReducer(s, setPanelFit(p1, "cover"));
+    const t = s.panels.find((p) => p.id === p1)?.transform;
+    expect(t?.fit).toBe("cover");
+    expect(t?.panX).toBe(0);
+    expect(t?.panY).toBe(0);
+    expect(t?.zoom).toBe(1);
+    expect(t?.rotation).toBe(90);
+    expect(t?.flipH).toBe(true);
+  });
+
+  it("SET_PANEL_FIT no-ops on panel without image", () => {
+    const s0 = initialFigureState();
+    const pid = panelIdAt(s0, 0, 0);
+    const s1 = figureReducer(s0, setPanelFit(pid, "cover"));
+    expect(s1).toBe(s0);
+  });
+
+  it("ROTATE_PANEL_90 cycles 0 → 90 → 180 → 270 → 0", () => {
+    let s = withPool(IMG_A);
+    const p1 = panelIdAt(s, 0, 0);
+    s = figureReducer(s, placeIntoPanel("a", p1));
+    const rots: number[] = [];
+    for (let i = 0; i < 4; i++) {
+      s = figureReducer(s, rotatePanel90(p1));
+      rots.push(s.panels.find((p) => p.id === p1)?.transform?.rotation ?? -1);
+    }
+    expect(rots).toEqual([90, 180, 270, 0]);
+  });
+
+  it("ROTATE_PANEL_90 resets pan but keeps zoom and flips", () => {
+    let s = withPool(IMG_A);
+    const p1 = panelIdAt(s, 0, 0);
+    s = figureReducer(s, placeIntoPanel("a", p1));
+    s = figureReducer(s, setPanelTransform(p1, {
+      ...DEFAULT_TRANSFORM,
+      panX: 50,
+      panY: 50,
+      zoom: 2,
+      flipV: true,
+    }));
+    s = figureReducer(s, rotatePanel90(p1));
+    const t = s.panels.find((p) => p.id === p1)?.transform;
+    expect(t?.panX).toBe(0);
+    expect(t?.panY).toBe(0);
+    expect(t?.zoom).toBe(2);
+    expect(t?.flipV).toBe(true);
+    expect(t?.rotation).toBe(90);
+  });
+
+  it("ROTATE_PANEL_90 no-ops on panel without image", () => {
+    const s0 = initialFigureState();
+    const pid = panelIdAt(s0, 0, 0);
+    const s1 = figureReducer(s0, rotatePanel90(pid));
+    expect(s1).toBe(s0);
+  });
+
+  it("FLIP_PANEL_H toggles", () => {
+    let s = withPool(IMG_A);
+    const p1 = panelIdAt(s, 0, 0);
+    s = figureReducer(s, placeIntoPanel("a", p1));
+    s = figureReducer(s, flipPanelH(p1));
+    expect(s.panels.find((p) => p.id === p1)?.transform?.flipH).toBe(true);
+    s = figureReducer(s, flipPanelH(p1));
+    expect(s.panels.find((p) => p.id === p1)?.transform?.flipH).toBe(false);
+  });
+
+  it("FLIP_PANEL_V toggles", () => {
+    let s = withPool(IMG_A);
+    const p1 = panelIdAt(s, 0, 0);
+    s = figureReducer(s, placeIntoPanel("a", p1));
+    s = figureReducer(s, flipPanelV(p1));
+    expect(s.panels.find((p) => p.id === p1)?.transform?.flipV).toBe(true);
+    s = figureReducer(s, flipPanelV(p1));
+    expect(s.panels.find((p) => p.id === p1)?.transform?.flipV).toBe(false);
+  });
+
+  it("RESET_PANEL_TRANSFORM snaps back to DEFAULT_TRANSFORM", () => {
+    let s = withPool(IMG_A);
+    const p1 = panelIdAt(s, 0, 0);
+    s = figureReducer(s, placeIntoPanel("a", p1));
+    s = figureReducer(s, setPanelTransform(p1, {
+      ...DEFAULT_TRANSFORM,
+      fit: "cover",
+      panX: 10,
+      zoom: 2,
+      rotation: 270,
+      flipH: true,
+    }));
+    s = figureReducer(s, resetPanelTransform(p1));
+    expect(s.panels.find((p) => p.id === p1)?.transform).toEqual(
+      DEFAULT_TRANSFORM,
+    );
+  });
+
+  it("RESET_PANEL_TRANSFORM no-ops on panel without image", () => {
+    const s0 = initialFigureState();
+    const pid = panelIdAt(s0, 0, 0);
+    const s1 = figureReducer(s0, resetPanelTransform(pid));
     expect(s1).toBe(s0);
   });
 });

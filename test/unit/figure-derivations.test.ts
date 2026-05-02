@@ -6,7 +6,7 @@ import {
   __resetPanelIdsForTests,
 } from "../../src/renderer/model/figure-state";
 import { addToPool, placeIntoPanel } from "../../src/renderer/model/figure-actions";
-import { findPanelAt } from "../../src/renderer/model/panels";
+import { findPanelAt, DEFAULT_TRANSFORM } from "../../src/renderer/model/panels";
 import { deriveFigure } from "../../src/renderer/model/figure-derivations";
 
 const CANVAS = { widthPx: 800, heightPx: 600, background: "#FFFFFF" } as const;
@@ -54,6 +54,24 @@ describe("deriveFigure", () => {
     expect(at01?.kind).toBe("image");
     if (at01?.kind === "image") {
       expect(at01.imageId).toBe("img-1");
+      // PLACE_INTO_PANEL stamps DEFAULT_TRANSFORM, which the derivation passes through.
+      expect(at01.transform).toEqual(DEFAULT_TRANSFORM);
+    }
+  });
+
+  it("substitutes DEFAULT_TRANSFORM if a state-side panel has imageId without transform (defensive)", () => {
+    const s = initialFigureState();
+    s.panels = [
+      // Hand-built: imageId without transform (shouldn't happen post-reducer)
+      { id: "x", row: 0, col: 0, rowSpan: 1, colSpan: 1, imageId: "img-x" },
+      { id: "y", row: 0, col: 1, rowSpan: 1, colSpan: 1 },
+      { id: "z", row: 1, col: 0, rowSpan: 1, colSpan: 1 },
+      { id: "w", row: 1, col: 1, rowSpan: 1, colSpan: 1 },
+    ];
+    const f = deriveFigure(s, { canvas: CANVAS });
+    const at00 = f.panels.find((p) => p.row === 0 && p.col === 0);
+    if (at00?.kind === "image") {
+      expect(at00.transform).toEqual(DEFAULT_TRANSFORM);
     }
   });
 

@@ -1,5 +1,6 @@
 import type { Figure } from "../model/types";
-import { computePanelRects, type PanelRect } from "./coords";
+import type { PanelTransform } from "../model/panels";
+import { computePanelRects, rotatedImageDims, type PanelRect } from "./coords";
 
 /**
  * Subset of CanvasRenderingContext2D / OffscreenCanvasRenderingContext2D
@@ -27,6 +28,9 @@ export interface DrawCtx {
   beginPath(): void;
   rect(x: number, y: number, w: number, h: number): void;
   clip(): void;
+  translate(x: number, y: number): void;
+  scale(x: number, y: number): void;
+  rotate(rad: number): void;
 }
 
 const PLACEHOLDER_FILL = "#EEEEEE";
@@ -63,7 +67,7 @@ export function drawFigure(
     if (panel.kind === "image") {
       const bitmap = images.get(panel.imageId);
       if (bitmap !== undefined) {
-        drawImageContain(ctx, bitmap, rect);
+        drawPanelImage(ctx, bitmap, rect, panel.transform);
       } else {
         drawPlaceholder(ctx, rect, "(missing)");
       }
@@ -73,23 +77,46 @@ export function drawFigure(
   }
 }
 
-function drawImageContain(
+function drawPanelImage(
   ctx: DrawCtx,
   bitmap: ImageBitmap,
   rect: PanelRect,
+  t: PanelTransform,
 ): void {
   ctx.save();
+  // Clip to the panel rect so pan/zoom never bleed into the gutter.
   ctx.beginPath();
   ctx.rect(rect.x, rect.y, rect.w, rect.h);
   ctx.clip();
 
-  const scale = Math.min(rect.w / bitmap.width, rect.h / bitmap.height);
-  const w = bitmap.width * scale;
-  const h = bitmap.height * scale;
-  const x = rect.x + (rect.w - w) / 2;
-  const y = rect.y + (rect.h - h) / 2;
-  ctx.drawImage(bitmap, x, y, w, h);
+  // Move origin to panel center, then apply user pan (panel-local px,
+  // post-rotation, pre-image-center translate).
+  ctx.translate(rect.x + rect.w / 2, rect.y + rect.h / 2);
+  ctx.translate(t.panX, t.panY);
 
+  if (t.fit === "stretch") {
+    // Anisotropic — ignore zoom. Rotation in Stretch produces a useful
+    // 90°/270° anisotropic effect, so we still apply it below.
+    const { w: rw, h: rh } = rotatedImageDims(bitmap.width, bitmap.height, t.rotation);
+    ctx.scale(rect.w / rw, rect.h / rh);
+  } else {
+    const { w: rw, h: rh } = rotatedImageDims(bitmap.width, bitmap.height, t.rotation);
+    const S =
+      t.fit === "cover"
+        ? Math.max(rect.w / rw, rect.h / rh)
+        : Math.min(rect.w / rw, rect.h / rh);
+    ctx.scale(S * t.zoom, S * t.zoom);
+  }
+
+  if (t.rotation !== 0) {
+    ctx.rotate((t.rotation * Math.PI) / 180);
+  }
+  if (t.flipH || t.flipV) {
+    ctx.scale(t.flipH ? -1 : 1, t.flipV ? -1 : 1);
+  }
+  ctx.translate(-bitmap.width / 2, -bitmap.height / 2);
+
+  ctx.drawImage(bitmap, 0, 0, bitmap.width, bitmap.height);
   ctx.restore();
 }
 
