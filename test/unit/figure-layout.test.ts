@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import type { Figure } from "../../src/renderer/model/types";
 import { computePanelRects } from "../../src/renderer/render/coords";
 import { DEFAULT_TRANSFORM } from "../../src/renderer/model/panels";
+import { DEFAULT_GLOBAL_STYLE } from "../../src/renderer/model/global-style";
 
 describe("Figure type", () => {
   it("accepts a 2x2 hard-coded figure literal", () => {
@@ -14,6 +15,8 @@ describe("Figure type", () => {
         { row: 1, col: 0, kind: "placeholder", label: "C" },
         { row: 1, col: 1, kind: "placeholder", label: "D" },
       ],
+      annotations: [],
+      globalStyle: DEFAULT_GLOBAL_STYLE,
     };
     expect(f.grid.rows).toBe(2);
     expect(f.panels.length).toBe(4);
@@ -31,6 +34,8 @@ describe("computePanelRects", () => {
         { row: 1, col: 0, kind: "placeholder", label: "C" },
         { row: 1, col: 1, kind: "placeholder", label: "D" },
       ],
+      annotations: [],
+      globalStyle: DEFAULT_GLOBAL_STYLE,
     });
 
     // Available width = 800 - (cols+1)*gutter = 800 - 3*12 = 764; per cell = 382
@@ -55,6 +60,8 @@ describe("computePanelRects", () => {
         { row: 0, col: 0, kind: "placeholder", label: "A" },
         { row: 0, col: 1, kind: "placeholder", label: "B" },
       ],
+      annotations: [],
+      globalStyle: DEFAULT_GLOBAL_STYLE,
     });
     // 101 - 3 = 98; 98/2 = 49 each, no remainder
     expect(rects[0]?.w).toBe(49);
@@ -75,6 +82,8 @@ describe("computePanelRects with merged panels", () => {
         { row: 1, col: 0, kind: "placeholder", label: "C" },
         { row: 1, col: 1, kind: "placeholder", label: "D" },
       ],
+      annotations: [],
+      globalStyle: DEFAULT_GLOBAL_STYLE,
     });
     // cellW = (800 - 3*12) / 2 = 382
     // hero w = 2*382 + 1*12 = 776; covers cols 0..1, includes col 1 = last col so remainder absorbed (=0)
@@ -94,6 +103,8 @@ describe("computePanelRects with merged panels", () => {
         { row: 0, col: 1, kind: "placeholder", label: "B" },
         { row: 1, col: 1, kind: "placeholder", label: "D" },
       ],
+      annotations: [],
+      globalStyle: DEFAULT_GLOBAL_STYLE,
     });
     // cellH = (600 - 3*12) / 2 = 282
     // tall h = 2*282 + 12 = 576
@@ -105,6 +116,8 @@ describe("computePanelRects with merged panels", () => {
       canvas: { widthPx: 100, heightPx: 100, background: "#FFFFFF" },
       grid: { rows: 1, cols: 1, gutterPx: 0, gutterColor: "#FFFFFF" },
       panels: [{ row: 0, col: 0, kind: "placeholder", label: "A" }],
+      annotations: [],
+      globalStyle: DEFAULT_GLOBAL_STYLE,
     });
     expect(rects[0]).toEqual({ x: 0, y: 0, w: 100, h: 100 });
   });

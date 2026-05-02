@@ -2,6 +2,7 @@ import { useState } from "react";
 import type { FigureState } from "../../model/figure-state";
 import { cellKey } from "../../model/figure-state";
 import { computePanelRects } from "../../render/coords";
+import { DEFAULT_GLOBAL_STYLE } from "../../model/global-style";
 import {
   DRAG_MIME,
   parseDrag,
@@ -64,6 +65,10 @@ export function GridCells({
       rowSpan: p.rowSpan,
       colSpan: p.colSpan,
     })),
+    // computePanelRects only reads canvas/grid/panels, but the Figure type
+    // requires these. Pass empty annotations + the frozen default style.
+    annotations: [],
+    globalStyle: DEFAULT_GLOBAL_STYLE,
   });
 
   const sx = cssW / figurePxW;

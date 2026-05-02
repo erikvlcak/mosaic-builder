@@ -1,5 +1,6 @@
 import type { Figure } from "./types";
 import { DEFAULT_TRANSFORM } from "./panels";
+import { DEFAULT_GLOBAL_STYLE } from "./global-style";
 
 export const SAMPLE_IMAGE_URL = "/fixtures/sample.png";
 export const SAMPLE_IMAGE_ID = "sample";
@@ -17,4 +18,6 @@ export const HARDCODED_FIGURE: Figure = {
     { row: 1, col: 0, kind: "placeholder", label: "C" },
     { row: 1, col: 1, kind: "placeholder", label: "D" },
   ],
+  annotations: [],
+  globalStyle: DEFAULT_GLOBAL_STYLE,
 };
