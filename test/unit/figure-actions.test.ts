@@ -1,5 +1,13 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import type { ImagePoolItem } from "../../src/renderer/model/pool";
+import type { ImagePoolItem, Calibration } from "../../src/renderer/model/pool";
+import type {
+  Annotation,
+  TextAnnotation,
+  ArrowAnnotation,
+  BoxAnnotation,
+  ScaleBarAnnotation,
+} from "../../src/renderer/model/annotations";
+import { DEFAULT_GLOBAL_STYLE, type GlobalAnnoStyle } from "../../src/renderer/model/global-style";
 import {
   initialFigureState,
   figureReducer,
@@ -18,6 +26,13 @@ import {
   flipPanelH,
   flipPanelV,
   resetPanelTransform,
+  addAnnotation,
+  updateAnnotation,
+  removeAnnotation,
+  setLetterOverride,
+  setGlobalStyle,
+  setLettersEnabled,
+  setImageCalibration,
 } from "../../src/renderer/model/figure-actions";
 import { findPanelAt, DEFAULT_TRANSFORM } from "../../src/renderer/model/panels";
 
@@ -486,5 +501,425 @@ describe("figureReducer (transform actions)", () => {
     const pid = panelIdAt(s0, 0, 0);
     const s1 = figureReducer(s0, resetPanelTransform(pid));
     expect(s1).toBe(s0);
+  });
+});
+
+// ---- M6: annotations + global style + calibration + letter overrides ----
+
+const CALIBRATION: Calibration = {
+  unit: "um",
+  pixelsPerUnit: 6.45,
+  source: "tiff-meta",
+};
+
+const IMG_CAL: ImagePoolItem = {
+  id: "cal",
+  filename: "cal.tif",
+  filePath: "/x/cal.tif",
+  mime: "image/tiff",
+  width: 512,
+  height: 512,
+  bitDepth: 8,
+  calibration: CALIBRATION,
+};
+
+const IMG_NOCAL: ImagePoolItem = {
+  id: "nocal",
+  filename: "nocal.png",
+  filePath: "/x/nocal.png",
+  mime: "image/png",
+  width: 100,
+  height: 100,
+  bitDepth: 8,
+};
+
+function textAnno(id: string, panelId?: string): TextAnnotation {
+  return {
+    id,
+    kind: "text",
+    z: 0,
+    panelId,
+    x: 10,
+    y: 10,
+    text: "hello",
+    font: "Arial",
+    sizePt: 12,
+    bold: false,
+    italic: false,
+    color: "#000000",
+  };
+}
+function arrowAnno(id: string, panelId?: string): ArrowAnnotation {
+  return {
+    id,
+    kind: "arrow",
+    z: 0,
+    panelId,
+    x1: 0,
+    y1: 0,
+    x2: 50,
+    y2: 50,
+    color: "#FF0000",
+    thicknessPx: 2,
+    head: "filled",
+  };
+}
+function boxAnno(id: string, panelId?: string): BoxAnnotation {
+  return {
+    id,
+    kind: "box",
+    z: 0,
+    panelId,
+    x: 0,
+    y: 0,
+    w: 30,
+    h: 30,
+    stroke: "#00FF00",
+    strokeWidthPx: 1,
+  };
+}
+function scalebarAnno(id: string, panelId: string): ScaleBarAnnotation {
+  return {
+    id,
+    kind: "scalebar",
+    z: 0,
+    panelId,
+    lengthValue: 50,
+    lengthUnit: "um",
+  };
+}
+
+describe("figureReducer (M6 annotations)", () => {
+  beforeEach(() => {
+    __resetPanelIdsForTests();
+  });
+
+  it("ADD_ANNOTATION adds a text annotation anchored to a panel", () => {
+    const s0 = initialFigureState();
+    const pid = panelIdAt(s0, 0, 0);
+    const ann = textAnno("t1", pid);
+    const s1 = figureReducer(s0, addAnnotation(ann));
+    expect(s1.annotations).toHaveLength(1);
+    expect(s1.annotations[0]).toEqual(ann);
+  });
+
+  it("ADD_ANNOTATION adds a figure-global text annotation (no panelId)", () => {
+    const s0 = initialFigureState();
+    const ann = textAnno("t-global");
+    const s1 = figureReducer(s0, addAnnotation(ann));
+    expect(s1.annotations).toEqual([ann]);
+  });
+
+  it("ADD_ANNOTATION adds an arrow annotation", () => {
+    const s0 = initialFigureState();
+    const pid = panelIdAt(s0, 0, 0);
+    const ann = arrowAnno("a1", pid);
+    const s1 = figureReducer(s0, addAnnotation(ann));
+    expect(s1.annotations).toEqual([ann]);
+  });
+
+  it("ADD_ANNOTATION adds a box annotation", () => {
+    const s0 = initialFigureState();
+    const ann = boxAnno("b1");
+    const s1 = figureReducer(s0, addAnnotation(ann));
+    expect(s1.annotations).toEqual([ann]);
+  });
+
+  it("ADD_ANNOTATION adds a scale bar when panel has calibrated image", () => {
+    let s = withPool(IMG_CAL);
+    const pid = panelIdAt(s, 0, 0);
+    s = figureReducer(s, placeIntoPanel("cal", pid));
+    const ann = scalebarAnno("sb1", pid);
+    s = figureReducer(s, addAnnotation(ann));
+    expect(s.annotations).toEqual([ann]);
+  });
+
+  it("ADD_ANNOTATION no-op for scale bar when image has no calibration", () => {
+    let s = withPool(IMG_NOCAL);
+    const pid = panelIdAt(s, 0, 0);
+    s = figureReducer(s, placeIntoPanel("nocal", pid));
+    const before = s;
+    s = figureReducer(s, addAnnotation(scalebarAnno("sb-bad", pid)));
+    expect(s).toBe(before);
+  });
+
+  it("ADD_ANNOTATION no-op for scale bar when panel has no image", () => {
+    const s0 = initialFigureState();
+    const pid = panelIdAt(s0, 0, 0);
+    const s1 = figureReducer(s0, addAnnotation(scalebarAnno("sb-bad2", pid)));
+    expect(s1).toBe(s0);
+  });
+
+  it("ADD_ANNOTATION no-op when panelId references a non-existent panel", () => {
+    const s0 = initialFigureState();
+    const s1 = figureReducer(s0, addAnnotation(textAnno("t-x", "ghost")));
+    expect(s1).toBe(s0);
+  });
+
+  it("ADD_ANNOTATION no-op on duplicate id", () => {
+    const s0 = initialFigureState();
+    const s1 = figureReducer(s0, addAnnotation(textAnno("dup")));
+    const s2 = figureReducer(s1, addAnnotation(textAnno("dup")));
+    expect(s2).toBe(s1);
+  });
+
+  it("UPDATE_ANNOTATION shallow-merges patch", () => {
+    let s = initialFigureState();
+    s = figureReducer(s, addAnnotation(textAnno("t1")));
+    s = figureReducer(
+      s,
+      updateAnnotation("t1", { x: 99, color: "#112233" } as Partial<Annotation>),
+    );
+    const t = s.annotations[0] as TextAnnotation;
+    expect(t.x).toBe(99);
+    expect(t.color).toBe("#112233");
+    // unchanged fields preserved
+    expect(t.text).toBe("hello");
+    expect(t.id).toBe("t1");
+    expect(t.kind).toBe("text");
+  });
+
+  it("UPDATE_ANNOTATION rejects kind change", () => {
+    let s = initialFigureState();
+    s = figureReducer(s, addAnnotation(textAnno("t1")));
+    s = figureReducer(
+      s,
+      updateAnnotation("t1", { kind: "arrow" } as Partial<Annotation>),
+    );
+    expect(s.annotations[0]?.kind).toBe("text");
+  });
+
+  it("UPDATE_ANNOTATION rejects id change in patch", () => {
+    let s = initialFigureState();
+    s = figureReducer(s, addAnnotation(textAnno("t1")));
+    s = figureReducer(
+      s,
+      updateAnnotation("t1", { id: "other" } as Partial<Annotation>),
+    );
+    expect(s.annotations[0]?.id).toBe("t1");
+  });
+
+  it("UPDATE_ANNOTATION no-op on unknown id", () => {
+    const s0 = initialFigureState();
+    const s1 = figureReducer(s0, addAnnotation(textAnno("t1")));
+    const s2 = figureReducer(
+      s1,
+      updateAnnotation("ghost", { x: 1 } as Partial<Annotation>),
+    );
+    expect(s2).toBe(s1);
+  });
+
+  it("UPDATE_ANNOTATION rejects patch referencing a non-existent panel", () => {
+    let s = initialFigureState();
+    s = figureReducer(s, addAnnotation(textAnno("t1")));
+    const before = s;
+    s = figureReducer(
+      s,
+      updateAnnotation("t1", { panelId: "ghost" } as Partial<Annotation>),
+    );
+    expect(s).toBe(before);
+  });
+
+  it("REMOVE_ANNOTATION filters out by id", () => {
+    let s = initialFigureState();
+    s = figureReducer(s, addAnnotation(textAnno("t1")));
+    s = figureReducer(s, addAnnotation(textAnno("t2")));
+    s = figureReducer(s, removeAnnotation("t1"));
+    expect(s.annotations.map((a) => a.id)).toEqual(["t2"]);
+  });
+
+  it("REMOVE_ANNOTATION no-op on unknown id", () => {
+    const s0 = initialFigureState();
+    const s1 = figureReducer(s0, addAnnotation(textAnno("t1")));
+    const s2 = figureReducer(s1, removeAnnotation("ghost"));
+    expect(s2).toBe(s1);
+  });
+
+  it("SET_LETTER_OVERRIDE writes a value for a panel id", () => {
+    const s0 = initialFigureState();
+    const pid = panelIdAt(s0, 0, 0);
+    const s1 = figureReducer(s0, setLetterOverride(pid, "A1"));
+    expect(s1.letterOverrides[pid]).toBe("A1");
+  });
+
+  it("SET_LETTER_OVERRIDE deletes when override is null", () => {
+    const s0 = initialFigureState();
+    const pid = panelIdAt(s0, 0, 0);
+    let s = figureReducer(s0, setLetterOverride(pid, "A1"));
+    expect(s.letterOverrides[pid]).toBe("A1");
+    s = figureReducer(s, setLetterOverride(pid, null));
+    expect(s.letterOverrides[pid]).toBeUndefined();
+    expect(Object.keys(s.letterOverrides)).not.toContain(pid);
+  });
+
+  it("SET_LETTER_OVERRIDE returns a fresh object (not the same reference)", () => {
+    const s0 = initialFigureState();
+    const pid = panelIdAt(s0, 0, 0);
+    const s1 = figureReducer(s0, setLetterOverride(pid, "X"));
+    expect(s1.letterOverrides).not.toBe(s0.letterOverrides);
+  });
+
+  it("SET_GLOBAL_STYLE replaces the global style when colors validate", () => {
+    const s0 = initialFigureState();
+    const next: GlobalAnnoStyle = {
+      letters: {
+        ...DEFAULT_GLOBAL_STYLE.letters,
+        color: "#112233",
+        bgColor: "#445566",
+      },
+      scalebar: {
+        ...DEFAULT_GLOBAL_STYLE.scalebar,
+        color: "#778899",
+        barColor: "#AABBCC",
+      },
+    };
+    const s1 = figureReducer(s0, setGlobalStyle(next));
+    expect(s1.globalStyle.letters.color).toBe("#112233");
+    expect(s1.globalStyle.letters.bgColor).toBe("#445566");
+    expect(s1.globalStyle.scalebar.color).toBe("#778899");
+    expect(s1.globalStyle.scalebar.barColor).toBe("#AABBCC");
+  });
+
+  it("SET_GLOBAL_STYLE rejects invalid color", () => {
+    const s0 = initialFigureState();
+    const bad: GlobalAnnoStyle = {
+      ...DEFAULT_GLOBAL_STYLE,
+      letters: { ...DEFAULT_GLOBAL_STYLE.letters, color: "purple" },
+    };
+    const s1 = figureReducer(s0, setGlobalStyle(bad));
+    expect(s1).toBe(s0);
+  });
+
+  it("SET_LETTERS_ENABLED toggles only the letters.enabled boolean", () => {
+    const s0 = initialFigureState();
+    expect(s0.globalStyle.letters.enabled).toBe(true);
+    const s1 = figureReducer(s0, setLettersEnabled(false));
+    expect(s1.globalStyle.letters.enabled).toBe(false);
+    // Other fields preserved
+    expect(s1.globalStyle.letters.font).toBe(s0.globalStyle.letters.font);
+    expect(s1.globalStyle.scalebar).toEqual(s0.globalStyle.scalebar);
+  });
+
+  it("SET_LETTERS_ENABLED no-op when value already matches", () => {
+    const s0 = initialFigureState();
+    const s1 = figureReducer(s0, setLettersEnabled(true));
+    expect(s1).toBe(s0);
+  });
+
+  it("SET_IMAGE_CALIBRATION writes calibration onto a pool item", () => {
+    let s = withPool(IMG_NOCAL);
+    s = figureReducer(s, setImageCalibration("nocal", CALIBRATION));
+    const item = s.pool.find((p) => p.id === "nocal");
+    expect(item?.calibration).toEqual(CALIBRATION);
+  });
+
+  it("SET_IMAGE_CALIBRATION clears calibration when given null", () => {
+    let s = withPool(IMG_CAL);
+    s = figureReducer(s, setImageCalibration("cal", null));
+    const item = s.pool.find((p) => p.id === "cal");
+    expect(item?.calibration).toBeUndefined();
+  });
+
+  it("SET_IMAGE_CALIBRATION rejects pixelsPerUnit = 0", () => {
+    const s0 = withPool(IMG_NOCAL);
+    const s1 = figureReducer(
+      s0,
+      setImageCalibration("nocal", {
+        unit: "um",
+        pixelsPerUnit: 0,
+        source: "manual",
+      }),
+    );
+    expect(s1).toBe(s0);
+  });
+
+  it("SET_IMAGE_CALIBRATION rejects negative or non-finite pixelsPerUnit", () => {
+    const s0 = withPool(IMG_NOCAL);
+    const s1 = figureReducer(
+      s0,
+      setImageCalibration("nocal", {
+        unit: "um",
+        pixelsPerUnit: -1,
+        source: "manual",
+      }),
+    );
+    expect(s1).toBe(s0);
+    const s2 = figureReducer(
+      s0,
+      setImageCalibration("nocal", {
+        unit: "um",
+        pixelsPerUnit: Number.POSITIVE_INFINITY,
+        source: "manual",
+      }),
+    );
+    expect(s2).toBe(s0);
+  });
+
+  it("SET_IMAGE_CALIBRATION no-op when imageId not in pool", () => {
+    const s0 = withPool(IMG_NOCAL);
+    const s1 = figureReducer(s0, setImageCalibration("ghost", CALIBRATION));
+    expect(s1).toBe(s0);
+  });
+
+  it("RESIZE_GRID drops letterOverrides for removed panels", () => {
+    const s0 = initialFigureState();
+    const pid_outside = panelIdAt(s0, 1, 1);
+    const pid_kept = panelIdAt(s0, 0, 0);
+    let s = figureReducer(s0, setLetterOverride(pid_outside, "Z"));
+    s = figureReducer(s, setLetterOverride(pid_kept, "A"));
+    s = figureReducer(s, { type: "RESIZE_GRID", rows: 1, cols: 1 } as const);
+    expect(s.letterOverrides[pid_outside]).toBeUndefined();
+    expect(s.letterOverrides[pid_kept]).toBe("A");
+  });
+
+  it("MERGE_CELLS keeps the top-left override on the new merged panel and drops the others", () => {
+    const s0 = initialFigureState();
+    const pid_tl = panelIdAt(s0, 0, 0);
+    const pid_tr = panelIdAt(s0, 0, 1);
+    let s = figureReducer(s0, setLetterOverride(pid_tl, "TL"));
+    s = figureReducer(s, setLetterOverride(pid_tr, "TR"));
+    s = figureReducer(s, {
+      type: "MERGE_CELLS",
+      cells: [
+        { row: 0, col: 0 },
+        { row: 0, col: 1 },
+      ],
+    } as const);
+    const merged = s.panels.find((p) => p.colSpan === 2);
+    if (merged === undefined) throw new Error("expected merged");
+    expect(s.letterOverrides[merged.id]).toBe("TL");
+    // Old per-cell ids should not appear as override keys anymore.
+    expect(s.letterOverrides[pid_tl]).toBeUndefined();
+    expect(s.letterOverrides[pid_tr]).toBeUndefined();
+  });
+
+  it("UNMERGE_PANEL clears the merged panel's override", () => {
+    let s = initialFigureState();
+    s = figureReducer(s, {
+      type: "MERGE_CELLS",
+      cells: [
+        { row: 0, col: 0 },
+        { row: 0, col: 1 },
+      ],
+    } as const);
+    const merged = s.panels.find((p) => p.colSpan === 2);
+    if (merged === undefined) throw new Error("expected merged");
+    s = figureReducer(s, setLetterOverride(merged.id, "MM"));
+    expect(s.letterOverrides[merged.id]).toBe("MM");
+    s = figureReducer(s, { type: "UNMERGE_PANEL", panelId: merged.id } as const);
+    expect(s.letterOverrides[merged.id]).toBeUndefined();
+  });
+
+  it("REMOVE_FROM_POOL drops scale-bar annotations on affected panel; keeps text/arrow/box", () => {
+    let s = withPool(IMG_CAL);
+    const pid = panelIdAt(s, 0, 0);
+    s = figureReducer(s, placeIntoPanel("cal", pid));
+    s = figureReducer(s, addAnnotation(scalebarAnno("sb1", pid)));
+    s = figureReducer(s, addAnnotation(textAnno("t1", pid)));
+    s = figureReducer(s, addAnnotation(arrowAnno("a1", pid)));
+    s = figureReducer(s, addAnnotation(boxAnno("b1", pid)));
+    s = figureReducer(s, removeFromPool("cal"));
+    const ids = s.annotations.map((a) => a.id).sort();
+    expect(ids).toEqual(["a1", "b1", "t1"]);
   });
 });
