@@ -31,6 +31,13 @@ export interface FigureGrid {
 
 export type HardCodedPanel =
   | {
+      /**
+       * Identity of the source `Panel` this was derived from. Optional
+       * because some hand-built test fixtures omit it; `figure-derivations`
+       * always populates it. Annotation matching (letters, scale bars,
+       * panel-anchored text/box) keys off this id.
+       */
+      panelId?: string;
       row: number;
       col: number;
       kind: "image";
@@ -40,6 +47,7 @@ export type HardCodedPanel =
       transform: PanelTransform;
     }
   | {
+      panelId?: string;
       row: number;
       col: number;
       kind: "placeholder";
