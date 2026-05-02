@@ -148,6 +148,28 @@ export function snapTransform(
 }
 
 /**
+ * Effective panel scale = zoom × base-scale (isotropic). For Contain and
+ * Cover, this is the same scalar baseScale uses internally. For Stretch
+ * (which has anisotropic sx/sy), we collapse to min(sx, sy) × zoom — the
+ * scale bar on a stretched image is intentionally best-effort.
+ */
+export function effectivePanelScale(
+  t: PanelTransform,
+  panelW: number,
+  panelH: number,
+  rotImgW: number,
+  rotImgH: number,
+): number {
+  if (t.fit === "stretch") {
+    return Math.min(panelW / rotImgW, panelH / rotImgH) * t.zoom;
+  }
+  const bs = baseScale(panelW, panelH, rotImgW, rotImgH, t.fit);
+  // Contain/Cover return scalar; the type union is widened for Stretch.
+  const scalar = typeof bs === "number" ? bs : Math.min(bs.sx, bs.sy);
+  return scalar * t.zoom;
+}
+
+/**
  * Compute the pan that keeps `cursorLocal` (in panel-local px, origin at
  * panel center) under the cursor after zooming from `t.zoom` to `newZoom`.
  *
@@ -170,4 +192,78 @@ export function panForCursorZoom(
     panX: cursorLocalX - (cursorLocalX - t.panX) * ratio,
     panY: cursorLocalY - (cursorLocalY - t.panY) * ratio,
   };
+}
+
+/**
+ * Inverse of the panel transform: given a click in figure-canvas px,
+ * return where on the SOURCE image (in source-px) that click landed.
+ *
+ * Returns null when the click resolves to coordinates outside the source
+ * image (e.g. a Contain-mode letterbox click, or anywhere outside the
+ * image's source bounds).
+ *
+ * Used by CalibrationModal (to convert two clicks on the panel view into
+ * a source-px distance) and by AnnotationInteractionLayer for hit-tests
+ * that need source-aware geometry.
+ *
+ * Derivation: the forward chain in `drawPanelImage` is
+ *     ctx.translate(rect.cx, rect.cy);
+ *     ctx.translate(t.panX, t.panY);
+ *     ctx.scale(S, S);                    // S = effectivePanelScale
+ *     ctx.rotate(θ);                      // θ = rotation in radians
+ *     ctx.scale(flipH ? -1 : 1, flipV ? -1 : 1);
+ *     ctx.translate(-imgW/2, -imgH/2);
+ *     ctx.drawImage(bitmap, 0, 0, imgW, imgH);
+ * So source (sx, sy) → figure (fx, fy) is built bottom-up. To invert,
+ * undo steps top-to-bottom.
+ */
+export function figureToSource(
+  panelRect: PanelRect,
+  t: PanelTransform,
+  imgW: number,
+  imgH: number,
+  fx: number,
+  fy: number,
+): { sx: number; sy: number } | null {
+  // Step 1: translate origin to panel center, then undo user pan.
+  let lx = fx - (panelRect.x + panelRect.w / 2) - t.panX;
+  let ly = fy - (panelRect.y + panelRect.h / 2) - t.panY;
+
+  // Step 2: divide by effective panel scale.
+  const rotImg = rotatedImageDims(imgW, imgH, t.rotation);
+  const S = effectivePanelScale(t, panelRect.w, panelRect.h, rotImg.w, rotImg.h);
+  if (S === 0) return null;
+  lx /= S;
+  ly /= S;
+
+  // Step 3: undo rotation by -θ. Note: in the forward chain rotation is
+  // applied AFTER scale and BEFORE flip (reading top-to-bottom: scale,
+  // rotate, flip). So when inverting top-to-bottom we undo flip first,
+  // then rotation. But because each operation is its own inverse and we
+  // applied them as composed operators, we must reverse in the OPPOSITE
+  // ORDER: undo rotation, then undo flip. Wait — composed operators on a
+  // point P go right-to-left: forward is T_pan * T_center * S * R * F * T_-half * P.
+  // The inverse is T_+half * F⁻¹ * R⁻¹ * S⁻¹ * T_-center * T_-pan applied
+  // to a figure-px point. Since T_-center and T_-pan and S⁻¹ are already
+  // done above, the remaining steps in order are: rotate by -θ, then undo
+  // flip, then translate by (+imgW/2, +imgH/2).
+  const theta = (t.rotation * Math.PI) / 180;
+  const cos = Math.cos(-theta);
+  const sin = Math.sin(-theta);
+  const rx = lx * cos - ly * sin;
+  const ry = lx * sin + ly * cos;
+  lx = rx;
+  ly = ry;
+
+  // Step 4: undo flip.
+  if (t.flipH) lx = -lx;
+  if (t.flipV) ly = -ly;
+
+  // Step 5: translate to image-top-left origin.
+  const sx = lx + imgW / 2;
+  const sy = ly + imgH / 2;
+
+  // Bounds-check: outside the source image (e.g. letterbox in Contain).
+  if (sx < 0 || sx > imgW || sy < 0 || sy > imgH) return null;
+  return { sx, sy };
 }

@@ -1,23 +1,21 @@
 import type { Figure } from "../model/types";
+import type { ImagePoolItem } from "../model/pool";
+import type { ExportResult } from "../../preload/api";
 import { renderFigureToPngBlob } from "../render/export-renderer";
 
-export type ExportPngResult =
-  | { ok: true; filePath: string; bytesWritten: number }
-  | {
-      ok: false;
-      reason: "canceled" | "render-failed" | "ipc-failed" | "write-failed";
-      message?: string;
-    };
+/** Back-compat alias kept so older imports keep working. */
+export type ExportPngResult = ExportResult;
 
 const DEFAULT_NAME = "mosaic-figure.png";
 
 export async function exportFigureAsPng(
   figure: Figure,
   images: Map<string, ImageBitmap>,
-): Promise<ExportPngResult> {
+  pool?: Map<string, ImagePoolItem>,
+): Promise<ExportResult> {
   let blob: Blob;
   try {
-    blob = await renderFigureToPngBlob(figure, images);
+    blob = await renderFigureToPngBlob(figure, images, pool);
   } catch (err) {
     return { ok: false, reason: "render-failed", message: String(err) };
   }

@@ -1,6 +1,8 @@
-import type { Figure } from "../model/types";
+import type { Figure, HardCodedPanel } from "../model/types";
 import type { PanelTransform } from "../model/panels";
+import type { ImagePoolItem } from "../model/pool";
 import { computePanelRects, rotatedImageDims, type PanelRect } from "./coords";
+import { drawAnnotations } from "./draw-annotations";
 
 /**
  * Subset of CanvasRenderingContext2D / OffscreenCanvasRenderingContext2D
@@ -13,9 +15,13 @@ export interface DrawCtx {
   font: string;
   textAlign: CanvasTextAlign;
   textBaseline: CanvasTextBaseline;
+  lineWidth: number;
+  lineCap: CanvasLineCap;
+  lineJoin: CanvasLineJoin;
   fillRect(x: number, y: number, w: number, h: number): void;
   strokeRect(x: number, y: number, w: number, h: number): void;
   fillText(text: string, x: number, y: number): void;
+  measureText(text: string): { width: number };
   drawImage(
     img: CanvasImageSource,
     dx: number,
@@ -26,21 +32,32 @@ export interface DrawCtx {
   save(): void;
   restore(): void;
   beginPath(): void;
+  closePath(): void;
   rect(x: number, y: number, w: number, h: number): void;
   clip(): void;
   translate(x: number, y: number): void;
   scale(x: number, y: number): void;
   rotate(rad: number): void;
+  moveTo(x: number, y: number): void;
+  lineTo(x: number, y: number): void;
+  stroke(): void;
+  fill(): void;
 }
 
 const PLACEHOLDER_FILL = "#EEEEEE";
 const PLACEHOLDER_STROKE = "#CCCCCC";
 const PLACEHOLDER_LABEL = "#666666";
 
+/**
+ * @param pool Optional pool-item map for annotation calibration lookup
+ *   (Task 6 scale bars). Default empty so Task 5 (letters/text/box) callers
+ *   don't need to plumb it through.
+ */
 export function drawFigure(
   ctx: DrawCtx,
   figure: Figure,
   images: Map<string, ImageBitmap>,
+  pool: Map<string, ImagePoolItem> = new Map(),
 ): void {
   // 1. Canvas background. Anything not covered by gutter or panels shows
   //    this through (currently nothing — the gutter fills the entire canvas
@@ -75,6 +92,27 @@ export function drawFigure(
       drawPlaceholder(ctx, rect, panel.label);
     }
   }
+
+  // 4. Annotation pass. Build the panel-id → rect AND panel-id → panel
+  //    indexes from the panels we just laid out so annotations can anchor
+  //    to their panel without re-walking the grid math or re-scanning
+  //    figure.panels per scale bar.
+  const panelRectsById = new Map<string, PanelRect>();
+  const panelsById = new Map<string, HardCodedPanel>();
+  for (let i = 0; i < figure.panels.length; i++) {
+    const p = figure.panels[i];
+    const r = rects[i];
+    if (p?.panelId !== undefined && r !== undefined) {
+      panelRectsById.set(p.panelId, r);
+      panelsById.set(p.panelId, p);
+    }
+  }
+  drawAnnotations(ctx, figure, {
+    panelRectsById,
+    panelsById,
+    imagesById: pool,
+    bitmaps: images,
+  });
 }
 
 function drawPanelImage(

@@ -5,6 +5,14 @@
  */
 
 import type { PanelTransform } from "./panels";
+import type {
+  TextAnnotation,
+  ArrowAnnotation,
+  BoxAnnotation,
+  ScaleBarAnnotation,
+  LetterAnnotation,
+} from "./annotations";
+import type { GlobalAnnoStyle } from "./global-style";
 
 export type Hex = string; // "#RRGGBB" or "#RRGGBBAA"
 
@@ -23,6 +31,13 @@ export interface FigureGrid {
 
 export type HardCodedPanel =
   | {
+      /**
+       * Identity of the source `Panel` this was derived from. Optional
+       * because some hand-built test fixtures omit it; `figure-derivations`
+       * always populates it. Annotation matching (letters, scale bars,
+       * panel-anchored text/box) keys off this id.
+       */
+      panelId?: string;
       row: number;
       col: number;
       kind: "image";
@@ -32,6 +47,7 @@ export type HardCodedPanel =
       transform: PanelTransform;
     }
   | {
+      panelId?: string;
       row: number;
       col: number;
       kind: "placeholder";
@@ -40,10 +56,27 @@ export type HardCodedPanel =
       colSpan?: number;
     };
 
+/**
+ * Resolved annotation shape consumed by `render/`. Scale bars carry an
+ * already-resolved `resolvedPanelId` to avoid re-querying the panel list
+ * during draw.
+ */
+export type ResolvedAnnotation =
+  | (TextAnnotation & { kind: "text" })
+  | (ArrowAnnotation & { kind: "arrow" })
+  | (BoxAnnotation & { kind: "box" })
+  | (ScaleBarAnnotation & { kind: "scalebar"; resolvedPanelId: string })
+  | (LetterAnnotation & { kind: "letter" });
+
 export interface Figure {
   canvas: FigureCanvas;
   grid: FigureGrid;
   panels: HardCodedPanel[];
+  /** Resolved + ordered for draw. */
+  annotations: ResolvedAnnotation[];
+  /** Needed by drawAnnotations for corner + style resolution. */
+  globalStyle: GlobalAnnoStyle;
 }
 
 export type { PanelTransform, FitMode, Rotation } from "./panels";
+export type { LetterAnnotation } from "./annotations";

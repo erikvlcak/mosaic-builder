@@ -1,21 +1,53 @@
-export type ImageMime = "image/png" | "image/jpeg";
+import type { Calibration, ImageMime } from "../model/pool";
+import { decodeTiffViaWorker } from "./tiff-worker-host";
 
-const SUPPORTED: ReadonlySet<ImageMime> = new Set(["image/png", "image/jpeg"]);
+export type { ImageMime };
+
+export interface DecodedImage {
+  bitmap: ImageBitmap;
+  bitDepth: 8 | 16;
+  calibration?: Calibration;
+}
 
 /**
- * Decodes raw image bytes into an ImageBitmap. M3 supports PNG + JPEG;
- * TIFF arrives in M6 with the UTIF web worker.
+ * Decodes raw image bytes into a bitmap plus metadata. PNG and JPEG go
+ * through the browser's `createImageBitmap` (always 8-bit, no calibration).
+ * TIFF is routed to the UTIF web worker, which extracts bit-depth and
+ * (when present) a `Calibration` from the IFD before producing RGBA bytes.
  */
 export async function decodeImageBytes(
   bytes: Uint8Array,
   mime: ImageMime,
-): Promise<ImageBitmap> {
+): Promise<DecodedImage> {
   if (bytes.byteLength === 0) {
     throw new Error("decodeImageBytes: empty bytes");
   }
-  if (!SUPPORTED.has(mime)) {
-    throw new Error(`decodeImageBytes: unsupported mime "${mime}"`);
+  if (mime === "image/tiff") {
+    const ab = bytes.buffer.slice(
+      bytes.byteOffset,
+      bytes.byteOffset + bytes.byteLength,
+    );
+    const r = await decodeTiffViaWorker(ab);
+    const bitmap = await rgbaToImageBitmap(r.rgba, r.width, r.height);
+    return {
+      bitmap,
+      bitDepth: r.bitDepth,
+      ...(r.calibration !== undefined ? { calibration: r.calibration } : {}),
+    };
   }
-  const blob = new Blob([bytes], { type: mime });
-  return createImageBitmap(blob);
+  if (mime !== "image/png" && mime !== "image/jpeg") {
+    throw new Error(`decodeImageBytes: unsupported mime "${mime as string}"`);
+  }
+  const blob = new Blob([bytes as BlobPart], { type: mime });
+  const bitmap = await createImageBitmap(blob);
+  return { bitmap, bitDepth: 8 };
+}
+
+async function rgbaToImageBitmap(
+  rgba: Uint8ClampedArray,
+  w: number,
+  h: number,
+): Promise<ImageBitmap> {
+  const data = new ImageData(rgba, w, h);
+  return createImageBitmap(data);
 }

@@ -8,6 +8,8 @@ interface Props {
   onFlipH: () => void;
   onFlipV: () => void;
   onReset: () => void;
+  /** Optional: open the calibration modal for the focused panel's image. */
+  onCalibrate?: () => void;
 }
 
 const groupStyle: React.CSSProperties = {
@@ -35,6 +37,7 @@ export function PanelControls({
   onFlipH,
   onFlipV,
   onReset,
+  onCalibrate,
 }: Props): JSX.Element {
   const disabled = transform === null;
   const fit: FitMode | null = transform?.fit ?? null;
@@ -95,6 +98,16 @@ export function PanelControls({
         style={{ padding: "4px 8px" }}
       >
         Reset
+      </button>
+      <button
+        type="button"
+        onClick={onCalibrate}
+        disabled={disabled || onCalibrate === undefined}
+        title="Calibrate scale (µm/px)"
+        data-testid="panel-calibrate"
+        style={{ padding: "4px 8px" }}
+      >
+        Calibrate…
       </button>
     </div>
   );

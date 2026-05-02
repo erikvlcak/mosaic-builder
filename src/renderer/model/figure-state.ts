@@ -1,5 +1,7 @@
 import type { ImagePoolItem } from "./pool";
 import type { Panel } from "./panels";
+import type { Annotation } from "./annotations";
+import { type GlobalAnnoStyle, DEFAULT_GLOBAL_STYLE } from "./global-style";
 
 export interface CellCoord {
   row: number;
@@ -39,6 +41,14 @@ export interface FigureState {
   gutterPx: number;
   /** Hex color, "#RRGGBB" or "#RRGGBBAA". */
   gutterColor: string;
+
+  // ---- M6 ----
+  /** Append-only insertion order; rendered in z-then-array order. */
+  annotations: Annotation[];
+  /** Figure-wide letter + scale-bar style. */
+  globalStyle: GlobalAnnoStyle;
+  /** panelId → letter override (e.g. "A1"). Empty when using derived label. */
+  letterOverrides: Record<string, string>;
 }
 
 let __panelIdCounter = 0;
@@ -73,6 +83,9 @@ export function initialFigureState(): FigureState {
     cols: 2,
     gutterPx: 12,
     gutterColor: "#FFFFFF",
+    annotations: [],
+    globalStyle: DEFAULT_GLOBAL_STYLE,
+    letterOverrides: {},
   };
 }
 

@@ -31,12 +31,47 @@ describe("deriveFigure", () => {
       "placeholder",
       "placeholder",
     ]);
+    // M6: cellLabel is no longer the placeholder label — letters go
+    // through the annotation pass. Placeholders display "(empty)".
     expect(
       f.panels.map((p) => (p.kind === "placeholder" ? p.label : "")),
-    ).toEqual(["A", "B", "C", "D"]);
+    ).toEqual(["(empty)", "(empty)", "(empty)", "(empty)"]);
+    // Every derived panel carries its source panel id.
+    expect(f.panels.every((p) => typeof p.panelId === "string")).toBe(true);
     // 1x1 panels: spans omitted is fine.
     expect(f.panels.every((p) => (p.rowSpan ?? 1) === 1)).toBe(true);
     expect(f.panels.every((p) => (p.colSpan ?? 1) === 1)).toBe(true);
+
+    // M6: globalStyle is propagated, and a letter annotation is synthesised
+    // per panel in row-major order with its panelId + auto cellLabel text.
+    expect(f.globalStyle).toBe(s.globalStyle);
+    const letters = f.annotations.filter((a) => a.kind === "letter");
+    expect(letters).toHaveLength(4);
+    expect(letters.map((l) => (l.kind === "letter" ? l.text : ""))).toEqual([
+      "A",
+      "B",
+      "C",
+      "D",
+    ]);
+    // Letter ids derive from panelId so they're stable across re-derives.
+    const ids = new Set(letters.map((l) => l.id));
+    expect(ids.size).toBe(4);
+  });
+
+  it("uses letterOverrides for the letter annotation text when set", () => {
+    const s = initialFigureState();
+    const firstPanelId = s.panels[0]?.id;
+    if (firstPanelId === undefined) throw new Error("no first panel");
+    s.letterOverrides = { [firstPanelId]: "A1" };
+    const f = deriveFigure(s, { canvas: CANVAS });
+    const letterFor0 = f.annotations.find(
+      (a) => a.kind === "letter" && a.panelId === firstPanelId,
+    );
+    if (letterFor0?.kind === "letter") {
+      expect(letterFor0.text).toBe("A1");
+    } else {
+      throw new Error("expected letter annotation for first panel");
+    }
   });
 
   it("derives image panels for occupied panels", () => {
@@ -88,9 +123,17 @@ describe("deriveFigure", () => {
     expect(hero?.rowSpan).toBe(1);
     expect(hero?.colSpan).toBe(2);
     expect(hero?.kind).toBe("placeholder");
-    if (hero?.kind === "placeholder") expect(hero.label).toBe("A");
-    // Bottom row labels are based on row-major *cell* index → "C","D".
-    const c = f.panels.find((p) => p.row === 1 && p.col === 0);
-    if (c?.kind === "placeholder") expect(c.label).toBe("C");
+    if (hero?.kind === "placeholder") expect(hero.label).toBe("(empty)");
+    // M6: Letters live on the annotation pass — the merged top-left cell's
+    // letter text is derived from its row-major top-left index → "A".
+    const heroLetter = f.annotations.find(
+      (a) => a.kind === "letter" && a.panelId === "hero",
+    );
+    if (heroLetter?.kind === "letter") expect(heroLetter.text).toBe("A");
+    // Bottom row letters are based on row-major *cell* index → "C","D".
+    const cLetter = f.annotations.find(
+      (a) => a.kind === "letter" && a.panelId === "c",
+    );
+    if (cLetter?.kind === "letter") expect(cLetter.text).toBe("C");
   });
 });
