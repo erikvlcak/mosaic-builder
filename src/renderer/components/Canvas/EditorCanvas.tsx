@@ -37,10 +37,8 @@ export function EditorCanvas({ figure, images }: Props): JSX.Element {
       data-testid="editor-canvas"
       style={{
         display: "block",
-        maxWidth: "100%",
-        maxHeight: "calc(100vh - 120px)",
-        width: "auto",
-        height: "auto",
+        width: "100%",
+        height: "100%",
         border: "1px solid #DDD",
       }}
     />
