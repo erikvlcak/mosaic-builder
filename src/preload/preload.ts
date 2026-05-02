@@ -1,5 +1,10 @@
 import { contextBridge, ipcRenderer } from "electron";
-import { API_CHANNELS, type ExportPngResult, type MosaicApi } from "./api";
+import {
+  API_CHANNELS,
+  type ExportPngResult,
+  type MosaicApi,
+  type OpenImagesResult,
+} from "./api";
 
 const api: MosaicApi = {
   ping: () => ipcRenderer.invoke(API_CHANNELS.ping) as Promise<number>,
@@ -9,6 +14,8 @@ const api: MosaicApi = {
       bytes,
       defaultName,
     ) as Promise<ExportPngResult>,
+  openImages: () =>
+    ipcRenderer.invoke(API_CHANNELS.openImages) as Promise<OpenImagesResult>,
 };
 
 contextBridge.exposeInMainWorld("api", api);
