@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useReducer, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { EditorCanvas } from "./components/Canvas/EditorCanvas";
 import { ExportMenu } from "./components/Toolbar/ExportMenu";
 import { GridControls } from "./components/Toolbar/GridControls";
@@ -16,7 +16,6 @@ import {
 } from "./model/figure-state";
 import {
   addToPool,
-  figureReducer,
   resizeGrid,
   setGutterPx,
   setGutterColor,
@@ -30,6 +29,7 @@ import {
   removeAnnotation,
   setLettersEnabled,
 } from "./model/figure-actions";
+import { useHistoryReducer } from "./state/use-history-reducer";
 import { newImageId, type ImagePoolItem } from "./model/pool";
 import { deriveFigure } from "./model/figure-derivations";
 import { computePanelRects, type PanelRect } from "./render/coords";
@@ -51,9 +51,7 @@ function basename(p: string): string {
 }
 
 export function App(): JSX.Element {
-  const [state, dispatch] = useReducer(figureReducer, undefined, () =>
-    initialFigureState(),
-  );
+  const [state, dispatch, history] = useHistoryReducer(initialFigureState());
   const [bitmaps, setBitmaps] = useState<Map<string, ImageBitmap>>(new Map());
   const [error, setError] = useState<string | null>(null);
   const [focusedPanelId, setFocusedPanelId] = useState<string | null>(null);
@@ -374,6 +372,7 @@ export function App(): JSX.Element {
                   cssW={CANVAS_CSS_W}
                   cssH={CANVAS_CSS_H}
                   dispatch={dispatch}
+                  onCommit={history.commit}
                 />
               )}
             <AnnotationInteractionLayer
