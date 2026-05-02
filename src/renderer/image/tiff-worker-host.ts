@@ -44,10 +44,12 @@ function getWorker(): Worker {
     }
   };
   worker.onerror = (ev: ErrorEvent): void => {
-    // Worker-level failure: reject all in-flight requests.
+    // Worker-level failure: reject all in-flight requests and drop the
+    // dead reference so the next decode call respawns a fresh worker.
     const err = new Error(ev.message || "tiff-worker error");
     for (const [, p] of pending) p.reject(err);
     pending.clear();
+    worker = null;
   };
   return worker;
 }

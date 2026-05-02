@@ -34,11 +34,13 @@ export function readCalibrationFromIFD(
   ifd: UtifIfd,
 ): Calibration | undefined {
   const xres = ratioToFloat(ifd.t282);
-  const unitTag = (ifd.t296?.[0] ?? 1) as 1 | 2 | 3;
+  const unitTag = ifd.t296?.[0] ?? 1;
   if (xres === undefined || xres <= 0 || !Number.isFinite(xres)) {
     return undefined;
   }
-  if (unitTag === 1) return undefined;
+  // Reject anything that isn't a known absolute unit (2=inch, 3=cm).
+  // 1 means "no absolute unit"; everything else is an unrecognized tag.
+  if (unitTag !== 2 && unitTag !== 3) return undefined;
   if (unitTag === 2) {
     return {
       unit: "um",
@@ -46,6 +48,7 @@ export function readCalibrationFromIFD(
       source: "tiff-meta",
     };
   }
+  // unitTag === 3 (centimeters)
   return {
     unit: "um",
     pixelsPerUnit: xres / MICROMETERS_PER_CM,

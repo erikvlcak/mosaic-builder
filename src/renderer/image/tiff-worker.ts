@@ -43,6 +43,9 @@ self.onmessage = (e: MessageEvent<TiffDecodeRequest>): void => {
     const height = ifd0.height;
     const bps = (ifd0.t258 as number[] | undefined)?.[0] ?? 8;
     const bitDepth: 8 | 16 = bps >= 16 ? 16 : 8;
+    // Intentional structural cast: UTIF.IFD carries `data: Uint8Array` and a
+    // permissive index signature; UtifIfd is our minimal subset of the tags
+    // we actually read (t258/t282/t283/t296 + width/height).
     const calibration = readCalibrationFromIFD(
       ifd0 as unknown as UtifIfd,
     );

@@ -63,4 +63,11 @@ describe("readCalibrationFromIFD", () => {
     const cal = readCalibrationFromIFD(ifd({ t282: [300, 1] }));
     expect(cal).toBeUndefined();
   });
+
+  it("returns undefined for unknown ResolutionUnit tags (e.g. 42)", () => {
+    const cal = readCalibrationFromIFD(
+      ifd({ t282: [300, 1], t296: [42] }),
+    );
+    expect(cal).toBeUndefined();
+  });
 });

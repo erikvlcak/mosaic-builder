@@ -104,4 +104,14 @@ describe("decodeImageBytes", () => {
     });
     expect((r.bitmap as unknown as { _src: string })._src).toBe("imagedata:1x1");
   });
+
+  it("decodeImageBytes propagates TIFF worker errors", async () => {
+    const bytes = new Uint8Array([0x49, 0x49, 0x2a, 0x00, 0x08, 0x00, 0x00, 0x00]);
+    vi.mocked(decodeTiffViaWorker).mockRejectedValueOnce(
+      new Error("tiff-worker boom"),
+    );
+    await expect(decodeImageBytes(bytes, "image/tiff")).rejects.toThrow(
+      /tiff-worker boom/,
+    );
+  });
 });
