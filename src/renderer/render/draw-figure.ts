@@ -7,8 +7,8 @@ import { computePanelRects, type PanelRect } from "./coords";
  * canvas, and lets one draw routine target both contexts at runtime.
  */
 export interface DrawCtx {
-  fillStyle: string;
-  strokeStyle: string;
+  fillStyle: string | CanvasGradient | CanvasPattern;
+  strokeStyle: string | CanvasGradient | CanvasPattern;
   font: string;
   textAlign: CanvasTextAlign;
   textBaseline: CanvasTextBaseline;
