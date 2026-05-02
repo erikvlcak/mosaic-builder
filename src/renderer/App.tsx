@@ -30,6 +30,7 @@ import {
   setLettersEnabled,
 } from "./model/figure-actions";
 import { useHistoryReducer } from "./state/use-history-reducer";
+import { applyLoadedProject } from "./state/load-project";
 import { newImageId, type ImagePoolItem } from "./model/pool";
 import { deriveFigure } from "./model/figure-derivations";
 import { computePanelRects, type PanelRect } from "./render/coords";
@@ -38,6 +39,7 @@ import { dispatchDrop } from "./dnd/dispatch-drop";
 import { canMergeSelection } from "./model/merge";
 import { useMergeSelection } from "./hooks/useMergeSelection";
 import { useKeyboardShortcuts } from "./hooks/useKeyboardShortcuts";
+import { toMosaicFile } from "./model/serialize";
 
 const FIGURE_PX_W = 800;
 const FIGURE_PX_H = 600;
@@ -56,6 +58,10 @@ export function App(): JSX.Element {
   const [error, setError] = useState<string | null>(null);
   const [focusedPanelId, setFocusedPanelId] = useState<string | null>(null);
   const [activeTool, setActiveTool] = useState<Tool>("select");
+  const [projectPath, setProjectPath] = useState<string | null>(null);
+  const [missingImages, setMissingImages] = useState<
+    { imageId: string; filename: string; attemptedPaths: string[] }[]
+  >([]);
   const [selectedAnnotationId, setSelectedAnnotationId] = useState<string | null>(null);
   const [calibratingImageId, setCalibratingImageId] = useState<string | null>(null);
   const [annotationEditing, setAnnotationEditing] = useState<boolean>(false);
@@ -259,6 +265,53 @@ export function App(): JSX.Element {
     setCalibratingImageId(selectedImagePanel.imageId);
   }, [selectedImagePanel]);
 
+  const onSaveProject = useCallback(async () => {
+    setError(null);
+    const file = toMosaicFile({
+      state,
+      canvas: {
+        widthPx: FIGURE_PX_W,
+        heightPx: FIGURE_PX_H,
+        background: CANVAS_BG,
+      },
+      mosaicPath: projectPath ?? "untitled.mosaic",
+      appVersion: "0.1.0",
+    });
+    const r = await window.api.saveProject({
+      file,
+      defaultName: projectPath !== null ? basename(projectPath) : "untitled.mosaic",
+    });
+    if (!r.ok) {
+      if (r.reason !== "canceled") {
+        setError(`Save failed: ${r.message ?? r.reason}`);
+      }
+      return;
+    }
+    setProjectPath(r.filePath);
+  }, [state, projectPath]);
+
+  const onOpenProject = useCallback(async () => {
+    setError(null);
+    const r = await window.api.loadProject();
+    if (!r.ok) {
+      if (r.reason !== "canceled") {
+        setError(`Open failed: ${r.message ?? r.reason}`);
+      }
+      return;
+    }
+    const outcome = await applyLoadedProject(r, dispatch);
+    setBitmaps(outcome.bitmaps);
+    setProjectPath(r.filePath);
+    setMissingImages(r.missing);
+    if (outcome.decodeFailures.length > 0) {
+      setError(
+        `Some images failed to decode: ${outcome.decodeFailures
+          .map((f) => f.imageId)
+          .join(", ")}`,
+      );
+    }
+  }, []);
+
   const calibratingBitmap =
     calibratingImageId !== null ? bitmaps.get(calibratingImageId) : undefined;
 
@@ -284,6 +337,24 @@ export function App(): JSX.Element {
       >
         <h1 style={{ margin: 0, fontSize: 16 }}>Mosaic Builder</h1>
         <ExportMenu figure={figure} images={bitmaps} pool={imagesByIdMemo} />
+        <button
+          type="button"
+          onClick={() => {
+            void onOpenProject();
+          }}
+          data-testid="open-project"
+        >
+          Open…
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            void onSaveProject();
+          }}
+          data-testid="save-project"
+        >
+          Save
+        </button>
         <GridControls
           rows={state.rows}
           cols={state.cols}
