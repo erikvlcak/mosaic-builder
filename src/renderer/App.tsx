@@ -4,6 +4,9 @@ import { ExportButton } from "./components/Toolbar/ExportButton";
 import { GridControls } from "./components/Toolbar/GridControls";
 import { MergeControls } from "./components/Toolbar/MergeControls";
 import { PanelControls } from "./components/Toolbar/PanelControls";
+import { AnnotationToolbar, type Tool } from "./components/Toolbar/AnnotationToolbar";
+import { AnnotationInteractionLayer } from "./components/Annotations/AnnotationInteractionLayer";
+import { CalibrationModal } from "./components/Annotations/CalibrationModal";
 import { Tray } from "./components/Sidebar/Tray";
 import { GridCells, type DropEvent } from "./components/Grid/GridCells";
 import { PanelInteractionLayer } from "./components/Grid/PanelInteractionLayer";
@@ -24,10 +27,12 @@ import {
   flipPanelH,
   flipPanelV,
   resetPanelTransform,
+  removeAnnotation,
+  setLettersEnabled,
 } from "./model/figure-actions";
 import { newImageId, type ImagePoolItem } from "./model/pool";
 import { deriveFigure } from "./model/figure-derivations";
-import { computePanelRects } from "./render/coords";
+import { computePanelRects, type PanelRect } from "./render/coords";
 import { decodeImageBytes } from "./image/decode-bytes";
 import { dispatchDrop } from "./dnd/dispatch-drop";
 import { canMergeSelection } from "./model/merge";
@@ -52,6 +57,10 @@ export function App(): JSX.Element {
   const [bitmaps, setBitmaps] = useState<Map<string, ImageBitmap>>(new Map());
   const [error, setError] = useState<string | null>(null);
   const [focusedPanelId, setFocusedPanelId] = useState<string | null>(null);
+  const [activeTool, setActiveTool] = useState<Tool>("select");
+  const [selectedAnnotationId, setSelectedAnnotationId] = useState<string | null>(null);
+  const [calibratingImageId, setCalibratingImageId] = useState<string | null>(null);
+  const [annotationEditing, setAnnotationEditing] = useState<boolean>(false);
   const stateRef = useRef<FigureState>(state);
   stateRef.current = state;
 
@@ -182,7 +191,16 @@ export function App(): JSX.Element {
   const onEscape = useCallback(() => {
     selection.clear();
     setFocusedPanelId(null);
+    setSelectedAnnotationId(null);
+    setActiveTool("select");
   }, [selection]);
+
+  const onDeleteAnnotation = useCallback(() => {
+    if (selectedAnnotationId === null) return;
+    if (annotationEditing) return; // an inline editor owns the keystroke
+    dispatch(removeAnnotation(selectedAnnotationId));
+    setSelectedAnnotationId(null);
+  }, [selectedAnnotationId, annotationEditing]);
 
   useKeyboardShortcuts({
     onMerge,
@@ -192,6 +210,7 @@ export function App(): JSX.Element {
     onFlipH,
     onFlipV,
     onResetTransform,
+    onDeleteAnnotation,
   });
 
   const canMerge = useMemo(() => {
@@ -203,21 +222,45 @@ export function App(): JSX.Element {
     focusedPanel !== undefined &&
     (focusedPanel.rowSpan > 1 || focusedPanel.colSpan > 1);
 
+  // Compute panel rects once (used by the focused-panel rect AND the
+  // annotation interaction layer's hit/click routing).
+  const panelRectsByIdMemo = useMemo<Map<string, PanelRect>>(() => {
+    const rects = computePanelRects(figure);
+    const map = new Map<string, PanelRect>();
+    for (let i = 0; i < figure.panels.length; i++) {
+      const p = figure.panels[i];
+      const r = rects[i];
+      if (p?.panelId !== undefined && r !== undefined) {
+        map.set(p.panelId, r);
+      }
+    }
+    return map;
+  }, [figure]);
+
+  const imagesByIdMemo = useMemo<Map<string, ImagePoolItem>>(() => {
+    const m = new Map<string, ImagePoolItem>();
+    for (const item of state.pool) m.set(item.id, item);
+    return m;
+  }, [state.pool]);
+
   // Compute the focused panel's rect once for the interaction layer.
   const focusedPanelRect = useMemo(() => {
     if (selectedImagePanel === undefined) return null;
-    const idx = figure.panels.findIndex(
-      (p) => p.row === selectedImagePanel.row && p.col === selectedImagePanel.col,
-    );
-    if (idx < 0) return null;
-    const rects = computePanelRects(figure);
-    return rects[idx] ?? null;
-  }, [figure, selectedImagePanel]);
+    return panelRectsByIdMemo.get(selectedImagePanel.id) ?? null;
+  }, [panelRectsByIdMemo, selectedImagePanel]);
 
   const focusedBitmap =
     selectedImagePanel?.imageId !== undefined
       ? bitmaps.get(selectedImagePanel.imageId)
       : undefined;
+
+  const onCalibrate = useCallback(() => {
+    if (selectedImagePanel?.imageId === undefined) return;
+    setCalibratingImageId(selectedImagePanel.imageId);
+  }, [selectedImagePanel]);
+
+  const calibratingBitmap =
+    calibratingImageId !== null ? bitmaps.get(calibratingImageId) : undefined;
 
   return (
     <main
@@ -264,6 +307,15 @@ export function App(): JSX.Element {
           onFlipH={onFlipH}
           onFlipV={onFlipV}
           onReset={onResetTransform}
+          onCalibrate={onCalibrate}
+        />
+        <AnnotationToolbar
+          active={activeTool}
+          onChange={setActiveTool}
+          lettersEnabled={state.globalStyle.letters.enabled}
+          onToggleLetters={() =>
+            dispatch(setLettersEnabled(!state.globalStyle.letters.enabled))
+          }
         />
         {error !== null && (
           <span style={{ color: "#B00", fontSize: 12 }}>{error}</span>
@@ -311,7 +363,8 @@ export function App(): JSX.Element {
             {selectedImagePanel !== undefined &&
               focusedPanelRect !== null &&
               focusedBitmap !== undefined &&
-              selectedImagePanel.transform !== undefined && (
+              selectedImagePanel.transform !== undefined &&
+              activeTool === "select" && (
                 <PanelInteractionLayer
                   panelId={selectedImagePanel.id}
                   panelRect={focusedPanelRect}
@@ -324,9 +377,31 @@ export function App(): JSX.Element {
                   dispatch={dispatch}
                 />
               )}
+            <AnnotationInteractionLayer
+              activeTool={activeTool}
+              figure={figure}
+              panelRectsById={panelRectsByIdMemo}
+              imagesById={imagesByIdMemo}
+              cssW={CANVAS_CSS_W}
+              cssH={CANVAS_CSS_H}
+              figurePxW={FIGURE_PX_W}
+              figurePxH={FIGURE_PX_H}
+              selectedAnnotationId={selectedAnnotationId}
+              onSelectAnnotation={setSelectedAnnotationId}
+              onEditingChange={setAnnotationEditing}
+              dispatch={dispatch}
+            />
           </div>
         </section>
       </div>
+      {calibratingImageId !== null && calibratingBitmap !== undefined && (
+        <CalibrationModal
+          bitmap={calibratingBitmap}
+          imageId={calibratingImageId}
+          onClose={() => setCalibratingImageId(null)}
+          dispatch={dispatch}
+        />
+      )}
     </main>
   );
 }

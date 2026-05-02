@@ -8,6 +8,8 @@ export interface ShortcutHandlers {
   onFlipH?: () => void;
   onFlipV?: () => void;
   onResetTransform?: () => void;
+  /** Delete / Backspace removes the currently-selected annotation. */
+  onDeleteAnnotation?: () => void;
 }
 
 function isTypingTarget(t: EventTarget | null): boolean {
@@ -48,6 +50,12 @@ export function useKeyboardShortcuts(h: ShortcutHandlers): void {
           e.preventDefault();
           h.onResetTransform();
         }
+      } else if (
+        (e.key === "Delete" || e.key === "Backspace") &&
+        h.onDeleteAnnotation
+      ) {
+        e.preventDefault();
+        h.onDeleteAnnotation();
       } else if (e.key === "Escape") {
         h.onEscape();
       }
