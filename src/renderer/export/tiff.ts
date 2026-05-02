@@ -16,6 +16,13 @@ const DEFAULT_NAME = "mosaic-figure.tif";
  * UTIF.encodeImage emits placeholder t282/t283/t296 entries already, so
  * `injectResolutionTags` always takes the in-place rewrite path here
  * (no IFD relocation).
+ *
+ * M6 limitation: pixels collapse to 8-bit RGBA. The OffscreenCanvas
+ * pipeline writes 8-bit-per-channel data, and `UTIF.encodeImage` emits
+ * 8-bit RGBA only. 16-bit panel data (from 16-bit TIFF imports) is
+ * normalised through the canvas.
+ * TODO(M8): add a 16-bit-direct path that bypasses the canvas for
+ * 16-bit sources.
  */
 export async function exportFigureAsTiff(
   figure: Figure,

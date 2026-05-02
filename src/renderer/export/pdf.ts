@@ -5,6 +5,7 @@ import type { ExportResult } from "../../preload/api";
 import { renderFigureToPngBlob } from "../render/export-renderer";
 
 const DEFAULT_NAME = "mosaic-figure.pdf";
+// TODO(M8): plumb dpi through the export call rather than hardcoding 300
 const PDF_DPI = 300;
 const PT_PER_INCH = 72;
 
