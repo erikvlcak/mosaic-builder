@@ -1,44 +1,64 @@
 import type { ImagePoolItem } from "./pool";
-import { cellKey, type CellCoord, type FigureState } from "./figure-state";
+import type { Panel } from "./panels";
+import type { FigureState } from "./figure-state";
 
 export type FigureAction =
   | { type: "ADD_TO_POOL"; item: ImagePoolItem }
-  | { type: "PLACE_FROM_TRAY"; imageId: string; target: CellCoord }
-  | { type: "SWAP_CELLS"; a: CellCoord; b: CellCoord }
-  | { type: "REPLACE_FROM_TRAY"; imageId: string; target: CellCoord }
+  | { type: "PLACE_INTO_PANEL"; imageId: string; panelId: string }
+  | { type: "SWAP_PANELS"; aPanelId: string; bPanelId: string }
+  | { type: "REPLACE_INTO_PANEL"; imageId: string; panelId: string }
   | { type: "REMOVE_FROM_POOL"; imageId: string };
 
 export const addToPool = (item: ImagePoolItem): FigureAction => ({
   type: "ADD_TO_POOL",
   item,
 });
-export const placeFromTray = (
+export const placeIntoPanel = (
   imageId: string,
-  target: CellCoord,
-): FigureAction => ({ type: "PLACE_FROM_TRAY", imageId, target });
-export const swapCells = (a: CellCoord, b: CellCoord): FigureAction => ({
-  type: "SWAP_CELLS",
-  a,
-  b,
-});
-export const replaceFromTray = (
+  panelId: string,
+): FigureAction => ({ type: "PLACE_INTO_PANEL", imageId, panelId });
+export const swapPanels = (
+  aPanelId: string,
+  bPanelId: string,
+): FigureAction => ({ type: "SWAP_PANELS", aPanelId, bPanelId });
+export const replaceIntoPanel = (
   imageId: string,
-  target: CellCoord,
-): FigureAction => ({ type: "REPLACE_FROM_TRAY", imageId, target });
+  panelId: string,
+): FigureAction => ({ type: "REPLACE_INTO_PANEL", imageId, panelId });
 export const removeFromPool = (imageId: string): FigureAction => ({
   type: "REMOVE_FROM_POOL",
   imageId,
 });
 
-function inBounds(c: CellCoord, s: FigureState): boolean {
-  return c.row >= 0 && c.row < s.rows && c.col >= 0 && c.col < s.cols;
+function isImageInPool(s: FigureState, imageId: string): boolean {
+  return s.pool.some((p) => p.id === imageId);
 }
 
-function withPlacements(
-  s: FigureState,
-  next: Map<string, string>,
-): FigureState {
-  return { ...s, placements: next };
+function findPanelById(panels: Panel[], id: string): Panel | undefined {
+  return panels.find((p) => p.id === id);
+}
+
+function isImagePlaced(panels: readonly Panel[], imageId: string): boolean {
+  return panels.some((p) => p.imageId === imageId);
+}
+
+function setPanelImage(
+  panels: Panel[],
+  panelId: string,
+  imageId: string | undefined,
+): Panel[] {
+  return panels.map((p) =>
+    p.id === panelId
+      ? imageId === undefined
+        ? omitImageId(p)
+        : { ...p, imageId }
+      : p,
+  );
+}
+
+function omitImageId(p: Panel): Panel {
+  const { imageId: _drop, ...rest } = p;
+  return { ...rest, rowSpan: p.rowSpan, colSpan: p.colSpan };
 }
 
 export function figureReducer(s: FigureState, a: FigureAction): FigureState {
@@ -47,55 +67,62 @@ export function figureReducer(s: FigureState, a: FigureAction): FigureState {
       if (s.pool.some((p) => p.id === a.item.id)) return s;
       return { ...s, pool: [...s.pool, a.item] };
     }
-    case "PLACE_FROM_TRAY": {
-      if (!inBounds(a.target, s)) return s;
-      if (!s.pool.some((p) => p.id === a.imageId)) return s;
-      for (const v of s.placements.values()) {
-        if (v === a.imageId) return s;
-      }
-      const k = cellKey(a.target.row, a.target.col);
-      if (s.placements.has(k)) return s;
-      const next = new Map(s.placements);
-      next.set(k, a.imageId);
-      return withPlacements(s, next);
+
+    case "PLACE_INTO_PANEL": {
+      if (!isImageInPool(s, a.imageId)) return s;
+      if (isImagePlaced(s.panels, a.imageId)) return s;
+      const target = findPanelById(s.panels, a.panelId);
+      if (target === undefined) return s;
+      if (target.imageId !== undefined) return s;
+      return { ...s, panels: setPanelImage(s.panels, a.panelId, a.imageId) };
     }
-    case "SWAP_CELLS": {
-      if (!inBounds(a.a, s) || !inBounds(a.b, s)) return s;
-      if (a.a.row === a.b.row && a.a.col === a.b.col) return s;
-      const ka = cellKey(a.a.row, a.a.col);
-      const kb = cellKey(a.b.row, a.b.col);
-      const va = s.placements.get(ka);
-      const vb = s.placements.get(kb);
-      if (va === undefined && vb === undefined) return s;
-      const next = new Map(s.placements);
-      if (va === undefined) next.delete(kb);
-      else next.set(kb, va);
-      if (vb === undefined) next.delete(ka);
-      else next.set(ka, vb);
-      return withPlacements(s, next);
+
+    case "SWAP_PANELS": {
+      if (a.aPanelId === a.bPanelId) return s;
+      const pa = findPanelById(s.panels, a.aPanelId);
+      const pb = findPanelById(s.panels, a.bPanelId);
+      if (pa === undefined || pb === undefined) return s;
+      if (pa.imageId === undefined && pb.imageId === undefined) return s;
+      const next = s.panels.map((p) => {
+        if (p.id === pa.id) return assignImage(p, pb.imageId);
+        if (p.id === pb.id) return assignImage(p, pa.imageId);
+        return p;
+      });
+      return { ...s, panels: next };
     }
-    case "REPLACE_FROM_TRAY": {
-      if (!inBounds(a.target, s)) return s;
-      if (!s.pool.some((p) => p.id === a.imageId)) return s;
-      const k = cellKey(a.target.row, a.target.col);
-      for (const [otherKey, v] of s.placements) {
-        if (v === a.imageId && otherKey !== k) return s;
-      }
-      const next = new Map(s.placements);
-      next.set(k, a.imageId);
-      return withPlacements(s, next);
+
+    case "REPLACE_INTO_PANEL": {
+      if (!isImageInPool(s, a.imageId)) return s;
+      const target = findPanelById(s.panels, a.panelId);
+      if (target === undefined) return s;
+      if (target.imageId === a.imageId) return s;
+      // If the new image is already placed in some *other* panel, this is a no-op:
+      // a "replace" is from the tray, not a 2-cell move. Use SWAP_PANELS for that.
+      const placedElsewhere = s.panels.some(
+        (p) => p.id !== a.panelId && p.imageId === a.imageId,
+      );
+      if (placedElsewhere) return s;
+      return { ...s, panels: setPanelImage(s.panels, a.panelId, a.imageId) };
     }
+
     case "REMOVE_FROM_POOL": {
       if (!s.pool.some((p) => p.id === a.imageId)) return s;
-      const next = new Map(s.placements);
-      for (const [k, v] of next) {
-        if (v === a.imageId) next.delete(k);
-      }
+      const panels = s.panels.map((p) =>
+        p.imageId === a.imageId ? assignImage(p, undefined) : p,
+      );
       return {
         ...s,
         pool: s.pool.filter((p) => p.id !== a.imageId),
-        placements: next,
+        panels,
       };
     }
   }
+}
+
+function assignImage(p: Panel, imageId: string | undefined): Panel {
+  if (imageId === undefined) {
+    const { imageId: _drop, ...rest } = p;
+    return rest;
+  }
+  return { ...p, imageId };
 }
