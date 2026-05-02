@@ -15,12 +15,14 @@ beforeAll(() => {
     globalThis as unknown as {
       createImageBitmap: (b: Blob) => Promise<ImageBitmap>;
     }
-  ).createImageBitmap = async (blob: Blob) =>
-    ({
-      width: 1,
-      height: 1,
-      _mime: blob.type,
-    }) as unknown as ImageBitmap;
+  ).createImageBitmap = (blob: Blob) =>
+    Promise.resolve(
+      {
+        width: 1,
+        height: 1,
+        _mime: blob.type,
+      } as unknown as ImageBitmap,
+    );
 });
 
 afterAll(() => {
