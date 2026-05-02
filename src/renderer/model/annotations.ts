@@ -10,7 +10,9 @@
  * narrows to the 4 editable kinds.
  */
 
-export type AnnotationKind = "text" | "arrow" | "box" | "scalebar" | "letter";
+import type { Corner } from "./global-style";
+
+export type AnnotationKind = "text" | "arrow" | "box" | "scalebar" | "letter"; // "letter" is derived-only — not in user-facing Annotation union
 
 export interface BaseAnnotation {
   /** crypto.randomUUID() */
@@ -75,7 +77,7 @@ export interface ScaleBarAnnotation extends BaseAnnotation {
   lengthValue: number;
   lengthUnit: "um" | "mm" | "px";
   /** Override globalStyle.scalebar.corner just for this instance. */
-  cornerOverride?: "tl" | "tr" | "bl" | "br";
+  cornerOverride?: Corner;
 }
 
 /**

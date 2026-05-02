@@ -32,8 +32,8 @@ export interface GlobalAnnoStyle {
   scalebar: ScaleBarStyle;
 }
 
-export const DEFAULT_GLOBAL_STYLE: GlobalAnnoStyle = {
-  letters: {
+export const DEFAULT_GLOBAL_STYLE: GlobalAnnoStyle = Object.freeze({
+  letters: Object.freeze({
     enabled: true,
     font: "Arial, Helvetica, sans-serif",
     sizePt: 12,
@@ -41,8 +41,8 @@ export const DEFAULT_GLOBAL_STYLE: GlobalAnnoStyle = {
     corner: "tl",
     paddingPx: 6,
     bold: true,
-  },
-  scalebar: {
+  }),
+  scalebar: Object.freeze({
     font: "Arial, Helvetica, sans-serif",
     sizePt: 10,
     color: "#FFFFFF",
@@ -51,5 +51,5 @@ export const DEFAULT_GLOBAL_STYLE: GlobalAnnoStyle = {
     corner: "br",
     paddingPx: 8,
     showLabel: true,
-  },
-};
+  }),
+}) as GlobalAnnoStyle;
