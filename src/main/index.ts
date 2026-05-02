@@ -2,6 +2,8 @@ import { app, BrowserWindow, ipcMain } from "electron";
 import path from "node:path";
 import { resolveWindowConfig } from "./window";
 import { API_CHANNELS } from "../preload/api";
+import { pickPngSavePath } from "./dialogs";
+import { writePngFile } from "./fs-write";
 
 // `vite-plugin-electron` sets this on process.env at dev-server start.
 const DEV_URL =
@@ -46,6 +48,34 @@ function createWindow(): void {
 
 function registerIpc(): void {
   ipcMain.handle(API_CHANNELS.ping, () => Date.now());
+
+  ipcMain.handle(
+    API_CHANNELS.exportPng,
+    async (event, bytes: Uint8Array, defaultName: string) => {
+      const senderWindow = BrowserWindow.fromWebContents(event.sender);
+      const picked = await pickPngSavePath({
+        parentWindow: senderWindow,
+        defaultName,
+      });
+      if (picked.canceled || picked.filePath === undefined) {
+        return { ok: false as const, reason: "canceled" as const };
+      }
+      try {
+        await writePngFile(picked.filePath, bytes);
+        return {
+          ok: true as const,
+          filePath: picked.filePath,
+          bytesWritten: bytes.byteLength,
+        };
+      } catch (err) {
+        return {
+          ok: false as const,
+          reason: "write-failed" as const,
+          message: err instanceof Error ? err.message : String(err),
+        };
+      }
+    },
+  );
 }
 
 void app.whenReady().then(() => {
