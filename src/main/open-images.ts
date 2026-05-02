@@ -31,7 +31,9 @@ export interface PickAndReadInput {
   showOpenDialog: ShowOpenDialog;
 }
 
-const FILTERS = [{ name: "Images", extensions: ["png", "jpg", "jpeg"] }];
+const FILTERS = [
+  { name: "Images", extensions: ["png", "jpg", "jpeg", "tif", "tiff"] },
+];
 
 export async function pickAndReadImages(
   input: PickAndReadInput,

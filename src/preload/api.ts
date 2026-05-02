@@ -19,7 +19,7 @@ export type ExportPngResult =
       message?: string;
     };
 
-export type OpenImagesMime = "image/png" | "image/jpeg";
+export type OpenImagesMime = "image/png" | "image/jpeg" | "image/tiff";
 
 export interface OpenedFileDto {
   filePath: string;

@@ -90,26 +90,29 @@ export function App(): JSX.Element {
     }
     if (result.canceled) return;
     for (const f of result.files) {
-      let bm: ImageBitmap;
+      let decoded;
       try {
-        bm = await decodeImageBytes(f.bytes, f.mime);
+        decoded = await decodeImageBytes(f.bytes, f.mime);
       } catch (err) {
         setError(
           `decode failed for ${f.filePath}: ${err instanceof Error ? err.message : String(err)}`,
         );
         continue;
       }
+      const { bitmap, bitDepth, calibration } = decoded;
       const item: ImagePoolItem = {
         id: newImageId(),
         filename: basename(f.filePath),
         filePath: f.filePath,
         mime: f.mime,
-        width: bm.width,
-        height: bm.height,
+        width: bitmap.width,
+        height: bitmap.height,
+        bitDepth,
+        ...(calibration !== undefined ? { calibration } : {}),
       };
       setBitmaps((prev) => {
         const next = new Map(prev);
-        next.set(item.id, bm);
+        next.set(item.id, bitmap);
         return next;
       });
       dispatch(addToPool(item));
