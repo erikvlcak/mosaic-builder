@@ -7,6 +7,7 @@ import { PanelControls } from "./components/Toolbar/PanelControls";
 import { AnnotationToolbar, type Tool } from "./components/Toolbar/AnnotationToolbar";
 import { AnnotationInteractionLayer } from "./components/Annotations/AnnotationInteractionLayer";
 import { CalibrationModal } from "./components/Annotations/CalibrationModal";
+import { RelinkModal } from "./components/Modals/RelinkModal";
 import { Tray } from "./components/Sidebar/Tray";
 import { GridCells, type DropEvent } from "./components/Grid/GridCells";
 import { PanelInteractionLayer } from "./components/Grid/PanelInteractionLayer";
@@ -471,6 +472,21 @@ export function App(): JSX.Element {
           imageId={calibratingImageId}
           onClose={() => setCalibratingImageId(null)}
           dispatch={dispatch}
+        />
+      )}
+      {missingImages.length > 0 && (
+        <RelinkModal
+          missing={missingImages}
+          dispatch={dispatch}
+          onClose={() => setMissingImages([])}
+          onRelinked={(newBitmaps, stillMissing) => {
+            setBitmaps((prev) => {
+              const next = new Map(prev);
+              for (const [k, v] of newBitmaps) next.set(k, v);
+              return next;
+            });
+            setMissingImages(stillMissing);
+          }}
         />
       )}
     </main>
