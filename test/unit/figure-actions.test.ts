@@ -720,6 +720,26 @@ describe("figureReducer (M6 annotations)", () => {
     expect(s).toBe(before);
   });
 
+  it("UPDATE_ANNOTATION rejects scale-bar panelId change to uncalibrated panel", () => {
+    // Setup: pool with one calibrated and one uncalibrated image, both placed.
+    let s = withPool(IMG_CAL, IMG_NOCAL);
+    const pid_cal = panelIdAt(s, 0, 0);
+    const pid_nocal = panelIdAt(s, 0, 1);
+    s = figureReducer(s, placeIntoPanel("cal", pid_cal));
+    s = figureReducer(s, placeIntoPanel("nocal", pid_nocal));
+    // Add a valid scale bar on the calibrated panel.
+    s = figureReducer(s, addAnnotation(scalebarAnno("sb1", pid_cal)));
+    const before = s;
+    // Attempt to repoint it onto the uncalibrated panel — must be a no-op.
+    s = figureReducer(
+      s,
+      updateAnnotation("sb1", { panelId: pid_nocal } as Partial<Annotation>),
+    );
+    expect(s).toBe(before);
+    const sb = s.annotations.find((x) => x.id === "sb1");
+    expect(sb?.panelId).toBe(pid_cal);
+  });
+
   it("REMOVE_ANNOTATION filters out by id", () => {
     let s = initialFigureState();
     s = figureReducer(s, addAnnotation(textAnno("t1")));

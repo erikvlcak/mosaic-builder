@@ -4,7 +4,7 @@ import { DEFAULT_TRANSFORM } from "./panels";
 import type { FigureState } from "./figure-state";
 import { resizePanels } from "./grid-resize";
 import { canMergeSelection, mergePanels, unmergePanel, type CellCoord } from "./merge";
-import type { Annotation } from "./annotations";
+import type { Annotation, AnnotationKind } from "./annotations";
 import type { GlobalAnnoStyle } from "./global-style";
 
 export type FigureAction =
@@ -301,6 +301,7 @@ export function figureReducer(s: FigureState, a: FigureAction): FigureState {
       const keptPanelIds = new Set(nextPanels.map((p) => p.id));
       let letterOverrides = filterOverrides(s.letterOverrides, keptPanelIds);
       if (tlOverride !== undefined) {
+        // Safe: panels partition the grid, so at most one panel can match this exact rect.
         const merged = nextPanels.find(
           (p) =>
             p.row === check.rect.row &&
@@ -427,20 +428,25 @@ export function figureReducer(s: FigureState, a: FigureAction): FigureState {
     case "UPDATE_ANNOTATION": {
       const idx = s.annotations.findIndex((x) => x.id === a.annotationId);
       if (idx < 0) return s;
-      // Strip id and kind from the patch (immutable identity fields).
-      const patch = a.patch as Record<string, unknown>;
-      const rest: Record<string, unknown> = {};
-      for (const k in patch) {
-        if (k === "id" || k === "kind") continue;
-        rest[k] = patch[k];
-      }
+      const existing = s.annotations[idx]!;
+      // Strip id/kind from the patch — they're immutable for a given annotation.
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { id: _ignoredId, kind: _ignoredKind, ...rest } = a.patch as Partial<Annotation> & {
+        id?: string;
+        kind?: AnnotationKind;
+      };
       // If the patch references a panelId, that panel must exist.
       if (typeof rest.panelId === "string") {
         const panel = findPanelById(s.panels, rest.panelId);
         if (panel === undefined) return s;
+        // Scale bars require the new target panel to also have a calibrated image.
+        if (existing.kind === "scalebar") {
+          if (panel.imageId === undefined) return s;
+          const img = s.pool.find((p) => p.id === panel.imageId);
+          if (img === undefined || img.calibration === undefined) return s;
+        }
       }
-      const existing = s.annotations[idx]!;
-      const merged = { ...existing, ...rest, id: existing.id, kind: existing.kind } as Annotation;
+      const merged = { ...existing, ...rest } as Annotation;
       const next = s.annotations.slice();
       next[idx] = merged;
       return { ...s, annotations: next };
@@ -511,6 +517,14 @@ export function figureReducer(s: FigureState, a: FigureAction): FigureState {
       const pool = s.pool.slice();
       pool[idx] = next;
       return { ...s, pool };
+    }
+
+    default: {
+      // Exhaustiveness guard: TS errors here if a new FigureAction variant is
+      // added to the union but not handled in the switch above.
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const _exhaustive: never = a;
+      return s;
     }
   }
 }
