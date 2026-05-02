@@ -94,6 +94,9 @@ function combinedReducer(c: Combined, ca: CombinedAction): Combined {
   }
 }
 
+export type { Combined, CombinedAction };
+export { combinedReducer };
+
 export function useHistoryReducer(
   initial: FigureState,
 ): [FigureState, (a: FigureAction) => void, HistoryControls] {

@@ -209,6 +209,8 @@ export function App(): JSX.Element {
     onFlipV,
     onResetTransform,
     onDeleteAnnotation,
+    onUndo: history.undo,
+    onRedo: history.redo,
   });
 
   const canMerge = useMemo(() => {

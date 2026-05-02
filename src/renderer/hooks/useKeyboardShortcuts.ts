@@ -10,6 +10,10 @@ export interface ShortcutHandlers {
   onResetTransform?: () => void;
   /** Delete / Backspace removes the currently-selected annotation. */
   onDeleteAnnotation?: () => void;
+  /** Cmd/Ctrl-Z. */
+  onUndo?: () => void;
+  /** Cmd/Ctrl-Shift-Z. */
+  onRedo?: () => void;
 }
 
 function isTypingTarget(t: EventTarget | null): boolean {
@@ -22,6 +26,20 @@ function isTypingTarget(t: EventTarget | null): boolean {
 export function useKeyboardShortcuts(h: ShortcutHandlers): void {
   useEffect(() => {
     function onKey(e: KeyboardEvent): void {
+      // Cmd/Ctrl-Z and Cmd/Ctrl-Shift-Z come first — they intentionally
+      // require a modifier and would otherwise be filtered out below.
+      const isModZ =
+        (e.metaKey || e.ctrlKey) && !e.altKey && (e.key === "z" || e.key === "Z");
+      if (isModZ) {
+        if (isTypingTarget(e.target)) return;
+        e.preventDefault();
+        if (e.shiftKey) {
+          if (h.onRedo) h.onRedo();
+        } else {
+          if (h.onUndo) h.onUndo();
+        }
+        return;
+      }
       if (e.metaKey || e.ctrlKey || e.altKey) return;
       if (isTypingTarget(e.target)) return;
       if (e.key === "m" || e.key === "M") {
