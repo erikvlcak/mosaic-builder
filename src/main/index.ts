@@ -2,8 +2,15 @@ import { app, BrowserWindow, dialog, ipcMain } from "electron";
 import path from "node:path";
 import { resolveWindowConfig } from "./window";
 import { API_CHANNELS } from "../preload/api";
-import { pickPngSavePath } from "./dialogs";
-import { writePngFile } from "./fs-write";
+import {
+  pickJpegSavePath,
+  pickPdfSavePath,
+  pickPngSavePath,
+  pickTiffSavePath,
+  type PickPathInput,
+  type PickPathResult,
+} from "./dialogs";
+import { writeBytesToPath, writePngFile } from "./fs-write";
 import { pickAndReadImages } from "./open-images";
 
 // `vite-plugin-electron` sets this on process.env at dev-server start.
@@ -47,35 +54,68 @@ function createWindow(): void {
   });
 }
 
+type Picker = (input: PickPathInput) => Promise<PickPathResult>;
+
+async function handleExport(
+  event: Electron.IpcMainInvokeEvent,
+  bytes: Uint8Array,
+  defaultName: string,
+  picker: Picker,
+  allowedExt: readonly string[],
+): Promise<
+  | { ok: true; filePath: string; bytesWritten: number }
+  | { ok: false; reason: "canceled" | "write-failed"; message?: string }
+> {
+  const senderWindow = BrowserWindow.fromWebContents(event.sender);
+  const picked = await picker({ parentWindow: senderWindow, defaultName });
+  if (picked.canceled || picked.filePath === undefined) {
+    return { ok: false, reason: "canceled" };
+  }
+  try {
+    if (allowedExt.length === 1 && allowedExt[0] === ".png") {
+      await writePngFile(picked.filePath, bytes);
+    } else {
+      await writeBytesToPath(picked.filePath, bytes, allowedExt);
+    }
+    return {
+      ok: true,
+      filePath: picked.filePath,
+      bytesWritten: bytes.byteLength,
+    };
+  } catch (err) {
+    return {
+      ok: false,
+      reason: "write-failed",
+      message: err instanceof Error ? err.message : String(err),
+    };
+  }
+}
+
 function registerIpc(): void {
   ipcMain.handle(API_CHANNELS.ping, () => Date.now());
 
   ipcMain.handle(
     API_CHANNELS.exportPng,
-    async (event, bytes: Uint8Array, defaultName: string) => {
-      const senderWindow = BrowserWindow.fromWebContents(event.sender);
-      const picked = await pickPngSavePath({
-        parentWindow: senderWindow,
-        defaultName,
-      });
-      if (picked.canceled || picked.filePath === undefined) {
-        return { ok: false as const, reason: "canceled" as const };
-      }
-      try {
-        await writePngFile(picked.filePath, bytes);
-        return {
-          ok: true as const,
-          filePath: picked.filePath,
-          bytesWritten: bytes.byteLength,
-        };
-      } catch (err) {
-        return {
-          ok: false as const,
-          reason: "write-failed" as const,
-          message: err instanceof Error ? err.message : String(err),
-        };
-      }
-    },
+    (event, bytes: Uint8Array, defaultName: string) =>
+      handleExport(event, bytes, defaultName, pickPngSavePath, [".png"]),
+  );
+
+  ipcMain.handle(
+    API_CHANNELS.exportJpeg,
+    (event, bytes: Uint8Array, defaultName: string) =>
+      handleExport(event, bytes, defaultName, pickJpegSavePath, [".jpg", ".jpeg"]),
+  );
+
+  ipcMain.handle(
+    API_CHANNELS.exportTiff,
+    (event, bytes: Uint8Array, defaultName: string) =>
+      handleExport(event, bytes, defaultName, pickTiffSavePath, [".tif", ".tiff"]),
+  );
+
+  ipcMain.handle(
+    API_CHANNELS.exportPdf,
+    (event, bytes: Uint8Array, defaultName: string) =>
+      handleExport(event, bytes, defaultName, pickPdfSavePath, [".pdf"]),
   );
 
   ipcMain.handle(API_CHANNELS.openImages, async (event) => {

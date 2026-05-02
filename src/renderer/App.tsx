@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useReducer, useRef, useState } from "react";
 import { EditorCanvas } from "./components/Canvas/EditorCanvas";
-import { ExportButton } from "./components/Toolbar/ExportButton";
+import { ExportMenu } from "./components/Toolbar/ExportMenu";
 import { GridControls } from "./components/Toolbar/GridControls";
 import { MergeControls } from "./components/Toolbar/MergeControls";
 import { PanelControls } from "./components/Toolbar/PanelControls";
@@ -283,7 +283,7 @@ export function App(): JSX.Element {
         }}
       >
         <h1 style={{ margin: 0, fontSize: 16 }}>Mosaic Builder</h1>
-        <ExportButton figure={figure} images={bitmaps} />
+        <ExportMenu figure={figure} images={bitmaps} pool={imagesByIdMemo} />
         <GridControls
           rows={state.rows}
           cols={state.cols}
