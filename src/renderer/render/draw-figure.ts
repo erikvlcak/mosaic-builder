@@ -38,11 +38,22 @@ export function drawFigure(
   figure: Figure,
   images: Map<string, ImageBitmap>,
 ): void {
-  // 1. Background.
+  // 1. Canvas background. Anything not covered by gutter or panels shows
+  //    this through (currently nothing — the gutter fills the entire canvas
+  //    around the panels — but we paint it first as a defensive base layer
+  //    so future features that introduce padding outside the gutter don't
+  //    leave undefined-color regions).
   ctx.fillStyle = figure.canvas.background;
   ctx.fillRect(0, 0, figure.canvas.widthPx, figure.canvas.heightPx);
 
-  // 2. Each panel.
+  // 2. Gutter. The gutter is "everything visible that isn't a panel" — the
+  //    user-configurable gutterColor paints over the whole canvas, then
+  //    panels are drawn on top, so what remains visible between panels is
+  //    the gutter strips.
+  ctx.fillStyle = figure.grid.gutterColor;
+  ctx.fillRect(0, 0, figure.canvas.widthPx, figure.canvas.heightPx);
+
+  // 3. Each panel.
   const rects = computePanelRects(figure);
   for (let i = 0; i < figure.panels.length; i++) {
     const panel = figure.panels[i];

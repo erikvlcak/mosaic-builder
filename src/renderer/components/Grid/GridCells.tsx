@@ -94,18 +94,9 @@ export function GridCells({
         const x = state.gutterPx + col * (cellW + state.gutterPx);
         const y = state.gutterPx + row * (cellH + state.gutterPx);
 
-        function onClick(e: React.MouseEvent<HTMLDivElement>): void {
-          if (!e.shiftKey) return;
-          // Shift-click toggles selection; stop propagation so the panel
-          // layer's onClick (which handles "focus this panel") does not fire.
-          e.stopPropagation();
-          onCellShiftClick(row, col);
-        }
-
         return (
           <div
             key={`sel-${k}`}
-            onClick={onClick}
             data-testid={`cell-sel-${row}-${col}`}
             style={{
               position: "absolute",
@@ -113,7 +104,9 @@ export function GridCells({
               top: y * sy,
               width: cellW * sx,
               height: cellH * sy,
-              pointerEvents: "auto",
+              // Visual-only layer; clicks pass through to the panel layer
+              // above, which dispatches shift-clicks back to onCellShiftClick.
+              pointerEvents: "none",
               boxSizing: "border-box",
               outline: sel
                 ? "2px solid #FFC400"
@@ -160,6 +153,20 @@ export function GridCells({
           e.dataTransfer.effectAllowed = "move";
         }
 
+        function onClick(e: React.MouseEvent<HTMLDivElement>): void {
+          if (e.shiftKey) {
+            // Shift-click on a 1x1 panel toggles its cell in the merge
+            // selection. Merged panels can't participate in a merge selection
+            // (canMergeSelection rejects them), so shift-click on a merged
+            // panel is a no-op.
+            if (panel.rowSpan === 1 && panel.colSpan === 1) {
+              onCellShiftClick(panel.row, panel.col);
+            }
+            return;
+          }
+          onPanelClick(panel.id);
+        }
+
         return (
           <div
             key={panel.id}
@@ -168,7 +175,7 @@ export function GridCells({
             onDragOver={onDragOver}
             onDragLeave={onDragLeave}
             onDrop={onDropEvt}
-            onClick={() => onPanelClick(panel.id)}
+            onClick={onClick}
             data-testid={`panel-${panel.row}-${panel.col}`}
             data-panel-id={panel.id}
             data-focused={focusedPanelId === panel.id ? "true" : undefined}

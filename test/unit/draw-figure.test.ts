@@ -72,4 +72,38 @@ describe("drawFigure", () => {
     const labels = ctx.calls.filter((c) => c.op === "fillText");
     expect(labels.length).toBe(4);
   });
+
+  it("paints the gutter color over the full canvas before drawing panels", () => {
+    // Snapshot fillStyle at each fillRect call so we can verify the color
+    // used per call — the simple recorder above only tracks op + args.
+    const fills: { fillStyle: string; args: unknown[] }[] = [];
+    const ctx: DrawCtx = {
+      fillStyle: "",
+      strokeStyle: "",
+      font: "",
+      textAlign: "left",
+      textBaseline: "top",
+      fillRect(x, y, w, h) {
+        fills.push({ fillStyle: String(this.fillStyle), args: [x, y, w, h] });
+      },
+      strokeRect() {},
+      fillText() {},
+      drawImage() {},
+      save() {},
+      restore() {},
+      beginPath() {},
+      rect() {},
+      clip() {},
+    };
+    const fig: Figure = {
+      canvas: { widthPx: 100, heightPx: 100, background: "#FAFAFA" },
+      grid: { rows: 1, cols: 1, gutterPx: 10, gutterColor: "#3A7BD5" },
+      panels: [{ row: 0, col: 0, kind: "placeholder", label: "A" }],
+    };
+    drawFigure(ctx, fig, new Map());
+    // First fill = canvas background; second fill = gutter color over the
+    // entire canvas. Both span (0,0)-(W,H).
+    expect(fills[0]).toEqual({ fillStyle: "#FAFAFA", args: [0, 0, 100, 100] });
+    expect(fills[1]).toEqual({ fillStyle: "#3A7BD5", args: [0, 0, 100, 100] });
+  });
 });
