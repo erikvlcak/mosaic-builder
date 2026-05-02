@@ -348,6 +348,7 @@ describe("drawAnnotations", () => {
   const PANEL_RECTS_BY_ID = new Map([["p1", PANEL_RECT]]);
   const EMPTY_DEPS = {
     panelRectsById: PANEL_RECTS_BY_ID,
+    panelsById: new Map(),
     imagesById: new Map(),
     bitmaps: new Map<string, ImageBitmap>(),
   };
@@ -891,7 +892,7 @@ describe("drawAnnotations", () => {
       expect(labels).toHaveLength(0);
     });
 
-    it("showLabel = true renders the unit label with the µm glyph", () => {
+    it("showLabel = true renders the unit label with the µm glyph (br corner: label above the bar)", () => {
       const ctx = makeRecorder();
       const bitmap = { width: 100, height: 100 } as unknown as ImageBitmap;
       const style = {
@@ -904,6 +905,37 @@ describe("drawAnnotations", () => {
       const labels = ctx.calls.filter((c) => c.op === "fillText");
       expect(labels).toHaveLength(1);
       expect(labels[0]?.args[0]).toBe("50 µm");
+      // Default scalebar corner is "br" with paddingPx=8, thicknessPx=4.
+      // Panel rect = canvas (0,0,100,100); bar rect.y = 100 - 8 - 4 = 88.
+      // For bottom corners the label sits ABOVE the bar at rect.y - 2 = 86.
+      expect(labels[0]?.args[2]).toBeCloseTo(86, 6);
+    });
+
+    it("showLabel = true with corner='tl' draws the label BELOW the bar (inside the panel)", () => {
+      // For top-anchored bars the label flips to the opposite side of the bar
+      // so it stays inside the panel rather than spilling into the gutter.
+      const ctx = makeRecorder();
+      const bitmap = { width: 100, height: 100 } as unknown as ImageBitmap;
+      const style = {
+        ...DEFAULT_GLOBAL_STYLE,
+        letters: { ...DEFAULT_GLOBAL_STYLE.letters, enabled: false },
+        scalebar: {
+          ...DEFAULT_GLOBAL_STYLE.scalebar,
+          corner: "tl" as const,
+          showLabel: true,
+        },
+      };
+      const fig = scaleBarFig({ style, lengthValue: 50 });
+      drawFigure(ctx, fig, new Map([["img-cal", bitmap]]), calibratedPool());
+      const labels = ctx.calls.filter((c) => c.op === "fillText");
+      expect(labels).toHaveLength(1);
+      expect(labels[0]?.args[0]).toBe("50 µm");
+      // tl corner with paddingPx=8, thicknessPx=4 → bar rect.y = 8, rect.h = 4.
+      // sizePx = sizePt = 10 (M6: 1pt = 1px). Alphabetic baseline →
+      // labelY = rect.y + rect.h + 2 + sizePx = 8 + 4 + 2 + 10 = 24.
+      const expectedY =
+        8 + style.scalebar.thicknessPx + 2 + style.scalebar.sizePt;
+      expect(labels[0]?.args[2]).toBeCloseTo(expectedY, 6);
     });
 
   });

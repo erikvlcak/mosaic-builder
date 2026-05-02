@@ -1,4 +1,4 @@
-import type { Figure } from "../model/types";
+import type { Figure, HardCodedPanel } from "../model/types";
 import type { PanelTransform } from "../model/panels";
 import type { ImagePoolItem } from "../model/pool";
 import { computePanelRects, rotatedImageDims, type PanelRect } from "./coords";
@@ -93,19 +93,23 @@ export function drawFigure(
     }
   }
 
-  // 4. Annotation pass. Build the panel-id → rect index from the panels we
-  //    just laid out so annotations can anchor to their panel without
-  //    re-walking the grid math.
+  // 4. Annotation pass. Build the panel-id → rect AND panel-id → panel
+  //    indexes from the panels we just laid out so annotations can anchor
+  //    to their panel without re-walking the grid math or re-scanning
+  //    figure.panels per scale bar.
   const panelRectsById = new Map<string, PanelRect>();
+  const panelsById = new Map<string, HardCodedPanel>();
   for (let i = 0; i < figure.panels.length; i++) {
     const p = figure.panels[i];
     const r = rects[i];
     if (p?.panelId !== undefined && r !== undefined) {
       panelRectsById.set(p.panelId, r);
+      panelsById.set(p.panelId, p);
     }
   }
   drawAnnotations(ctx, figure, {
     panelRectsById,
+    panelsById,
     imagesById: pool,
     bitmaps: images,
   });

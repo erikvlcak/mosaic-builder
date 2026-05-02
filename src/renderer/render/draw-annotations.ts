@@ -17,7 +17,7 @@
  * `drawAnnotations` MUST NOT mutate the figure or its annotations.
  */
 
-import type { Figure, ResolvedAnnotation } from "../model/types";
+import type { Figure, HardCodedPanel, ResolvedAnnotation } from "../model/types";
 import type {
   LetterAnnotation,
   TextAnnotation,
@@ -34,6 +34,8 @@ import { scaleBarFigurePx, scaleBarRect } from "./scalebar";
 export interface AnnotationDrawDeps {
   /** Index of panel rect by panel id (matches figure.panels order). */
   panelRectsById: Map<string, PanelRect>;
+  /** Index of panel by panel id, for O(1) lookup of transform + image dims. */
+  panelsById: Map<string, HardCodedPanel>;
   /** Pool items keyed by image id, for scale-bar calibration lookup (Task 6). */
   imagesById: Map<string, ImagePoolItem>;
   /** Pre-loaded ImageBitmaps; used for image dims, not pixel data (Task 6). */
@@ -274,8 +276,8 @@ function drawScaleBar(
   const panelRect = deps.panelRectsById.get(s.resolvedPanelId);
   if (panelRect === undefined) return;
 
-  // Locate the underlying panel for transform + image dims.
-  const panel = figure.panels.find((p) => p.panelId === s.resolvedPanelId);
+  // Locate the underlying panel for transform + image dims (O(1) via index).
+  const panel = deps.panelsById.get(s.resolvedPanelId);
   if (panel === undefined || panel.kind !== "image") return;
 
   const bitmap = deps.bitmaps.get(panel.imageId);
@@ -325,7 +327,13 @@ function drawScaleBar(
   const unitGlyph = s.lengthUnit === "um" ? "µm" : s.lengthUnit;
   const labelText = `${s.lengthValue} ${unitGlyph}`;
   const labelX = rect.x + rect.w / 2;
-  const labelY = rect.y - 2;
+  // Place the label on the side of the bar facing INTO the panel: above the
+  // bar for bottom-anchored corners, below it for top-anchored ones. This
+  // keeps the label inside the panel rather than spilling into the gutter.
+  const isTopCorner = corner === "tl" || corner === "tr";
+  const labelY = isTopCorner
+    ? rect.y + rect.h + 2 + sizePx
+    : rect.y - 2;
 
   ctx.fillText(labelText, labelX, labelY);
 }
