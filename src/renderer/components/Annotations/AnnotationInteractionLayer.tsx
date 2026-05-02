@@ -17,14 +17,17 @@
  * the factor is 1.0, but the math is written generally.
  *
  * NOTE: This layer coexists with `PanelInteractionLayer` (per-panel
- * pan/zoom). The two layers are stacked: PanelInteractionLayer mounts
- * only over a focused image panel and uses pointer events for pan/zoom.
- * The AnnotationInteractionLayer covers the entire canvas. To avoid
+ * pan/zoom). PanelInteractionLayer mounts over a focused image panel
+ * whenever one exists — independent of the active annotation tool — so
+ * wheel-zoom on the focused panel keeps working even while a creation
+ * tool is selected. The two layers are z-stacked: AnnotationInteractionLayer
+ * (zIndex 3) sits ABOVE PanelInteractionLayer (zIndex 2). To avoid click
  * conflicts, the annotation layer is `pointer-events: none` whenever the
  * `select` tool is active over empty space — clicks pass through to the
- * panel layer below. When a creation tool is active, the annotation
- * layer captures all clicks (this is the user's expectation: switching
- * to "Box" disables panel pan/zoom until they switch back to Select).
+ * panel layer below. When a creation tool is active, the annotation layer
+ * captures all clicks (this is the user's expectation: switching to "Box"
+ * disables panel-layer click/drag until they switch back to Select), while
+ * wheel events still reach the panel layer underneath naturally.
  */
 
 import { useEffect, useRef, useState } from "react";
@@ -111,6 +114,16 @@ const DEFAULT_BOX_STROKE_PX = 2;
 const DEFAULT_ARROW_COLOR = "#FF0000";
 const DEFAULT_ARROW_THICKNESS = 2;
 
+// Default z-values for new annotations: scalebar always on top so it can't be hidden;
+// text mid-stack so it overlays boxes/arrows; boxes/arrows at bottom as backdrop.
+const Z_TEXT = 5;
+const Z_ARROW = 1;
+const Z_BOX = 1;
+const Z_SCALEBAR = 10;
+
+// Minimum hit-rect dimension in CSS px so very small annotations remain selectable.
+const MIN_HIT_PX = 8;
+
 function newAnnoId(): string {
   return crypto.randomUUID();
 }
@@ -149,7 +162,7 @@ function annoBounds(
   switch (a.kind) {
     case "text": {
       const sizePx = a.sizePt;
-      const w = Math.max(8, a.text.length * sizePx * 0.6);
+      const w = Math.max(MIN_HIT_PX, a.text.length * sizePx * 0.6);
       const h = sizePx * 1.2;
       return { x: a.x, y: a.y, w, h };
     }
@@ -250,12 +263,19 @@ export function AnnotationInteractionLayer({
       if (panelId === null) return;
       // Verify the panel has an image AND the image is calibrated.
       const panel = figure.panels.find((p) => p.panelId === panelId);
-      if (panel === undefined || panel.kind !== "image") return;
+      if (panel === undefined || panel.kind !== "image") {
+        console.warn(
+          `[scalebar] Cannot add scale bar: panel ${panel?.panelId ?? "(none)"} requires a calibrated image. ` +
+          `Use the "Calibrate…" button on the panel toolbar first.`,
+        );
+        return;
+      }
       const img = imagesById.get(panel.imageId);
       if (img === undefined || img.calibration === undefined) {
-        // Surface the precondition failure via a transient popover
-        // marker — for M6 we just do nothing; the toolbar tooltip
-        // explains. (Task 10 manual verification will confirm UX.)
+        console.warn(
+          `[scalebar] Cannot add scale bar: panel ${panel?.panelId ?? "(none)"} requires a calibrated image. ` +
+          `Use the "Calibrate…" button on the panel toolbar first.`,
+        );
         return;
       }
       setPendingScalebar({ panelId, cssX: c.cssX, cssY: c.cssY });
@@ -301,7 +321,7 @@ export function AnnotationInteractionLayer({
       const ann: ArrowAnnotation = {
         id: newAnnoId(),
         kind: "arrow",
-        z: 10,
+        z: Z_ARROW,
         x1: drag.startFx,
         y1: drag.startFy,
         x2: endFx,
@@ -324,7 +344,7 @@ export function AnnotationInteractionLayer({
       const ann: BoxAnnotation = {
         id: newAnnoId(),
         kind: "box",
-        z: 10,
+        z: Z_BOX,
         x,
         y,
         w,
@@ -417,7 +437,7 @@ export function AnnotationInteractionLayer({
     const ann: ScaleBarAnnotation = {
       id: newAnnoId(),
       kind: "scalebar",
-      z: 10,
+      z: Z_SCALEBAR,
       panelId: pendingScalebar.panelId,
       lengthValue,
       lengthUnit: scalebarUnit,
@@ -440,7 +460,7 @@ export function AnnotationInteractionLayer({
     const ann: TextAnnotation = {
       id: pendingText.id,
       kind: "text",
-      z: 10,
+      z: Z_TEXT,
       x: pendingText.fx,
       y: pendingText.fy,
       text: trimmed,
@@ -549,8 +569,8 @@ export function AnnotationInteractionLayer({
                 position: "absolute",
                 left: b.x * figToCssX,
                 top: b.y * figToCssY,
-                width: Math.max(8, b.w * figToCssX),
-                height: Math.max(8, b.h * figToCssY),
+                width: Math.max(MIN_HIT_PX, b.w * figToCssX),
+                height: Math.max(MIN_HIT_PX, b.h * figToCssY),
                 pointerEvents: "auto",
                 cursor: "move",
                 background: "transparent",
@@ -567,8 +587,8 @@ export function AnnotationInteractionLayer({
             position: "absolute",
             left: selectedBounds.x * figToCssX - 2,
             top: selectedBounds.y * figToCssY - 2,
-            width: Math.max(8, selectedBounds.w * figToCssX) + 4,
-            height: Math.max(8, selectedBounds.h * figToCssY) + 4,
+            width: Math.max(MIN_HIT_PX, selectedBounds.w * figToCssX) + 4,
+            height: Math.max(MIN_HIT_PX, selectedBounds.h * figToCssY) + 4,
             pointerEvents: "none",
             border: "2px dashed #0066FF",
             boxSizing: "border-box",

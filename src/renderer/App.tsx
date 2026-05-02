@@ -363,8 +363,7 @@ export function App(): JSX.Element {
             {selectedImagePanel !== undefined &&
               focusedPanelRect !== null &&
               focusedBitmap !== undefined &&
-              selectedImagePanel.transform !== undefined &&
-              activeTool === "select" && (
+              selectedImagePanel.transform !== undefined && (
                 <PanelInteractionLayer
                   panelId={selectedImagePanel.id}
                   panelRect={focusedPanelRect}
