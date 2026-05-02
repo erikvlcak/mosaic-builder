@@ -9,6 +9,8 @@ describe("preload API contract", () => {
     expect(API_CHANNELS.exportTiff).toBe("mosaic:export-tiff");
     expect(API_CHANNELS.exportPdf).toBe("mosaic:export-pdf");
     expect(API_CHANNELS.openImages).toBe("mosaic:open-images");
+    expect(API_CHANNELS.projectSave).toBe("mosaic:project-save");
+    expect(API_CHANNELS.projectLoad).toBe("mosaic:project-load");
   });
 
   it("export channels are string-typed", () => {
@@ -29,6 +31,8 @@ describe("preload API contract", () => {
       exportPdf: () =>
         Promise.resolve({ ok: true, filePath: "/tmp/x.pdf", bytesWritten: 0 }),
       openImages: () => Promise.resolve({ canceled: true }),
+      saveProject: () => Promise.resolve({ ok: true, filePath: "/tmp/x.mosaic" }),
+      loadProject: () => Promise.resolve({ ok: false, reason: "canceled" }),
     };
     expect(typeof fake.ping).toBe("function");
     expect(typeof fake.exportPng).toBe("function");
@@ -36,5 +40,7 @@ describe("preload API contract", () => {
     expect(typeof fake.exportTiff).toBe("function");
     expect(typeof fake.exportPdf).toBe("function");
     expect(typeof fake.openImages).toBe("function");
+    expect(typeof fake.saveProject).toBe("function");
+    expect(typeof fake.loadProject).toBe("function");
   });
 });
