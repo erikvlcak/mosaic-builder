@@ -111,7 +111,13 @@ export function PanelInteractionLayer({
     }
 
     el.addEventListener("wheel", onWheel, { passive: false });
-    return () => el.removeEventListener("wheel", onWheel);
+    return () => {
+      el.removeEventListener("wheel", onWheel);
+      if (wheelEndRef.current !== null) {
+        clearTimeout(wheelEndRef.current);
+        wheelEndRef.current = null;
+      }
+    };
   }, []);
 
   // No pointer events in Stretch — nothing to do.
