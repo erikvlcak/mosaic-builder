@@ -437,6 +437,10 @@ describe("drawAnnotations", () => {
     expect(fills[0]?.fillStyle).toBe("#0000FF");
     expect(strokes[0]?.strokeStyle).toBe("#FF0000");
     expect(strokes[0]?.lineWidth).toBe(2);
+    // Order: fill must be painted before stroke so the stroke sits on top.
+    const fillIdx = ctx.calls.findIndex((c) => c.op === "fillRect");
+    const strokeIdx = ctx.calls.findIndex((c) => c.op === "strokeRect");
+    expect(fillIdx).toBeLessThan(strokeIdx);
   });
 
   it("box with stroke only (no fill) emits exactly one strokeRect and zero fillRect", () => {
@@ -535,6 +539,76 @@ describe("drawAnnotations", () => {
     ]);
     drawAnnotations(ctx, fig, EMPTY_DEPS);
     expect(ctx.calls.some((c) => c.op === "fillText")).toBe(false);
+  });
+
+  it("drawAnnotations skips text annotations whose panelId does not resolve", () => {
+    const ctx = makeRecorder();
+    const fig = figWith([
+      {
+        id: "t-orphan",
+        kind: "text",
+        panelId: "nonexistent",
+        z: 0,
+        x: 50,
+        y: 60,
+        text: "ghost",
+        font: "Arial",
+        sizePt: 14,
+        bold: false,
+        italic: false,
+        color: "#222",
+      },
+    ]);
+    drawAnnotations(ctx, fig, EMPTY_DEPS);
+    expect(ctx.calls.some((c) => c.op === "fillText")).toBe(false);
+  });
+
+  it("drawAnnotations skips box annotations whose panelId does not resolve", () => {
+    const ctx = makeRecorder();
+    const fig = figWith([
+      {
+        id: "b-orphan",
+        kind: "box",
+        panelId: "nonexistent",
+        z: 0,
+        x: 0,
+        y: 0,
+        w: 10,
+        h: 10,
+        stroke: "#000",
+        strokeWidthPx: 1,
+      },
+    ]);
+    drawAnnotations(ctx, fig, EMPTY_DEPS);
+    expect(ctx.calls.some((c) => c.op === "strokeRect")).toBe(false);
+    expect(ctx.calls.some((c) => c.op === "fillRect")).toBe(false);
+  });
+
+  it("renders letters before user annotations of equal z (array order locks 'letters first')", () => {
+    // figure-derivations always puts letters BEFORE user annotations in the
+    // resolved array. With both at z=0, the stable sort preserves array
+    // order, so the letter's fillText must precede the box's strokeRect.
+    const ctx = makeRecorder();
+    const fig = figWith([
+      { id: "letter:p1", kind: "letter", panelId: "p1", z: 0, text: "A" },
+      {
+        id: "user-box",
+        kind: "box",
+        z: 0,
+        x: 20,
+        y: 30,
+        w: 40,
+        h: 50,
+        stroke: "#FF0000",
+        strokeWidthPx: 2,
+      },
+    ]);
+    drawAnnotations(ctx, fig, EMPTY_DEPS);
+    const letterIdx = ctx.calls.findIndex((c) => c.op === "fillText");
+    const boxIdx = ctx.calls.findIndex((c) => c.op === "strokeRect");
+    expect(letterIdx).toBeGreaterThanOrEqual(0);
+    expect(boxIdx).toBeGreaterThanOrEqual(0);
+    expect(letterIdx).toBeLessThan(boxIdx);
   });
 
   it("renders a tr-corner letter offset by measureText width", () => {

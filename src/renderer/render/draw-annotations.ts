@@ -52,11 +52,18 @@ export function drawAnnotations(
       case "box":
         drawBox(ctx, a, deps);
         break;
-      // Task 6:
       case "arrow":
       case "scalebar":
-      default:
+        // TODO(Task 6): drawArrow / drawScaleBar
         break;
+      default: {
+        // Exhaustiveness check: adding a new annotation kind to
+        // `ResolvedAnnotation` (or removing the arrow/scalebar cases
+        // above) will trigger a compile error here.
+        const _exhaustive: never = a;
+        void _exhaustive;
+        break;
+      }
     }
   }
 }
@@ -107,7 +114,8 @@ function drawLetter(
 
   let x: number;
   let y: number;
-  switch (style.corner) {
+  const corner = style.corner;
+  switch (corner) {
     case "tl":
       x = rect.x + style.paddingPx;
       y = rect.y + style.paddingPx + sizePx;
@@ -125,7 +133,10 @@ function drawLetter(
       y = rect.y + rect.h - style.paddingPx;
       break;
     default: {
-      // Unknown corner — skip rather than guess.
+      // Exhaustiveness check: extending `Corner` (e.g. with "center") will
+      // surface here as a compile error until the renderer is updated.
+      const _exhaustive: never = corner;
+      void _exhaustive;
       return;
     }
   }
