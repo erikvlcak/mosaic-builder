@@ -148,6 +148,28 @@ export function snapTransform(
 }
 
 /**
+ * Effective panel scale = zoom × base-scale (isotropic). For Contain and
+ * Cover, this is the same scalar baseScale uses internally. For Stretch
+ * (which has anisotropic sx/sy), we collapse to min(sx, sy) × zoom — the
+ * scale bar on a stretched image is intentionally best-effort.
+ */
+export function effectivePanelScale(
+  t: PanelTransform,
+  panelW: number,
+  panelH: number,
+  rotImgW: number,
+  rotImgH: number,
+): number {
+  if (t.fit === "stretch") {
+    return Math.min(panelW / rotImgW, panelH / rotImgH) * t.zoom;
+  }
+  const bs = baseScale(panelW, panelH, rotImgW, rotImgH, t.fit);
+  // Contain/Cover return scalar; the type union is widened for Stretch.
+  const scalar = typeof bs === "number" ? bs : Math.min(bs.sx, bs.sy);
+  return scalar * t.zoom;
+}
+
+/**
  * Compute the pan that keeps `cursorLocal` (in panel-local px, origin at
  * panel center) under the cursor after zooming from `t.zoom` to `newZoom`.
  *
