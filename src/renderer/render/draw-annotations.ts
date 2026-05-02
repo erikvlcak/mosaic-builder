@@ -18,11 +18,18 @@
  */
 
 import type { Figure, ResolvedAnnotation } from "../model/types";
-import type { LetterAnnotation, TextAnnotation, BoxAnnotation } from "../model/annotations";
+import type {
+  LetterAnnotation,
+  TextAnnotation,
+  BoxAnnotation,
+  ArrowAnnotation,
+  ScaleBarAnnotation,
+} from "../model/annotations";
 import type { LetterStyle } from "../model/global-style";
 import type { ImagePoolItem } from "../model/pool";
 import type { PanelRect } from "./coords";
 import type { DrawCtx } from "./draw-figure";
+import { scaleBarFigurePx, scaleBarRect } from "./scalebar";
 
 export interface AnnotationDrawDeps {
   /** Index of panel rect by panel id (matches figure.panels order). */
@@ -53,8 +60,10 @@ export function drawAnnotations(
         drawBox(ctx, a, deps);
         break;
       case "arrow":
+        drawArrow(ctx, a);
+        break;
       case "scalebar":
-        // TODO(Task 6): drawArrow / drawScaleBar
+        drawScaleBar(ctx, a, figure, deps);
         break;
       default: {
         // Exhaustiveness check: adding a new annotation kind to
@@ -207,6 +216,118 @@ function drawBox(
   ctx.strokeStyle = b.stroke;
   ctx.lineWidth = b.strokeWidthPx;
   ctx.strokeRect(b.x, b.y, b.w, b.h);
+}
+
+function drawArrow(ctx: DrawCtx, a: ArrowAnnotation): void {
+  ctx.strokeStyle = a.color;
+  ctx.lineWidth = a.thicknessPx;
+  ctx.lineCap = "round";
+
+  // Shaft
+  ctx.beginPath();
+  ctx.moveTo(a.x1, a.y1);
+  ctx.lineTo(a.x2, a.y2);
+  ctx.stroke();
+
+  if (a.head === "none") return;
+
+  // Compute head endpoints
+  const dx = a.x2 - a.x1;
+  const dy = a.y2 - a.y1;
+  const len = Math.sqrt(dx * dx + dy * dy);
+  if (len === 0) return;
+  const angle = Math.atan2(dy, dx);
+  const headLen = Math.max(8, a.thicknessPx * 4);
+  const headAngle = Math.PI / 8;
+
+  // Two endpoints of the head, splayed by ±headAngle from the reverse
+  // shaft direction so the head opens behind the tip.
+  const hx1 = a.x2 - headLen * Math.cos(angle - headAngle);
+  const hy1 = a.y2 - headLen * Math.sin(angle - headAngle);
+  const hx2 = a.x2 - headLen * Math.cos(angle + headAngle);
+  const hy2 = a.y2 - headLen * Math.sin(angle + headAngle);
+
+  if (a.head === "filled") {
+    ctx.fillStyle = a.color;
+    ctx.beginPath();
+    ctx.moveTo(a.x2, a.y2);
+    ctx.lineTo(hx1, hy1);
+    ctx.lineTo(hx2, hy2);
+    ctx.closePath();
+    ctx.fill();
+  } else {
+    // "open": two stroked lines from each side into the tip.
+    ctx.beginPath();
+    ctx.moveTo(hx1, hy1);
+    ctx.lineTo(a.x2, a.y2);
+    ctx.lineTo(hx2, hy2);
+    ctx.stroke();
+  }
+}
+
+function drawScaleBar(
+  ctx: DrawCtx,
+  s: ScaleBarAnnotation & { resolvedPanelId: string },
+  figure: Figure,
+  deps: AnnotationDrawDeps,
+): void {
+  const panelRect = deps.panelRectsById.get(s.resolvedPanelId);
+  if (panelRect === undefined) return;
+
+  // Locate the underlying panel for transform + image dims.
+  const panel = figure.panels.find((p) => p.panelId === s.resolvedPanelId);
+  if (panel === undefined || panel.kind !== "image") return;
+
+  const bitmap = deps.bitmaps.get(panel.imageId);
+  if (bitmap === undefined) return;
+
+  // image MAY be undefined if pool wasn't passed; in that case
+  // calibration will be undefined and a physical-length bar resolves to 0.
+  const image = deps.imagesById.get(panel.imageId);
+  const calibration = image?.calibration;
+
+  const barLength = scaleBarFigurePx(
+    s.lengthValue,
+    s.lengthUnit,
+    calibration,
+    panel.transform,
+    panelRect.w,
+    panelRect.h,
+    bitmap.width,
+    bitmap.height,
+  );
+  if (barLength <= 0) return;
+
+  const style = figure.globalStyle.scalebar;
+  const corner = s.cornerOverride ?? style.corner;
+  const rect = scaleBarRect(
+    corner,
+    style.paddingPx,
+    panelRect,
+    barLength,
+    style.thicknessPx,
+  );
+
+  // Bar fill.
+  ctx.fillStyle = style.barColor;
+  ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
+
+  if (!style.showLabel) return;
+
+  // Label sits above the bar. M6: 1pt = 1px.
+  const sizePx = style.sizePt;
+  ctx.font = `${sizePx}px ${style.font}`;
+  ctx.fillStyle = style.color;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "alphabetic";
+
+  // µm rendered as the literal U+00B5 micro sign.
+  const unitGlyph = s.lengthUnit === "um" ? "µm" : s.lengthUnit;
+  const labelText = `${s.lengthValue} ${unitGlyph}`;
+  const labelX = rect.x + rect.w / 2;
+  const labelY = rect.y - 2;
+
+  ctx.fillText(labelText, labelX, labelY);
 }
 
 // Re-export ResolvedAnnotation in case future callers want the union here.

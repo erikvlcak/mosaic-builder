@@ -109,6 +109,44 @@ describe("scaleBarFigurePx", () => {
   });
 });
 
+// ---------------------------------------------------------------------------
+// Integration smoke test: wire `scaleBarFigurePx` + `scaleBarRect` together
+// against a tiny DrawCtx recorder to catch regressions where one of the two
+// stops being called with the right inputs.
+// ---------------------------------------------------------------------------
+describe("scaleBar integration: figurePx + rect → DrawCtx", () => {
+  it("composes math + geometry into a single fillRect on a fake DrawCtx", () => {
+    const calls: { op: string; args: unknown[] }[] = [];
+    const ctx = {
+      fillRect(x: number, y: number, w: number, h: number) {
+        calls.push({ op: "fillRect", args: [x, y, w, h] });
+      },
+    };
+
+    const panelRect = { x: 0, y: 0, w: 100, h: 100 };
+    const barLength = scaleBarFigurePx(
+      50,
+      "um",
+      CAL_UM,
+      T,
+      panelRect.w,
+      panelRect.h,
+      IMG_W,
+      IMG_H,
+    );
+    const rect = scaleBarRect("br", 10, panelRect, barLength, 4);
+    ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
+
+    expect(calls).toHaveLength(1);
+    const [x, y, w, h] = calls[0]?.args as [number, number, number, number];
+    // barLength = 50 * 6.45 * 1 = 322.5
+    expect(w).toBeCloseTo(322.5, 6);
+    // br corner: x + w should equal panelW - padding = 90; bottom edge = 90.
+    expect(x + w).toBeCloseTo(90, 6);
+    expect(y + h).toBeCloseTo(90, 6);
+  });
+});
+
 describe("scaleBarRect", () => {
   it("br corner — plan example: rect = {210, 186, 80, 4}", () => {
     const rect = scaleBarRect("br", 10, { x: 0, y: 0, w: 300, h: 200 }, 80, 4);

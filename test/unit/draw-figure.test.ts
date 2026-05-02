@@ -3,6 +3,7 @@ import { drawFigure, type DrawCtx } from "../../src/renderer/render/draw-figure"
 import { drawAnnotations } from "../../src/renderer/render/draw-annotations";
 import type { Figure } from "../../src/renderer/model/types";
 import { DEFAULT_TRANSFORM } from "../../src/renderer/model/panels";
+import type { PanelTransform } from "../../src/renderer/model/panels";
 import { DEFAULT_GLOBAL_STYLE } from "../../src/renderer/model/global-style";
 
 interface Call {
@@ -631,6 +632,280 @@ describe("drawAnnotations", () => {
     // panel right = 10 + 100 = 110. textWidth = 1 char * 12 * 0.6 = 7.2.
     // x = 110 - 6 - 7.2 = 96.8. y baseline = 10 + 6 + 12 = 28.
     expect(ft?.args).toEqual(["A", 96.8, 28]);
+  });
+
+  // -------------------------------------------------------------------------
+  // M6 Task 6: arrow + scale bar.
+  // -------------------------------------------------------------------------
+
+  it("arrow with head='filled' records exactly one fill() after a 3-vertex path", () => {
+    const ctx = makeRecorder();
+    const fig = figWith([
+      {
+        id: "arr-filled",
+        kind: "arrow",
+        z: 1,
+        x1: 0,
+        y1: 0,
+        x2: 100,
+        y2: 0,
+        color: "#FF0000",
+        thicknessPx: 2,
+        head: "filled",
+      },
+    ]);
+    drawAnnotations(ctx, fig, EMPTY_DEPS);
+    const fills = ctx.calls.filter((c) => c.op === "fill");
+    expect(fills).toHaveLength(1);
+    // The fill() must follow a beginPath + 3 vertices (moveTo + 2 lineTo)
+    // + closePath. Grab everything since the LAST beginPath before the fill.
+    const fillIdx = ctx.calls.findIndex((c) => c.op === "fill");
+    let lastBeginPath = -1;
+    for (let i = fillIdx - 1; i >= 0; i--) {
+      if (ctx.calls[i]?.op === "beginPath") {
+        lastBeginPath = i;
+        break;
+      }
+    }
+    expect(lastBeginPath).toBeGreaterThanOrEqual(0);
+    const between = ctx.calls.slice(lastBeginPath + 1, fillIdx);
+    const verts = between.filter(
+      (c) => c.op === "moveTo" || c.op === "lineTo",
+    );
+    expect(verts).toHaveLength(3);
+  });
+
+  it("arrow with head='none' records stroke() only and no fill()", () => {
+    const ctx = makeRecorder();
+    const fig = figWith([
+      {
+        id: "arr-none",
+        kind: "arrow",
+        z: 1,
+        x1: 0,
+        y1: 0,
+        x2: 50,
+        y2: 0,
+        color: "#000",
+        thicknessPx: 2,
+        head: "none",
+      },
+    ]);
+    drawAnnotations(ctx, fig, EMPTY_DEPS);
+    expect(ctx.calls.filter((c) => c.op === "fill")).toHaveLength(0);
+    const strokes = ctx.calls.filter((c) => c.op === "stroke");
+    expect(strokes).toHaveLength(1);
+  });
+
+  describe("scale bar", () => {
+    // 100×100 image with 6.45 src-px/µm calibration. Panel rect 100×100 at
+    // origin so the math is easy: at zoom=1 + Contain, S=1 → 50 µm = 322.5 px.
+
+    function scaleBarFig(opts: {
+      transform?: PanelTransform;
+      style?: typeof DEFAULT_GLOBAL_STYLE;
+      cornerOverride?: "tl" | "tr" | "bl" | "br";
+      lengthValue?: number;
+    }): Figure {
+      const transform = opts.transform ?? DEFAULT_TRANSFORM;
+      const style = opts.style ?? DEFAULT_GLOBAL_STYLE;
+      return {
+        canvas: { widthPx: 100, heightPx: 100, background: "#000" },
+        grid: { rows: 1, cols: 1, gutterPx: 0, gutterColor: "#000" },
+        panels: [
+          {
+            panelId: "p1",
+            row: 0,
+            col: 0,
+            kind: "image",
+            imageId: "img-cal",
+            transform,
+          },
+        ],
+        annotations: [
+          {
+            id: "sb1",
+            kind: "scalebar",
+            panelId: "p1",
+            z: 1,
+            lengthValue: opts.lengthValue ?? 50,
+            lengthUnit: "um",
+            ...(opts.cornerOverride !== undefined
+              ? { cornerOverride: opts.cornerOverride }
+              : {}),
+            // figure-derivations would normally add this; we mimic it here.
+            resolvedPanelId: "p1",
+          } as Figure["annotations"][number],
+        ],
+        globalStyle: style,
+      };
+    }
+
+    function calibratedPool(): Map<string, import("../../src/renderer/model/pool").ImagePoolItem> {
+      const item: import("../../src/renderer/model/pool").ImagePoolItem = {
+        id: "img-cal",
+        filename: "x.tif",
+        filePath: "/tmp/x.tif",
+        mime: "image/tiff",
+        width: 100,
+        height: 100,
+        bitDepth: 8,
+        calibration: { unit: "um", pixelsPerUnit: 6.45, source: "manual" },
+      };
+      return new Map([[item.id, item]]);
+    }
+
+    function uncalibratedPool(): Map<string, import("../../src/renderer/model/pool").ImagePoolItem> {
+      const item: import("../../src/renderer/model/pool").ImagePoolItem = {
+        id: "img-cal",
+        filename: "x.tif",
+        filePath: "/tmp/x.tif",
+        mime: "image/tiff",
+        width: 100,
+        height: 100,
+        bitDepth: 8,
+      };
+      return new Map([[item.id, item]]);
+    }
+
+    it("br corner with padding=10 ends at (panelW - 10, panelH - 10)", () => {
+      const ctx = makeRecorder();
+      const bitmap = { width: 100, height: 100 } as unknown as ImageBitmap;
+      const style = {
+        ...DEFAULT_GLOBAL_STYLE,
+        scalebar: {
+          ...DEFAULT_GLOBAL_STYLE.scalebar,
+          corner: "br" as const,
+          paddingPx: 10,
+        },
+      };
+      const fig = scaleBarFig({ style });
+      drawFigure(
+        ctx,
+        fig,
+        new Map([["img-cal", bitmap]]),
+        calibratedPool(),
+      );
+      // The bar's fillRect: x + w should equal panelW - padding = 90;
+      // y + h should equal panelH - padding = 90.
+      const barFills = ctx.calls.filter(
+        (c) => c.op === "fillRect" && c.fillStyle === style.scalebar.barColor,
+      );
+      expect(barFills.length).toBeGreaterThanOrEqual(1);
+      const last = barFills[barFills.length - 1];
+      const [x, y, w, h] = last?.args as [number, number, number, number];
+      expect(x + w).toBeCloseTo(90, 6);
+      expect(y + h).toBeCloseTo(90, 6);
+    });
+
+    it("doubling panel zoom doubles the bar's pixel length", () => {
+      const bitmap = { width: 100, height: 100 } as unknown as ImageBitmap;
+      const style = {
+        ...DEFAULT_GLOBAL_STYLE,
+        scalebar: {
+          ...DEFAULT_GLOBAL_STYLE.scalebar,
+          corner: "tl" as const,
+          paddingPx: 0,
+          showLabel: false,
+        },
+      };
+
+      const ctx1 = makeRecorder();
+      drawFigure(
+        ctx1,
+        scaleBarFig({ style, transform: { ...DEFAULT_TRANSFORM, zoom: 1 } }),
+        new Map([["img-cal", bitmap]]),
+        calibratedPool(),
+      );
+      const ctx2 = makeRecorder();
+      drawFigure(
+        ctx2,
+        scaleBarFig({ style, transform: { ...DEFAULT_TRANSFORM, zoom: 2 } }),
+        new Map([["img-cal", bitmap]]),
+        calibratedPool(),
+      );
+
+      const barFill1 = ctx1.calls
+        .filter(
+          (c) =>
+            c.op === "fillRect" && c.fillStyle === style.scalebar.barColor,
+        )
+        .pop();
+      const barFill2 = ctx2.calls
+        .filter(
+          (c) =>
+            c.op === "fillRect" && c.fillStyle === style.scalebar.barColor,
+        )
+        .pop();
+      const w1 = (barFill1?.args as number[])[2] ?? 0;
+      const w2 = (barFill2?.args as number[])[2] ?? 0;
+      expect(w1).toBeGreaterThan(0);
+      expect(w2).toBeCloseTo(w1 * 2, 6);
+    });
+
+    it("scale bar on a panel with no calibration draws nothing (no bar fillRect)", () => {
+      const ctx = makeRecorder();
+      const bitmap = { width: 100, height: 100 } as unknown as ImageBitmap;
+      const style = {
+        ...DEFAULT_GLOBAL_STYLE,
+        scalebar: {
+          ...DEFAULT_GLOBAL_STYLE.scalebar,
+          // Use a unique color so we can pick out the bar's fillRect from
+          // the canvas/gutter background fills.
+          barColor: "#ABCDEF",
+          showLabel: false,
+        },
+      };
+      const fig = scaleBarFig({ style });
+      drawFigure(
+        ctx,
+        fig,
+        new Map([["img-cal", bitmap]]),
+        uncalibratedPool(),
+      );
+      const barFills = ctx.calls.filter(
+        (c) => c.op === "fillRect" && c.fillStyle === "#ABCDEF",
+      );
+      expect(barFills).toHaveLength(0);
+      // And no label fillText for the scale bar should appear either.
+      const labels = ctx.calls.filter((c) => c.op === "fillText");
+      expect(labels).toHaveLength(0);
+    });
+
+    it("showLabel = false skips the fillText call for the unit label", () => {
+      const ctx = makeRecorder();
+      const bitmap = { width: 100, height: 100 } as unknown as ImageBitmap;
+      const style = {
+        ...DEFAULT_GLOBAL_STYLE,
+        letters: { ...DEFAULT_GLOBAL_STYLE.letters, enabled: false },
+        scalebar: { ...DEFAULT_GLOBAL_STYLE.scalebar, showLabel: false },
+      };
+      const fig = scaleBarFig({ style });
+      drawFigure(ctx, fig, new Map([["img-cal", bitmap]]), calibratedPool());
+      // Bar fillRect must exist; label fillText must not.
+      const barFills = ctx.calls.filter(
+        (c) => c.op === "fillRect" && c.fillStyle === style.scalebar.barColor,
+      );
+      expect(barFills.length).toBeGreaterThanOrEqual(1);
+      const labels = ctx.calls.filter((c) => c.op === "fillText");
+      expect(labels).toHaveLength(0);
+    });
+
+    it("showLabel = true renders the unit label with the µm glyph", () => {
+      const ctx = makeRecorder();
+      const bitmap = { width: 100, height: 100 } as unknown as ImageBitmap;
+      const style = {
+        ...DEFAULT_GLOBAL_STYLE,
+        letters: { ...DEFAULT_GLOBAL_STYLE.letters, enabled: false },
+        scalebar: { ...DEFAULT_GLOBAL_STYLE.scalebar, showLabel: true },
+      };
+      const fig = scaleBarFig({ style, lengthValue: 50 });
+      drawFigure(ctx, fig, new Map([["img-cal", bitmap]]), calibratedPool());
+      const labels = ctx.calls.filter((c) => c.op === "fillText");
+      expect(labels).toHaveLength(1);
+      expect(labels[0]?.args[0]).toBe("50 µm");
+    });
+
   });
 
   it("draws annotations sorted by z (lower z drawn first) without mutating the figure list", () => {
