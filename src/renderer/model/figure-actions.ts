@@ -2,6 +2,7 @@ import type { ImagePoolItem } from "./pool";
 import type { Panel } from "./panels";
 import type { FigureState } from "./figure-state";
 import { resizePanels } from "./grid-resize";
+import { canMergeSelection, mergePanels, unmergePanel, type CellCoord } from "./merge";
 
 export type FigureAction =
   | { type: "ADD_TO_POOL"; item: ImagePoolItem }
@@ -11,7 +12,9 @@ export type FigureAction =
   | { type: "REMOVE_FROM_POOL"; imageId: string }
   | { type: "RESIZE_GRID"; rows: number; cols: number }
   | { type: "SET_GUTTER_PX"; gutterPx: number }
-  | { type: "SET_GUTTER_COLOR"; gutterColor: string };
+  | { type: "SET_GUTTER_COLOR"; gutterColor: string }
+  | { type: "MERGE_CELLS"; cells: CellCoord[] }
+  | { type: "UNMERGE_PANEL"; panelId: string };
 
 export const addToPool = (item: ImagePoolItem): FigureAction => ({
   type: "ADD_TO_POOL",
@@ -45,6 +48,14 @@ export const setGutterPx = (gutterPx: number): FigureAction => ({
 export const setGutterColor = (gutterColor: string): FigureAction => ({
   type: "SET_GUTTER_COLOR",
   gutterColor,
+});
+export const mergeCells = (cells: CellCoord[]): FigureAction => ({
+  type: "MERGE_CELLS",
+  cells,
+});
+export const unmergePanelAction = (panelId: string): FigureAction => ({
+  type: "UNMERGE_PANEL",
+  panelId,
 });
 
 function isImageInPool(s: FigureState, imageId: string): boolean {
@@ -153,6 +164,18 @@ export function figureReducer(s: FigureState, a: FigureAction): FigureState {
       if (!isHexColor(a.gutterColor)) return s;
       if (a.gutterColor === s.gutterColor) return s;
       return { ...s, gutterColor: a.gutterColor };
+    }
+
+    case "MERGE_CELLS": {
+      const check = canMergeSelection(s.panels, a.cells);
+      if (!check.ok) return s;
+      return { ...s, panels: mergePanels(s.panels, check.rect) };
+    }
+
+    case "UNMERGE_PANEL": {
+      const next = unmergePanel(s.panels, a.panelId);
+      if (next === s.panels) return s;
+      return { ...s, panels: next };
     }
   }
 }

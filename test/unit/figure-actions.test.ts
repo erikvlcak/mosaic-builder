@@ -12,6 +12,8 @@ import {
   swapPanels,
   replaceIntoPanel,
   removeFromPool,
+  mergeCells,
+  unmergePanelAction,
 } from "../../src/renderer/model/figure-actions";
 import { findPanelAt } from "../../src/renderer/model/panels";
 
@@ -211,5 +213,62 @@ describe("figureReducer (panel-id actions)", () => {
       { type: "SET_GUTTER_COLOR", gutterColor: "purple" } as const,
     );
     expect(s).toBe(before);
+  });
+
+  it("MERGE_CELLS merges a contiguous rectangle of 1x1 panels", () => {
+    let s = initialFigureState();
+    s = figureReducer(s, {
+      type: "MERGE_CELLS",
+      cells: [
+        { row: 0, col: 0 },
+        { row: 0, col: 1 },
+      ],
+    } as const);
+    expect(s.panels).toHaveLength(3);
+    const merged = s.panels.find((p) => p.colSpan === 2);
+    expect(merged?.row).toBe(0);
+    expect(merged?.col).toBe(0);
+    expect(merged?.rowSpan).toBe(1);
+  });
+
+  it("MERGE_CELLS is a no-op on an L-shape", () => {
+    const s0 = initialFigureState();
+    const s1 = figureReducer(s0, {
+      type: "MERGE_CELLS",
+      cells: [
+        { row: 0, col: 0 },
+        { row: 0, col: 1 },
+        { row: 1, col: 0 },
+      ],
+    } as const);
+    expect(s1).toBe(s0);
+  });
+
+  it("UNMERGE_PANEL splits a merged panel back to 1x1s", () => {
+    let s = initialFigureState();
+    s = figureReducer(s, {
+      type: "MERGE_CELLS",
+      cells: [
+        { row: 0, col: 0 },
+        { row: 0, col: 1 },
+      ],
+    } as const);
+    const merged = s.panels.find((p) => p.colSpan === 2);
+    if (merged === undefined) throw new Error("expected merged");
+    s = figureReducer(s, {
+      type: "UNMERGE_PANEL",
+      panelId: merged.id,
+    } as const);
+    expect(s.panels).toHaveLength(4);
+    expect(s.panels.every((p) => p.rowSpan === 1 && p.colSpan === 1)).toBe(true);
+  });
+
+  it("UNMERGE_PANEL is a no-op on an unknown panelId", () => {
+    const s0 = initialFigureState();
+    const s1 = figureReducer(s0, {
+      type: "UNMERGE_PANEL",
+      panelId: "ghost",
+    } as const);
+    expect(s1).toBe(s0);
   });
 });
