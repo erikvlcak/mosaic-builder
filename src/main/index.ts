@@ -1,9 +1,10 @@
-import { app, BrowserWindow, ipcMain } from "electron";
+import { app, BrowserWindow, dialog, ipcMain } from "electron";
 import path from "node:path";
 import { resolveWindowConfig } from "./window";
 import { API_CHANNELS } from "../preload/api";
 import { pickPngSavePath } from "./dialogs";
 import { writePngFile } from "./fs-write";
+import { pickAndReadImages } from "./open-images";
 
 // `vite-plugin-electron` sets this on process.env at dev-server start.
 const DEV_URL =
@@ -76,6 +77,17 @@ function registerIpc(): void {
       }
     },
   );
+
+  ipcMain.handle(API_CHANNELS.openImages, async (event) => {
+    const senderWindow = BrowserWindow.fromWebContents(event.sender);
+    return pickAndReadImages({
+      parentWindow: senderWindow,
+      showOpenDialog: (parent, options) =>
+        parent !== null
+          ? dialog.showOpenDialog(parent, options)
+          : dialog.showOpenDialog(options),
+    });
+  });
 }
 
 void app.whenReady().then(() => {
