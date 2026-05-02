@@ -79,7 +79,7 @@ export function mergePanels(panels: readonly Panel[], rect: Rect): Panel[] {
     p.row + p.rowSpan <= rect.row + rect.rowSpan &&
     p.col + p.colSpan <= rect.col + rect.colSpan;
 
-  const tlImage = findPanelAt(panels, rect.row, rect.col)?.imageId;
+  const tl = findPanelAt(panels, rect.row, rect.col);
   const merged: Panel = {
     id: freshId(),
     row: rect.row,
@@ -87,7 +87,10 @@ export function mergePanels(panels: readonly Panel[], rect: Rect): Panel[] {
     rowSpan: rect.rowSpan,
     colSpan: rect.colSpan,
   };
-  if (tlImage !== undefined) merged.imageId = tlImage;
+  if (tl?.imageId !== undefined) {
+    merged.imageId = tl.imageId;
+    if (tl.transform !== undefined) merged.transform = tl.transform;
+  }
 
   const out = panels.filter((p) => !inside(p));
   out.push(merged);
@@ -113,6 +116,7 @@ export function unmergePanel(
       const p: Panel = { id: freshId(), row: r, col: c, rowSpan: 1, colSpan: 1 };
       if (r === target.row && c === target.col && target.imageId !== undefined) {
         p.imageId = target.imageId;
+        if (target.transform !== undefined) p.transform = target.transform;
       }
       out.push(p);
     }

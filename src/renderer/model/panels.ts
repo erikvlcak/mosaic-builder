@@ -3,6 +3,31 @@
  * Invariant (enforced by reducer + asserted in tests): the panels in a
  * FigureState cover every cell in [0,rows) × [0,cols) exactly once.
  */
+export type FitMode = "contain" | "cover" | "stretch";
+export type Rotation = 0 | 90 | 180 | 270;
+
+export interface PanelTransform {
+  fit: FitMode;
+  /** figure-px, panel-local; (0,0) = panel center. */
+  panX: number;
+  panY: number;
+  /** 1.0 = baseline (Contain or Cover baseline depending on `fit`). */
+  zoom: number;
+  rotation: Rotation;
+  flipH: boolean;
+  flipV: boolean;
+}
+
+export const DEFAULT_TRANSFORM: PanelTransform = {
+  fit: "contain",
+  panX: 0,
+  panY: 0,
+  zoom: 1,
+  rotation: 0,
+  flipH: false,
+  flipV: false,
+};
+
 export interface Panel {
   id: string;
   row: number;
@@ -10,6 +35,8 @@ export interface Panel {
   rowSpan: number; // >= 1
   colSpan: number; // >= 1
   imageId?: string;
+  /** Present iff `imageId` is set. Reducer enforces. */
+  transform?: PanelTransform;
 }
 
 export function panelCovers(p: Panel, row: number, col: number): boolean {

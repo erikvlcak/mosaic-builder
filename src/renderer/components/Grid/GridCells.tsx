@@ -167,10 +167,19 @@ export function GridCells({
           onPanelClick(panel.id);
         }
 
+        const isFocused = focusedPanelId === panel.id;
+        // When an image panel is focused, the PanelInteractionLayer renders
+        // its own selection chrome on top — so we drop our outline here to
+        // avoid double-borders. We also disable HTML5 drag on focused image
+        // panels so the user can pan/zoom without accidentally starting a
+        // drag; deselect (Escape, or click another panel) to move it again.
+        const showSelectionOutline = isFocused && !occupied;
+        const draggable = occupied && !isFocused;
+
         return (
           <div
             key={panel.id}
-            draggable={occupied}
+            draggable={draggable}
             onDragStart={onDragStart}
             onDragOver={onDragOver}
             onDragLeave={onDragLeave}
@@ -178,7 +187,7 @@ export function GridCells({
             onClick={onClick}
             data-testid={`panel-${panel.row}-${panel.col}`}
             data-panel-id={panel.id}
-            data-focused={focusedPanelId === panel.id ? "true" : undefined}
+            data-focused={isFocused ? "true" : undefined}
             style={{
               position: "absolute",
               left: r.x * sx,
@@ -190,7 +199,7 @@ export function GridCells({
               outline:
                 hoverPanelId === panel.id
                   ? "3px solid #4C9AFF"
-                  : focusedPanelId === panel.id
+                  : showSelectionOutline
                     ? "2px solid #00875A"
                     : "1px dashed transparent",
               outlineOffset: -2,

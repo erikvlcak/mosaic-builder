@@ -3,8 +3,10 @@ import { EditorCanvas } from "./components/Canvas/EditorCanvas";
 import { ExportButton } from "./components/Toolbar/ExportButton";
 import { GridControls } from "./components/Toolbar/GridControls";
 import { MergeControls } from "./components/Toolbar/MergeControls";
+import { PanelControls } from "./components/Toolbar/PanelControls";
 import { Tray } from "./components/Sidebar/Tray";
 import { GridCells, type DropEvent } from "./components/Grid/GridCells";
+import { PanelInteractionLayer } from "./components/Grid/PanelInteractionLayer";
 import {
   initialFigureState,
   type FigureState,
@@ -17,9 +19,15 @@ import {
   setGutterColor,
   mergeCells,
   unmergePanelAction,
+  setPanelFit,
+  rotatePanel90,
+  flipPanelH,
+  flipPanelV,
+  resetPanelTransform,
 } from "./model/figure-actions";
 import { newImageId, type ImagePoolItem } from "./model/pool";
 import { deriveFigure } from "./model/figure-derivations";
+import { computePanelRects } from "./render/coords";
 import { decodeImageBytes } from "./image/decode-bytes";
 import { dispatchDrop } from "./dnd/dispatch-drop";
 import { canMergeSelection } from "./model/merge";
@@ -129,10 +137,58 @@ export function App(): JSX.Element {
     dispatch(unmergePanelAction(focusedPanelId));
   }, [focusedPanelId]);
 
+  const focusedPanel = useMemo(
+    () =>
+      focusedPanelId !== null
+        ? state.panels.find((p) => p.id === focusedPanelId)
+        : undefined,
+    [state.panels, focusedPanelId],
+  );
+
+  const selectedImagePanel =
+    focusedPanel?.imageId !== undefined ? focusedPanel : undefined;
+
+  const onRotate90 = useCallback(() => {
+    if (selectedImagePanel === undefined) return;
+    dispatch(rotatePanel90(selectedImagePanel.id));
+  }, [selectedImagePanel]);
+
+  const onFlipH = useCallback(() => {
+    if (selectedImagePanel === undefined) return;
+    dispatch(flipPanelH(selectedImagePanel.id));
+  }, [selectedImagePanel]);
+
+  const onFlipV = useCallback(() => {
+    if (selectedImagePanel === undefined) return;
+    dispatch(flipPanelV(selectedImagePanel.id));
+  }, [selectedImagePanel]);
+
+  const onResetTransform = useCallback(() => {
+    if (selectedImagePanel === undefined) return;
+    dispatch(resetPanelTransform(selectedImagePanel.id));
+  }, [selectedImagePanel]);
+
+  const onSetFit = useCallback(
+    (fit: "contain" | "cover" | "stretch") => {
+      if (selectedImagePanel === undefined) return;
+      dispatch(setPanelFit(selectedImagePanel.id, fit));
+    },
+    [selectedImagePanel],
+  );
+
+  const onEscape = useCallback(() => {
+    selection.clear();
+    setFocusedPanelId(null);
+  }, [selection]);
+
   useKeyboardShortcuts({
     onMerge,
     onUnmerge,
-    onEscape: selection.clear,
+    onEscape,
+    onRotate90,
+    onFlipH,
+    onFlipV,
+    onResetTransform,
   });
 
   const canMerge = useMemo(() => {
@@ -140,12 +196,25 @@ export function App(): JSX.Element {
     return check.ok;
   }, [state.panels, selection]);
 
-  const focusedPanel = focusedPanelId
-    ? state.panels.find((p) => p.id === focusedPanelId)
-    : undefined;
   const canUnmerge =
     focusedPanel !== undefined &&
     (focusedPanel.rowSpan > 1 || focusedPanel.colSpan > 1);
+
+  // Compute the focused panel's rect once for the interaction layer.
+  const focusedPanelRect = useMemo(() => {
+    if (selectedImagePanel === undefined) return null;
+    const idx = figure.panels.findIndex(
+      (p) => p.row === selectedImagePanel.row && p.col === selectedImagePanel.col,
+    );
+    if (idx < 0) return null;
+    const rects = computePanelRects(figure);
+    return rects[idx] ?? null;
+  }, [figure, selectedImagePanel]);
+
+  const focusedBitmap =
+    selectedImagePanel?.imageId !== undefined
+      ? bitmaps.get(selectedImagePanel.imageId)
+      : undefined;
 
   return (
     <main
@@ -184,6 +253,14 @@ export function App(): JSX.Element {
           canUnmerge={canUnmerge}
           onMerge={onMerge}
           onUnmerge={onUnmerge}
+        />
+        <PanelControls
+          transform={selectedImagePanel?.transform ?? null}
+          onSetFit={onSetFit}
+          onRotate90={onRotate90}
+          onFlipH={onFlipH}
+          onFlipV={onFlipV}
+          onReset={onResetTransform}
         />
         {error !== null && (
           <span style={{ color: "#B00", fontSize: 12 }}>{error}</span>
@@ -228,6 +305,22 @@ export function App(): JSX.Element {
               focusedPanelId={focusedPanelId}
               onPanelClick={setFocusedPanelId}
             />
+            {selectedImagePanel !== undefined &&
+              focusedPanelRect !== null &&
+              focusedBitmap !== undefined &&
+              selectedImagePanel.transform !== undefined && (
+                <PanelInteractionLayer
+                  panelId={selectedImagePanel.id}
+                  panelRect={focusedPanelRect}
+                  transform={selectedImagePanel.transform}
+                  bitmap={focusedBitmap}
+                  figurePxW={FIGURE_PX_W}
+                  figurePxH={FIGURE_PX_H}
+                  cssW={CANVAS_CSS_W}
+                  cssH={CANVAS_CSS_H}
+                  dispatch={dispatch}
+                />
+              )}
           </div>
         </section>
       </div>

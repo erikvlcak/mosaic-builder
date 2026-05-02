@@ -4,6 +4,8 @@
  * M5 (per-panel transforms), and M6 (annotations).
  */
 
+import type { PanelTransform } from "./panels";
+
 export type Hex = string; // "#RRGGBB" or "#RRGGBBAA"
 
 export interface FigureCanvas {
@@ -27,6 +29,7 @@ export type HardCodedPanel =
       imageId: string;
       rowSpan?: number;
       colSpan?: number;
+      transform: PanelTransform;
     }
   | {
       row: number;
@@ -42,3 +45,5 @@ export interface Figure {
   grid: FigureGrid;
   panels: HardCodedPanel[];
 }
+
+export type { PanelTransform, FitMode, Rotation } from "./panels";
