@@ -30,6 +30,7 @@ import {
   resetPanelTransform,
   removeAnnotation,
   setLettersEnabled,
+  resetFigureAction,
 } from "./model/figure-actions";
 import { useHistoryReducer } from "./state/use-history-reducer";
 import { applyLoadedProject } from "./state/load-project";
@@ -42,6 +43,7 @@ import { canMergeSelection } from "./model/merge";
 import { useMergeSelection } from "./hooks/useMergeSelection";
 import { useFieldCommit } from "./hooks/useFieldCommit";
 import { useKeyboardShortcuts } from "./hooks/useKeyboardShortcuts";
+import { useMenuEvents } from "./hooks/useMenuEvents";
 import { toMosaicFile } from "./model/serialize";
 import { APP_VERSION } from "./app-version";
 import { useToasts } from "./hooks/useToasts";
@@ -336,6 +338,37 @@ export function App(): JSX.Element {
     }
     toasts.push({ kind: "success", message: "Project loaded" });
   }, []);
+
+  const onNew = useCallback(() => {
+    dispatch(resetFigureAction());
+    setBitmaps(new Map());
+    setProjectPath(null);
+    setFocusedPanelId(null);
+    setSelectedAnnotationId(null);
+    toasts.push({ kind: "info", message: "New figure" });
+  }, [dispatch, toasts]);
+
+  const onSaveAs = useCallback(async () => {
+    setProjectPath(null);
+    await onSaveProject();
+  }, [onSaveProject]);
+
+  useMenuEvents({
+    onNew,
+    onOpen: onOpenProject,
+    onSave: onSaveProject,
+    onSaveAs,
+    onExportPng: () =>
+      toasts.push({ kind: "info", message: "Use Export → PNG in the toolbar" }),
+    onExportJpeg: () =>
+      toasts.push({ kind: "info", message: "Use Export → JPEG in the toolbar" }),
+    onExportTiff: () =>
+      toasts.push({ kind: "info", message: "Use Export → TIFF in the toolbar" }),
+    onExportPdf: () =>
+      toasts.push({ kind: "info", message: "Use Export → PDF in the toolbar" }),
+    onUndo: history.undo,
+    onRedo: history.redo,
+  });
 
   const calibratingBitmap =
     calibratingImageId !== null ? bitmaps.get(calibratingImageId) : undefined;
