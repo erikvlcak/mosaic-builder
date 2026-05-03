@@ -18,6 +18,21 @@ export const API_CHANNELS = {
 
 export type ApiChannel = (typeof API_CHANNELS)[keyof typeof API_CHANNELS];
 
+export const MENU_EVENTS = {
+  new: "menu:new",
+  open: "menu:open",
+  save: "menu:save",
+  saveAs: "menu:save-as",
+  exportPng: "menu:export-png",
+  exportJpeg: "menu:export-jpeg",
+  exportTiff: "menu:export-tiff",
+  exportPdf: "menu:export-pdf",
+  undo: "menu:undo",
+  redo: "menu:redo",
+} as const;
+
+export type MenuEvent = (typeof MENU_EVENTS)[keyof typeof MENU_EVENTS];
+
 export type ExportResult =
   | { ok: true; filePath: string; bytesWritten: number }
   | {
@@ -89,4 +104,5 @@ export interface MosaicApi {
   openImages(): Promise<OpenImagesResult>;
   saveProject(input: SaveProjectInput): Promise<SaveProjectResult>;
   loadProject(): Promise<LoadProjectResult>;
+  onMenuEvent(handler: (event: MenuEvent) => void): () => void;
 }

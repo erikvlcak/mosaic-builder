@@ -3,6 +3,7 @@ import {
   API_CHANNELS,
   type ExportResult,
   type LoadProjectResult,
+  type MenuEvent,
   type MosaicApi,
   type OpenImagesResult,
   type SaveProjectInput,
@@ -41,6 +42,14 @@ const api: MosaicApi = {
     ipcRenderer.invoke(API_CHANNELS.projectSave, input) as Promise<SaveProjectResult>,
   loadProject: () =>
     ipcRenderer.invoke(API_CHANNELS.projectLoad) as Promise<LoadProjectResult>,
+  onMenuEvent(handler) {
+    const listener = (_e: Electron.IpcRendererEvent, ev: MenuEvent): void =>
+      handler(ev);
+    ipcRenderer.on("menu:event", listener);
+    return () => {
+      ipcRenderer.off("menu:event", listener);
+    };
+  },
 };
 
 contextBridge.exposeInMainWorld("api", api);

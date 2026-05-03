@@ -2,6 +2,7 @@ import type { ImagePoolItem, Calibration } from "./pool";
 import type { Panel, PanelTransform, FitMode, Rotation } from "./panels";
 import { DEFAULT_TRANSFORM } from "./panels";
 import type { FigureState } from "./figure-state";
+import { initialFigureState } from "./figure-state";
 import { resizePanels } from "./grid-resize";
 import { canMergeSelection, mergePanels, unmergePanel, type CellCoord } from "./merge";
 import type { Annotation, AnnotationKind } from "./annotations";
@@ -31,7 +32,8 @@ export type FigureAction =
   | { type: "SET_GLOBAL_STYLE"; style: GlobalAnnoStyle }
   | { type: "SET_LETTERS_ENABLED"; enabled: boolean }
   | { type: "SET_IMAGE_CALIBRATION"; imageId: string; calibration: Calibration | null }
-  | { type: "RESET_TO_STATE"; state: FigureState };
+  | { type: "RESET_TO_STATE"; state: FigureState }
+  | { type: "RESET_FIGURE" };
 
 export const addToPool = (item: ImagePoolItem): FigureAction => ({
   type: "ADD_TO_POOL",
@@ -131,6 +133,7 @@ export const resetToState = (state: FigureState): FigureAction => ({
   type: "RESET_TO_STATE",
   state,
 });
+export const resetFigureAction = (): FigureAction => ({ type: "RESET_FIGURE" });
 
 function isImageInPool(s: FigureState, imageId: string): boolean {
   return s.pool.some((p) => p.id === imageId);
@@ -435,7 +438,6 @@ export function figureReducer(s: FigureState, a: FigureAction): FigureState {
       if (idx < 0) return s;
       const existing = s.annotations[idx]!;
       // Strip id/kind from the patch — they're immutable for a given annotation.
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const { id: _ignoredId, kind: _ignoredKind, ...rest } = a.patch as Partial<Annotation> & {
         id?: string;
         kind?: AnnotationKind;
@@ -528,10 +530,12 @@ export function figureReducer(s: FigureState, a: FigureAction): FigureState {
       return a.state;
     }
 
+    case "RESET_FIGURE":
+      return initialFigureState();
+
     default: {
       // Exhaustiveness guard: TS errors here if a new FigureAction variant is
       // added to the union but not handled in the switch above.
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const _exhaustive: never = a;
       return s;
     }

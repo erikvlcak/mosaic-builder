@@ -21,6 +21,7 @@ import {
   replaceIntoPanel,
   removeFromPool,
   resetToState,
+  resetFigureAction,
   setPanelTransform,
   setPanelFit,
   rotatePanel90,
@@ -956,5 +957,41 @@ describe("RESET_TO_STATE", () => {
     };
     const next = figureReducer(a, resetToState(b));
     expect(next).toBe(b); // identity preserved — it's a wholesale replace
+  });
+});
+
+describe("RESET_FIGURE", () => {
+  it("returns a fresh initial state regardless of prior state", () => {
+    // Reset the panel-id counter before the FIRST initialFigureState() call
+    // so its panel ids match the SECOND call's ids inside the reducer.
+    __resetPanelIdsForTests();
+    const fresh = initialFigureState();
+
+    // Dirty several fields across the FigureState surface so a future
+    // partial-reset bug (e.g. forgetting to clear gutterPx, globalStyle, or
+    // letterOverrides) gets caught by the toEqual snapshot below.
+    let dirty = figureReducer(initialFigureState(), addToPool(IMG_A));
+    dirty = figureReducer(dirty, { type: "RESIZE_GRID", rows: 5, cols: 5 });
+    dirty = figureReducer(dirty, { type: "SET_GUTTER_PX", gutterPx: 42 });
+    dirty = figureReducer(dirty, {
+      type: "SET_GUTTER_COLOR",
+      gutterColor: "#ABCDEF",
+    });
+    const dirtyPid = dirty.panels[0]!.id;
+    dirty = figureReducer(dirty, addAnnotation(textAnno("t-dirty", dirtyPid)));
+    dirty = figureReducer(dirty, setLetterOverride(dirtyPid, "Z9"));
+    dirty = figureReducer(dirty, {
+      type: "SET_GLOBAL_STYLE",
+      style: {
+        ...DEFAULT_GLOBAL_STYLE,
+        letters: { ...DEFAULT_GLOBAL_STYLE.letters, enabled: false },
+      },
+    });
+
+    // Reset the counter again so RESET_FIGURE's own initialFigureState() call
+    // produces the same panel ids as `fresh` above.
+    __resetPanelIdsForTests();
+    const reset = figureReducer(dirty, resetFigureAction());
+    expect(reset).toEqual(fresh);
   });
 });

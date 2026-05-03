@@ -16,6 +16,7 @@ interface Props {
     stillMissing: MissingEntry[],
   ) => void;
   onClose: () => void;
+  /** Reserved for future actions (e.g. removing image-pool entries on Skip). */
   dispatch: Dispatch<FigureAction>;
 }
 
@@ -31,7 +32,6 @@ export function RelinkModal({
   missing,
   onRelinked,
   onClose,
-  dispatch: _dispatch,
 }: Props): JSX.Element {
   const [pending, setPending] = useState<MissingEntry[]>(missing);
   const [resolved, setResolved] = useState<Map<string, ImageBitmap>>(new Map());
@@ -109,7 +109,7 @@ export function RelinkModal({
           Locate missing images
         </h2>
         <p style={{ margin: "0 0 12px", color: "#555" }}>
-          The project references files that aren't where it expected.
+          The project references files that aren&apos;t where it expected.
           Click <strong>Locate…</strong> to point at the correct file, or
           <strong> Skip</strong> to leave the panel empty.
         </p>

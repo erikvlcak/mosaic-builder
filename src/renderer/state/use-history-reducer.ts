@@ -20,17 +20,19 @@ import { type FigureState } from "../model/figure-state";
  */
 const TRANSIENT_ACTIONS: ReadonlySet<FigureAction["type"]> = new Set([
   "SET_PANEL_TRANSFORM",
+  "UPDATE_ANNOTATION",
+  "SET_GLOBAL_STYLE",
 ]);
 
 interface HistoryControls {
-  undo: () => void;
-  redo: () => void;
+  undo: (this: void) => void;
+  redo: (this: void) => void;
   /**
    * Push the *current* state onto the undo stack. Call this on
    * `pointerup` after a drag-driven sequence of transient dispatches.
    * No-ops if the current state is identical (===) to the last commit.
    */
-  commit: () => void;
+  commit: (this: void) => void;
   canUndo: boolean;
   canRedo: boolean;
 }

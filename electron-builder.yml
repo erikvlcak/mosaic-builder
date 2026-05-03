@@ -1,0 +1,43 @@
+appId: com.mosaicbuilder.app
+productName: Mosaic Builder
+copyright: Copyright © 2026 Mosaic Builder contributors
+asar: true
+directories:
+  output: release
+  buildResources: build
+files:
+  - dist/renderer/**
+  - dist-electron/**
+  - package.json
+  - "!**/{.DS_Store,Thumbs.db}"
+  - "!**/*.{ts,tsx,map}"
+extraResources:
+  - from: resources/icons
+    to: icons
+mac:
+  category: public.app-category.graphics-design
+  icon: resources/icons/icon.icns
+  hardenedRuntime: true
+  gatekeeperAssess: false
+  entitlements: build/entitlements.mac.plist
+  entitlementsInherit: build/entitlements.mac.plist
+  target:
+    - target: dmg
+      arch: [x64, arm64]
+    - target: zip
+      arch: [x64, arm64]
+win:
+  icon: resources/icons/icon.ico
+  target:
+    - target: nsis
+      arch: [x64]
+linux:
+  icon: resources/icons/icon-512.png
+  category: Graphics
+  target:
+    - target: AppImage
+      arch: [x64]
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+publish: null

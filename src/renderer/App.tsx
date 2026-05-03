@@ -9,6 +9,7 @@ import { AnnotationInteractionLayer } from "./components/Annotations/AnnotationI
 import { CalibrationModal } from "./components/Annotations/CalibrationModal";
 import { RelinkModal } from "./components/Modals/RelinkModal";
 import { Tray } from "./components/Sidebar/Tray";
+import { PropertiesPanel } from "./components/Properties/PropertiesPanel";
 import { GridCells, type DropEvent } from "./components/Grid/GridCells";
 import { PanelInteractionLayer } from "./components/Grid/PanelInteractionLayer";
 import {
@@ -29,6 +30,7 @@ import {
   resetPanelTransform,
   removeAnnotation,
   setLettersEnabled,
+  resetFigureAction,
 } from "./model/figure-actions";
 import { useHistoryReducer } from "./state/use-history-reducer";
 import { applyLoadedProject } from "./state/load-project";
@@ -39,8 +41,13 @@ import { decodeImageBytes } from "./image/decode-bytes";
 import { dispatchDrop } from "./dnd/dispatch-drop";
 import { canMergeSelection } from "./model/merge";
 import { useMergeSelection } from "./hooks/useMergeSelection";
+import { useFieldCommit } from "./hooks/useFieldCommit";
 import { useKeyboardShortcuts } from "./hooks/useKeyboardShortcuts";
+import { useMenuEvents } from "./hooks/useMenuEvents";
 import { toMosaicFile } from "./model/serialize";
+import { APP_VERSION } from "./app-version";
+import { useToasts } from "./hooks/useToasts";
+import { ToastTray } from "./components/Toasts/ToastTray";
 
 const FIGURE_PX_W = 800;
 const FIGURE_PX_H = 600;
@@ -56,7 +63,7 @@ function basename(p: string): string {
 export function App(): JSX.Element {
   const [state, dispatch, history] = useHistoryReducer(initialFigureState());
   const [bitmaps, setBitmaps] = useState<Map<string, ImageBitmap>>(new Map());
-  const [error, setError] = useState<string | null>(null);
+  const toasts = useToasts(5000);
   const [focusedPanelId, setFocusedPanelId] = useState<string | null>(null);
   const [activeTool, setActiveTool] = useState<Tool>("select");
   const [projectPath, setProjectPath] = useState<string | null>(null);
@@ -94,12 +101,14 @@ export function App(): JSX.Element {
   );
 
   const onAddImagesClick = useCallback(async (): Promise<void> => {
-    setError(null);
     let result;
     try {
       result = await window.api.openImages();
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      toasts.push({
+        kind: "error",
+        message: err instanceof Error ? err.message : String(err),
+      });
       return;
     }
     if (result.canceled) return;
@@ -108,9 +117,10 @@ export function App(): JSX.Element {
       try {
         decoded = await decodeImageBytes(f.bytes, f.mime);
       } catch (err) {
-        setError(
-          `decode failed for ${f.filePath}: ${err instanceof Error ? err.message : String(err)}`,
-        );
+        toasts.push({
+          kind: "error",
+          message: `decode failed for ${f.filePath}: ${err instanceof Error ? err.message : String(err)}`,
+        });
         continue;
       }
       const { bitmap, bitDepth, calibration } = decoded;
@@ -131,12 +141,12 @@ export function App(): JSX.Element {
       });
       dispatch(addToPool(item));
     }
-  }, []);
+  }, [dispatch, toasts]);
 
   const onDrop = useCallback((ev: DropEvent): void => {
     const action = dispatchDrop(stateRef.current, ev);
     if (action !== null) dispatch(action);
-  }, []);
+  }, [dispatch]);
 
   const onMerge = useCallback(() => {
     const cells = selection.asCoords();
@@ -144,7 +154,7 @@ export function App(): JSX.Element {
     if (!check.ok) return;
     dispatch(mergeCells(cells));
     selection.clear();
-  }, [selection]);
+  }, [selection, dispatch]);
 
   const onUnmerge = useCallback(() => {
     if (focusedPanelId === null) return;
@@ -152,7 +162,7 @@ export function App(): JSX.Element {
     if (p === undefined) return;
     if (p.rowSpan === 1 && p.colSpan === 1) return;
     dispatch(unmergePanelAction(focusedPanelId));
-  }, [focusedPanelId]);
+  }, [focusedPanelId, dispatch]);
 
   const focusedPanel = useMemo(
     () =>
@@ -165,32 +175,41 @@ export function App(): JSX.Element {
   const selectedImagePanel =
     focusedPanel?.imageId !== undefined ? focusedPanel : undefined;
 
+  const fieldCommit = useFieldCommit(history.commit, 400);
+  const selectedAnno = useMemo(
+    () =>
+      selectedAnnotationId === null
+        ? undefined
+        : state.annotations.find((a) => a.id === selectedAnnotationId),
+    [state.annotations, selectedAnnotationId],
+  );
+
   const onRotate90 = useCallback(() => {
     if (selectedImagePanel === undefined) return;
     dispatch(rotatePanel90(selectedImagePanel.id));
-  }, [selectedImagePanel]);
+  }, [selectedImagePanel, dispatch]);
 
   const onFlipH = useCallback(() => {
     if (selectedImagePanel === undefined) return;
     dispatch(flipPanelH(selectedImagePanel.id));
-  }, [selectedImagePanel]);
+  }, [selectedImagePanel, dispatch]);
 
   const onFlipV = useCallback(() => {
     if (selectedImagePanel === undefined) return;
     dispatch(flipPanelV(selectedImagePanel.id));
-  }, [selectedImagePanel]);
+  }, [selectedImagePanel, dispatch]);
 
   const onResetTransform = useCallback(() => {
     if (selectedImagePanel === undefined) return;
     dispatch(resetPanelTransform(selectedImagePanel.id));
-  }, [selectedImagePanel]);
+  }, [selectedImagePanel, dispatch]);
 
   const onSetFit = useCallback(
     (fit: "contain" | "cover" | "stretch") => {
       if (selectedImagePanel === undefined) return;
       dispatch(setPanelFit(selectedImagePanel.id, fit));
     },
-    [selectedImagePanel],
+    [selectedImagePanel, dispatch],
   );
 
   const onEscape = useCallback(() => {
@@ -205,7 +224,7 @@ export function App(): JSX.Element {
     if (annotationEditing) return; // an inline editor owns the keystroke
     dispatch(removeAnnotation(selectedAnnotationId));
     setSelectedAnnotationId(null);
-  }, [selectedAnnotationId, annotationEditing]);
+  }, [selectedAnnotationId, annotationEditing, dispatch]);
 
   useKeyboardShortcuts({
     onMerge,
@@ -267,7 +286,6 @@ export function App(): JSX.Element {
   }, [selectedImagePanel]);
 
   const onSaveProject = useCallback(async () => {
-    setError(null);
     const file = toMosaicFile({
       state,
       canvas: {
@@ -276,7 +294,7 @@ export function App(): JSX.Element {
         background: CANVAS_BG,
       },
       mosaicPath: projectPath ?? "untitled.mosaic",
-      appVersion: "0.1.0",
+      appVersion: APP_VERSION,
     });
     const r = await window.api.saveProject({
       file,
@@ -284,19 +302,25 @@ export function App(): JSX.Element {
     });
     if (!r.ok) {
       if (r.reason !== "canceled") {
-        setError(`Save failed: ${r.message ?? r.reason}`);
+        toasts.push({
+          kind: "error",
+          message: `Save failed: ${r.message ?? r.reason}`,
+        });
       }
       return;
     }
     setProjectPath(r.filePath);
-  }, [state, projectPath]);
+    toasts.push({ kind: "success", message: "Project saved" });
+  }, [state, projectPath, toasts]);
 
   const onOpenProject = useCallback(async () => {
-    setError(null);
     const r = await window.api.loadProject();
     if (!r.ok) {
       if (r.reason !== "canceled") {
-        setError(`Open failed: ${r.message ?? r.reason}`);
+        toasts.push({
+          kind: "error",
+          message: `Open failed: ${r.message ?? r.reason}`,
+        });
       }
       return;
     }
@@ -305,13 +329,46 @@ export function App(): JSX.Element {
     setProjectPath(r.filePath);
     setMissingImages(r.missing);
     if (outcome.decodeFailures.length > 0) {
-      setError(
-        `Some images failed to decode: ${outcome.decodeFailures
+      toasts.push({
+        kind: "error",
+        message: `Some images failed to decode: ${outcome.decodeFailures
           .map((f) => f.imageId)
           .join(", ")}`,
-      );
+      });
     }
-  }, []);
+    toasts.push({ kind: "success", message: "Project loaded" });
+  }, [dispatch, toasts]);
+
+  const onNew = useCallback(() => {
+    dispatch(resetFigureAction());
+    setBitmaps(new Map());
+    setProjectPath(null);
+    setFocusedPanelId(null);
+    setSelectedAnnotationId(null);
+    toasts.push({ kind: "info", message: "New figure" });
+  }, [dispatch, toasts]);
+
+  const onSaveAs = useCallback(async () => {
+    setProjectPath(null);
+    await onSaveProject();
+  }, [onSaveProject]);
+
+  useMenuEvents({
+    onNew,
+    onOpen: onOpenProject,
+    onSave: onSaveProject,
+    onSaveAs,
+    onExportPng: () =>
+      toasts.push({ kind: "info", message: "Use Export → PNG in the toolbar" }),
+    onExportJpeg: () =>
+      toasts.push({ kind: "info", message: "Use Export → JPEG in the toolbar" }),
+    onExportTiff: () =>
+      toasts.push({ kind: "info", message: "Use Export → TIFF in the toolbar" }),
+    onExportPdf: () =>
+      toasts.push({ kind: "info", message: "Use Export → PDF in the toolbar" }),
+    onUndo: history.undo,
+    onRedo: history.redo,
+  });
 
   const calibratingBitmap =
     calibratingImageId !== null ? bitmaps.get(calibratingImageId) : undefined;
@@ -389,9 +446,6 @@ export function App(): JSX.Element {
             dispatch(setLettersEnabled(!state.globalStyle.letters.enabled))
           }
         />
-        {error !== null && (
-          <span style={{ color: "#B00", fontSize: 12 }}>{error}</span>
-        )}
       </header>
       <div style={{ display: "flex", flex: 1, minHeight: 0 }}>
         <Tray
@@ -465,6 +519,14 @@ export function App(): JSX.Element {
             />
           </div>
         </section>
+        <PropertiesPanel
+          state={state}
+          focusedPanel={selectedImagePanel}
+          selectedAnno={selectedAnno}
+          dispatch={dispatch}
+          commit={fieldCommit}
+          onCalibrate={onCalibrate}
+        />
       </div>
       {calibratingImageId !== null && calibratingBitmap !== undefined && (
         <CalibrationModal
@@ -489,6 +551,7 @@ export function App(): JSX.Element {
           }}
         />
       )}
+      <ToastTray toasts={toasts.toasts} onDismiss={toasts.dismiss} />
     </main>
   );
 }
