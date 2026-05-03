@@ -44,6 +44,8 @@ import { useFieldCommit } from "./hooks/useFieldCommit";
 import { useKeyboardShortcuts } from "./hooks/useKeyboardShortcuts";
 import { toMosaicFile } from "./model/serialize";
 import { APP_VERSION } from "./app-version";
+import { useToasts } from "./hooks/useToasts";
+import { ToastTray } from "./components/Toasts/ToastTray";
 
 const FIGURE_PX_W = 800;
 const FIGURE_PX_H = 600;
@@ -59,7 +61,7 @@ function basename(p: string): string {
 export function App(): JSX.Element {
   const [state, dispatch, history] = useHistoryReducer(initialFigureState());
   const [bitmaps, setBitmaps] = useState<Map<string, ImageBitmap>>(new Map());
-  const [error, setError] = useState<string | null>(null);
+  const toasts = useToasts(5000);
   const [focusedPanelId, setFocusedPanelId] = useState<string | null>(null);
   const [activeTool, setActiveTool] = useState<Tool>("select");
   const [projectPath, setProjectPath] = useState<string | null>(null);
@@ -97,12 +99,14 @@ export function App(): JSX.Element {
   );
 
   const onAddImagesClick = useCallback(async (): Promise<void> => {
-    setError(null);
     let result;
     try {
       result = await window.api.openImages();
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      toasts.push({
+        kind: "error",
+        message: err instanceof Error ? err.message : String(err),
+      });
       return;
     }
     if (result.canceled) return;
@@ -111,9 +115,10 @@ export function App(): JSX.Element {
       try {
         decoded = await decodeImageBytes(f.bytes, f.mime);
       } catch (err) {
-        setError(
-          `decode failed for ${f.filePath}: ${err instanceof Error ? err.message : String(err)}`,
-        );
+        toasts.push({
+          kind: "error",
+          message: `decode failed for ${f.filePath}: ${err instanceof Error ? err.message : String(err)}`,
+        });
         continue;
       }
       const { bitmap, bitDepth, calibration } = decoded;
@@ -279,7 +284,6 @@ export function App(): JSX.Element {
   }, [selectedImagePanel]);
 
   const onSaveProject = useCallback(async () => {
-    setError(null);
     const file = toMosaicFile({
       state,
       canvas: {
@@ -296,19 +300,25 @@ export function App(): JSX.Element {
     });
     if (!r.ok) {
       if (r.reason !== "canceled") {
-        setError(`Save failed: ${r.message ?? r.reason}`);
+        toasts.push({
+          kind: "error",
+          message: `Save failed: ${r.message ?? r.reason}`,
+        });
       }
       return;
     }
     setProjectPath(r.filePath);
+    toasts.push({ kind: "success", message: "Project saved" });
   }, [state, projectPath]);
 
   const onOpenProject = useCallback(async () => {
-    setError(null);
     const r = await window.api.loadProject();
     if (!r.ok) {
       if (r.reason !== "canceled") {
-        setError(`Open failed: ${r.message ?? r.reason}`);
+        toasts.push({
+          kind: "error",
+          message: `Open failed: ${r.message ?? r.reason}`,
+        });
       }
       return;
     }
@@ -317,12 +327,14 @@ export function App(): JSX.Element {
     setProjectPath(r.filePath);
     setMissingImages(r.missing);
     if (outcome.decodeFailures.length > 0) {
-      setError(
-        `Some images failed to decode: ${outcome.decodeFailures
+      toasts.push({
+        kind: "error",
+        message: `Some images failed to decode: ${outcome.decodeFailures
           .map((f) => f.imageId)
           .join(", ")}`,
-      );
+      });
     }
+    toasts.push({ kind: "success", message: "Project loaded" });
   }, []);
 
   const calibratingBitmap =
@@ -401,9 +413,6 @@ export function App(): JSX.Element {
             dispatch(setLettersEnabled(!state.globalStyle.letters.enabled))
           }
         />
-        {error !== null && (
-          <span style={{ color: "#B00", fontSize: 12 }}>{error}</span>
-        )}
       </header>
       <div style={{ display: "flex", flex: 1, minHeight: 0 }}>
         <Tray
@@ -509,6 +518,7 @@ export function App(): JSX.Element {
           }}
         />
       )}
+      <ToastTray toasts={toasts.toasts} onDismiss={toasts.dismiss} />
     </main>
   );
 }
