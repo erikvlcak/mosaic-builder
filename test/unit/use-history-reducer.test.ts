@@ -1,14 +1,24 @@
+// @vitest-environment jsdom
 import { describe, it, expect } from "vitest";
+import { renderHook, act } from "@testing-library/react";
 import {
   combinedReducer,
+  useHistoryReducer,
   type Combined,
 } from "../../src/renderer/state/use-history-reducer";
 import {
   initialFigureState,
   type FigureState,
 } from "../../src/renderer/model/figure-state";
-import { setGutterPx, setPanelTransform } from "../../src/renderer/model/figure-actions";
+import {
+  setGutterPx,
+  setPanelTransform,
+  setGlobalStyle,
+  addAnnotation,
+  updateAnnotation,
+} from "../../src/renderer/model/figure-actions";
 import { DEFAULT_TRANSFORM } from "../../src/renderer/model/panels";
+import { DEFAULT_GLOBAL_STYLE } from "../../src/renderer/model/global-style";
 
 function startCombined(): Combined {
   const s = initialFigureState();
@@ -85,5 +95,48 @@ describe("combinedReducer — undo/redo", () => {
     });
     expect(c.history.past).toHaveLength(0);
     expect(c.history.future).toHaveLength(0);
+  });
+});
+
+describe("transient actions coalesce until commit", () => {
+  it("UPDATE_ANNOTATION dispatches do not push history until commit()", () => {
+    const { result } = renderHook(() => useHistoryReducer(initialFigureState()));
+    const seedAnno = {
+      id: "t1", kind: "text" as const, x: 10, y: 10, text: "hi",
+      font: "Arial", sizePt: 12, bold: false, italic: false, color: "#000", z: 1,
+    };
+    act(() => result.current[1](addAnnotation(seedAnno)));
+    act(() => result.current[2].commit());
+    // Three transient dispatches; no commit() between them.
+    act(() => {
+      result.current[1](updateAnnotation("t1", { text: "h" }));
+      result.current[1](updateAnnotation("t1", { text: "hi" }));
+      result.current[1](updateAnnotation("t1", { text: "hii" }));
+    });
+    expect(result.current[0].annotations[0]?.text).toBe("hii");
+    // One undo flushes the three transient updates into a single step and
+    // restores the prior committed state (text "hi" from addAnnotation).
+    act(() => result.current[2].undo());
+    expect(result.current[0].annotations[0]?.text).toBe("hi");
+    // A second undo backs out the addAnnotation itself.
+    act(() => result.current[2].undo());
+    expect(result.current[0].annotations).toEqual([]);
+  });
+
+  it("SET_GLOBAL_STYLE is transient", () => {
+    const { result } = renderHook(() => useHistoryReducer(initialFigureState()));
+    const variantA = { ...DEFAULT_GLOBAL_STYLE,
+      letters: { ...DEFAULT_GLOBAL_STYLE.letters, sizePt: 14 } };
+    const variantB = { ...DEFAULT_GLOBAL_STYLE,
+      letters: { ...DEFAULT_GLOBAL_STYLE.letters, sizePt: 16 } };
+    act(() => result.current[1](setGlobalStyle(variantA)));
+    act(() => result.current[1](setGlobalStyle(variantB)));
+    act(() => result.current[2].commit());
+    expect(result.current[0].globalStyle.letters.sizePt).toBe(16);
+    act(() => result.current[2].undo());
+    // Both transient dispatches collapse into one history step.
+    expect(result.current[0].globalStyle.letters.sizePt).toBe(
+      initialFigureState().globalStyle.letters.sizePt,
+    );
   });
 });

@@ -20,6 +20,8 @@ import { type FigureState } from "../model/figure-state";
  */
 const TRANSIENT_ACTIONS: ReadonlySet<FigureAction["type"]> = new Set([
   "SET_PANEL_TRANSFORM",
+  "UPDATE_ANNOTATION",
+  "SET_GLOBAL_STYLE",
 ]);
 
 interface HistoryControls {
