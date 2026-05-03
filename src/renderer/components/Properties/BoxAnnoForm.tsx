@@ -28,8 +28,21 @@ export function BoxAnnoForm({ anno, dispatch, commit }: Props): JSX.Element {
         onBlur={commit.flush} />
       <ColorField label="Fill" value={anno.fill ?? "#00000000"}
         onChange={(fill) => {
-          // Skip fully-transparent so fill stays undefined and saves stay clean.
-          if (fill.toLowerCase() === "#00000000") return;
+          const isTransparent = fill.toLowerCase() === "#00000000";
+          if (isTransparent && anno.fill === undefined) {
+            // No-op: field is already unset; don't pollute the model.
+            return;
+          }
+          if (isTransparent) {
+            // Explicit clear: user wants to remove a previously-set fill.
+            // EOPT prevents { fill: undefined } from typing as
+            // Partial<BoxAnnotation>; cast at the dispatch boundary
+            // since the reducer just spreads the patch.
+            const p = { fill: undefined } as unknown as Partial<BoxAnnotation>;
+            dispatch(updateAnnotation(anno.id, p));
+            commit.markDirty();
+            return;
+          }
           patch({ fill });
         }}
         onBlur={commit.flush}

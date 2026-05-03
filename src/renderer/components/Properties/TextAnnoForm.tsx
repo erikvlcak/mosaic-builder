@@ -102,9 +102,19 @@ export function TextAnnoForm({ anno, dispatch, commit }: Props): JSX.Element {
         label="Background"
         value={anno.bgColor ?? "#FFFFFF00"}
         onChange={(bgColor) => {
-          if (bgColor.toLowerCase() === "#ffffff00") {
-            // Skip dispatching transparent — keeps bgColor undefined in the model
-            // so we don't bloat saves with redundant data.
+          const isTransparent = bgColor.toLowerCase() === "#ffffff00";
+          if (isTransparent && anno.bgColor === undefined) {
+            // No-op: field is already unset; don't pollute the model.
+            return;
+          }
+          if (isTransparent) {
+            // Explicit clear: user wants to remove a previously-set bg.
+            // EOPT prevents { bgColor: undefined } from typing as
+            // Partial<TextAnnotation>; cast at the dispatch boundary
+            // since the reducer just spreads the patch.
+            const p = { bgColor: undefined } as unknown as Partial<TextAnnotation>;
+            dispatch(updateAnnotation(anno.id, p));
+            commit.markDirty();
             return;
           }
           patch({ bgColor });
