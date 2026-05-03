@@ -14,7 +14,8 @@
     "skipLibCheck": true,
     "isolatedModules": true,
     "outDir": "./dist-electron/preload",
-    "rootDir": "./src/preload"
+    "rootDir": "./src"
   },
-  "include": ["src/preload/**/*.ts"]
+  "include": ["src/preload/**/*.ts", "src/renderer/model/**/*.ts"],
+  "exclude": ["src/renderer/model/figure-derivations.ts"]
 }

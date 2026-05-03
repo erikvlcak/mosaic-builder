@@ -4,6 +4,8 @@ import { resolveWindowConfig } from "./window";
 import { API_CHANNELS } from "../preload/api";
 import {
   pickJpegSavePath,
+  pickMosaicOpenPath,
+  pickMosaicSavePath,
   pickPdfSavePath,
   pickPngSavePath,
   pickTiffSavePath,
@@ -12,6 +14,8 @@ import {
 } from "./dialogs";
 import { writeBytesToPath, writePngFile } from "./fs-write";
 import { pickAndReadImages } from "./open-images";
+import { saveProjectToPath, loadProjectFromPath } from "./project-io";
+import type { SaveProjectInput } from "../preload/api";
 
 // `vite-plugin-electron` sets this on process.env at dev-server start.
 const DEV_URL =
@@ -127,6 +131,49 @@ function registerIpc(): void {
           ? dialog.showOpenDialog(parent, options)
           : dialog.showOpenDialog(options),
     });
+  });
+
+  ipcMain.handle(
+    API_CHANNELS.projectSave,
+    async (event, input: SaveProjectInput) => {
+      const senderWindow = BrowserWindow.fromWebContents(event.sender);
+      const picked = await pickMosaicSavePath({
+        parentWindow: senderWindow,
+        defaultName: input.defaultName,
+      });
+      if (picked.canceled || picked.filePath === undefined) {
+        return { ok: false, reason: "canceled" } as const;
+      }
+      try {
+        await saveProjectToPath(picked.filePath, input.file);
+        return { ok: true, filePath: picked.filePath } as const;
+      } catch (e) {
+        return {
+          ok: false,
+          reason: "write-failed",
+          message: e instanceof Error ? e.message : String(e),
+        } as const;
+      }
+    },
+  );
+
+  ipcMain.handle(API_CHANNELS.projectLoad, async (event) => {
+    const senderWindow = BrowserWindow.fromWebContents(event.sender);
+    const picked = await pickMosaicOpenPath({ parentWindow: senderWindow });
+    if (picked.canceled || picked.filePath === undefined) {
+      return { ok: false, reason: "canceled" } as const;
+    }
+    const r = await loadProjectFromPath(picked.filePath);
+    if (!r.ok) {
+      return { ok: false, reason: "validation-failed", message: r.error } as const;
+    }
+    return {
+      ok: true,
+      filePath: picked.filePath,
+      file: r.file,
+      images: r.images,
+      missing: r.missing,
+    } as const;
   });
 }
 

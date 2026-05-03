@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 
 export interface ShortcutHandlers {
   onMerge: () => void;
@@ -10,6 +10,10 @@ export interface ShortcutHandlers {
   onResetTransform?: () => void;
   /** Delete / Backspace removes the currently-selected annotation. */
   onDeleteAnnotation?: () => void;
+  /** Cmd/Ctrl-Z. */
+  onUndo?: () => void;
+  /** Cmd/Ctrl-Shift-Z. */
+  onRedo?: () => void;
 }
 
 function isTypingTarget(t: EventTarget | null): boolean {
@@ -20,47 +24,64 @@ function isTypingTarget(t: EventTarget | null): boolean {
 }
 
 export function useKeyboardShortcuts(h: ShortcutHandlers): void {
+  const hRef = useRef(h);
+  hRef.current = h;
   useEffect(() => {
     function onKey(e: KeyboardEvent): void {
+      const handlers = hRef.current;
+      // Cmd/Ctrl-Z and Cmd/Ctrl-Shift-Z come first — they intentionally
+      // require a modifier and would otherwise be filtered out below.
+      const isModZ =
+        (e.metaKey || e.ctrlKey) && !e.altKey && (e.key === "z" || e.key === "Z");
+      if (isModZ) {
+        if (isTypingTarget(e.target)) return;
+        e.preventDefault();
+        if (e.shiftKey) {
+          if (handlers.onRedo) handlers.onRedo();
+        } else {
+          if (handlers.onUndo) handlers.onUndo();
+        }
+        return;
+      }
       if (e.metaKey || e.ctrlKey || e.altKey) return;
       if (isTypingTarget(e.target)) return;
       if (e.key === "m" || e.key === "M") {
         e.preventDefault();
-        h.onMerge();
+        handlers.onMerge();
       } else if (e.key === "u" || e.key === "U") {
         e.preventDefault();
-        h.onUnmerge();
+        handlers.onUnmerge();
       } else if (e.key === "r" || e.key === "R") {
-        if (h.onRotate90) {
+        if (handlers.onRotate90) {
           e.preventDefault();
-          h.onRotate90();
+          handlers.onRotate90();
         }
       } else if (e.key === "h" || e.key === "H") {
-        if (h.onFlipH) {
+        if (handlers.onFlipH) {
           e.preventDefault();
-          h.onFlipH();
+          handlers.onFlipH();
         }
       } else if (e.key === "v" || e.key === "V") {
-        if (h.onFlipV) {
+        if (handlers.onFlipV) {
           e.preventDefault();
-          h.onFlipV();
+          handlers.onFlipV();
         }
       } else if (e.key === "0") {
-        if (h.onResetTransform) {
+        if (handlers.onResetTransform) {
           e.preventDefault();
-          h.onResetTransform();
+          handlers.onResetTransform();
         }
       } else if (
         (e.key === "Delete" || e.key === "Backspace") &&
-        h.onDeleteAnnotation
+        handlers.onDeleteAnnotation
       ) {
         e.preventDefault();
-        h.onDeleteAnnotation();
+        handlers.onDeleteAnnotation();
       } else if (e.key === "Escape") {
-        h.onEscape();
+        handlers.onEscape();
       }
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [h]);
+  }, []);
 }

@@ -20,6 +20,7 @@ import {
   swapPanels,
   replaceIntoPanel,
   removeFromPool,
+  resetToState,
   setPanelTransform,
   setPanelFit,
   rotatePanel90,
@@ -941,5 +942,19 @@ describe("figureReducer (M6 annotations)", () => {
     s = figureReducer(s, removeFromPool("cal"));
     const ids = s.annotations.map((a) => a.id).sort();
     expect(ids).toEqual(["a1", "b1", "t1"]);
+  });
+});
+
+describe("RESET_TO_STATE", () => {
+  it("replaces the entire FigureState with the provided one", () => {
+    __resetPanelIdsForTests();
+    const a = initialFigureState();
+    const b: FigureState = {
+      ...initialFigureState(),
+      gutterPx: 99,
+      gutterColor: "#123456",
+    };
+    const next = figureReducer(a, resetToState(b));
+    expect(next).toBe(b); // identity preserved — it's a wholesale replace
   });
 });

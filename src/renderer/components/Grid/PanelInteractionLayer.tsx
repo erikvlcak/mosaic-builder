@@ -20,6 +20,11 @@ interface Props {
   cssW: number;
   cssH: number;
   dispatch: Dispatch<FigureAction>;
+  /**
+   * Called once on `pointerup` and on a debounced wheel-end so a drag or
+   * a sequence of wheel events records a single history entry.
+   */
+  onCommit: () => void;
 }
 
 /**
@@ -41,13 +46,14 @@ export function PanelInteractionLayer({
   cssW,
   cssH,
   dispatch,
+  onCommit,
 }: Props): JSX.Element | null {
   const ref = useRef<HTMLDivElement | null>(null);
   // Keep the latest transform/rect/etc. in a ref so the wheel handler
   // (added once via addEventListener with { passive: false }) reads
   // current values without re-binding on every state change.
-  const stateRef = useRef({ panelId, panelRect, transform, bitmap, figurePxW, figurePxH, cssW, cssH, dispatch });
-  stateRef.current = { panelId, panelRect, transform, bitmap, figurePxW, figurePxH, cssW, cssH, dispatch };
+  const stateRef = useRef({ panelId, panelRect, transform, bitmap, figurePxW, figurePxH, cssW, cssH, dispatch, onCommit });
+  stateRef.current = { panelId, panelRect, transform, bitmap, figurePxW, figurePxH, cssW, cssH, dispatch, onCommit };
 
   // Drag state — only valid while a pointer is captured.
   const dragRef = useRef<
@@ -60,6 +66,8 @@ export function PanelInteractionLayer({
       }
     | null
   >(null);
+
+  const wheelEndRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Wheel binding — must be { passive: false } so preventDefault() works.
   useEffect(() => {
@@ -95,10 +103,21 @@ export function PanelInteractionLayer({
         s.bitmap.height,
       );
       s.dispatch(setPanelTransform(s.panelId, next));
+      if (wheelEndRef.current !== null) clearTimeout(wheelEndRef.current);
+      wheelEndRef.current = setTimeout(() => {
+        wheelEndRef.current = null;
+        s.onCommit();
+      }, 250);
     }
 
     el.addEventListener("wheel", onWheel, { passive: false });
-    return () => el.removeEventListener("wheel", onWheel);
+    return () => {
+      el.removeEventListener("wheel", onWheel);
+      if (wheelEndRef.current !== null) {
+        clearTimeout(wheelEndRef.current);
+        wheelEndRef.current = null;
+      }
+    };
   }, []);
 
   // No pointer events in Stretch — nothing to do.
@@ -157,6 +176,7 @@ export function PanelInteractionLayer({
       ref.current.releasePointerCapture(e.pointerId);
     }
     dragRef.current = null;
+    onCommit();
   }
 
   const dragging = dragRef.current !== null;

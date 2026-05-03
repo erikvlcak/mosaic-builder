@@ -2,8 +2,11 @@ import { contextBridge, ipcRenderer } from "electron";
 import {
   API_CHANNELS,
   type ExportResult,
+  type LoadProjectResult,
   type MosaicApi,
   type OpenImagesResult,
+  type SaveProjectInput,
+  type SaveProjectResult,
 } from "./api";
 
 const api: MosaicApi = {
@@ -34,6 +37,10 @@ const api: MosaicApi = {
     ) as Promise<ExportResult>,
   openImages: () =>
     ipcRenderer.invoke(API_CHANNELS.openImages) as Promise<OpenImagesResult>,
+  saveProject: (input: SaveProjectInput) =>
+    ipcRenderer.invoke(API_CHANNELS.projectSave, input) as Promise<SaveProjectResult>,
+  loadProject: () =>
+    ipcRenderer.invoke(API_CHANNELS.projectLoad) as Promise<LoadProjectResult>,
 };
 
 contextBridge.exposeInMainWorld("api", api);

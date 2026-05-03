@@ -30,7 +30,8 @@ export type FigureAction =
   | { type: "SET_LETTER_OVERRIDE"; panelId: string; override: string | null }
   | { type: "SET_GLOBAL_STYLE"; style: GlobalAnnoStyle }
   | { type: "SET_LETTERS_ENABLED"; enabled: boolean }
-  | { type: "SET_IMAGE_CALIBRATION"; imageId: string; calibration: Calibration | null };
+  | { type: "SET_IMAGE_CALIBRATION"; imageId: string; calibration: Calibration | null }
+  | { type: "RESET_TO_STATE"; state: FigureState };
 
 export const addToPool = (item: ImagePoolItem): FigureAction => ({
   type: "ADD_TO_POOL",
@@ -126,6 +127,10 @@ export const setImageCalibration = (
   imageId: string,
   calibration: Calibration | null,
 ): FigureAction => ({ type: "SET_IMAGE_CALIBRATION", imageId, calibration });
+export const resetToState = (state: FigureState): FigureAction => ({
+  type: "RESET_TO_STATE",
+  state,
+});
 
 function isImageInPool(s: FigureState, imageId: string): boolean {
   return s.pool.some((p) => p.id === imageId);
@@ -517,6 +522,10 @@ export function figureReducer(s: FigureState, a: FigureAction): FigureState {
       const pool = s.pool.slice();
       pool[idx] = next;
       return { ...s, pool };
+    }
+
+    case "RESET_TO_STATE": {
+      return a.state;
     }
 
     default: {
