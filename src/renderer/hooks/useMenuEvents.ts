@@ -2,9 +2,12 @@ import { useEffect, useRef } from "react";
 
 export interface MenuEventHandlers {
   onNew: () => void;
-  onOpen: () => void;
-  onSave: () => void;
-  onSaveAs: () => void;
+  /** May be async — fire-and-forget; errors should be surfaced via toasts. */
+  onOpen: () => void | Promise<void>;
+  /** May be async — fire-and-forget; errors should be surfaced via toasts. */
+  onSave: () => void | Promise<void>;
+  /** May be async — fire-and-forget; errors should be surfaced via toasts. */
+  onSaveAs: () => void | Promise<void>;
   onExportPng: () => void;
   onExportJpeg: () => void;
   onExportTiff: () => void;
@@ -24,13 +27,13 @@ export function useMenuEvents(handlers: MenuEventHandlers): void {
           h.onNew();
           break;
         case "menu:open":
-          h.onOpen();
+          void h.onOpen();
           break;
         case "menu:save":
-          h.onSave();
+          void h.onSave();
           break;
         case "menu:save-as":
-          h.onSaveAs();
+          void h.onSaveAs();
           break;
         case "menu:export-png":
           h.onExportPng();

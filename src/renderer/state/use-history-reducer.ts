@@ -25,14 +25,14 @@ const TRANSIENT_ACTIONS: ReadonlySet<FigureAction["type"]> = new Set([
 ]);
 
 interface HistoryControls {
-  undo: () => void;
-  redo: () => void;
+  undo: (this: void) => void;
+  redo: (this: void) => void;
   /**
    * Push the *current* state onto the undo stack. Call this on
    * `pointerup` after a drag-driven sequence of transient dispatches.
    * No-ops if the current state is identical (===) to the last commit.
    */
-  commit: () => void;
+  commit: (this: void) => void;
   canUndo: boolean;
   canRedo: boolean;
 }

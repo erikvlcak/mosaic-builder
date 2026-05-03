@@ -27,7 +27,7 @@ describe("saveProjectToPath", () => {
     });
     await saveProjectToPath(target, file);
     const text = await readFile(target, "utf8");
-    const parsed = JSON.parse(text);
+    const parsed = JSON.parse(text) as { schemaVersion: number };
     expect(parsed.schemaVersion).toBe(1);
 
     await expect(

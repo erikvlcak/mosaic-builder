@@ -438,7 +438,6 @@ export function figureReducer(s: FigureState, a: FigureAction): FigureState {
       if (idx < 0) return s;
       const existing = s.annotations[idx]!;
       // Strip id/kind from the patch — they're immutable for a given annotation.
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const { id: _ignoredId, kind: _ignoredKind, ...rest } = a.patch as Partial<Annotation> & {
         id?: string;
         kind?: AnnotationKind;
@@ -537,7 +536,6 @@ export function figureReducer(s: FigureState, a: FigureAction): FigureState {
     default: {
       // Exhaustiveness guard: TS errors here if a new FigureAction variant is
       // added to the union but not handled in the switch above.
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const _exhaustive: never = a;
       return s;
     }

@@ -21,7 +21,7 @@ describe("NumberField", () => {
   it("clamps within [min,max] and calls onChange with parsed number", () => {
     const onChange = vi.fn();
     render(<NumberField label="Size" value={10} min={1} max={20} onChange={onChange} />);
-    const input = screen.getByLabelText("Size") as HTMLInputElement;
+    const input = screen.getByLabelText("Size");
     fireEvent.change(input, { target: { value: "15" } });
     expect(onChange).toHaveBeenLastCalledWith(15);
     fireEvent.change(input, { target: { value: "999" } });
@@ -31,7 +31,7 @@ describe("NumberField", () => {
   it("ignores non-numeric input (does not call onChange with NaN)", () => {
     const onChange = vi.fn();
     render(<NumberField label="X" value={5} onChange={onChange} />);
-    const input = screen.getByLabelText("X") as HTMLInputElement;
+    const input = screen.getByLabelText("X");
     fireEvent.change(input, { target: { value: "abc" } });
     fireEvent.change(input, { target: { value: "" } });
     for (const c of onChange.mock.calls) expect(Number.isNaN(c[0])).toBe(false);
@@ -64,7 +64,7 @@ describe("ColorField", () => {
   it("rejects invalid hex from the text input", () => {
     const onChange = vi.fn();
     render(<ColorField label="C" value="#FF0000" onChange={onChange} />);
-    const text = screen.getByLabelText("C hex") as HTMLInputElement;
+    const text = screen.getByLabelText("C hex");
     fireEvent.change(text, { target: { value: "not-a-color" } });
     expect(onChange).not.toHaveBeenCalled();
     fireEvent.change(text, { target: { value: "#00FF00" } });

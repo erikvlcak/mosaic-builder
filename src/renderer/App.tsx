@@ -141,12 +141,12 @@ export function App(): JSX.Element {
       });
       dispatch(addToPool(item));
     }
-  }, []);
+  }, [dispatch, toasts]);
 
   const onDrop = useCallback((ev: DropEvent): void => {
     const action = dispatchDrop(stateRef.current, ev);
     if (action !== null) dispatch(action);
-  }, []);
+  }, [dispatch]);
 
   const onMerge = useCallback(() => {
     const cells = selection.asCoords();
@@ -154,7 +154,7 @@ export function App(): JSX.Element {
     if (!check.ok) return;
     dispatch(mergeCells(cells));
     selection.clear();
-  }, [selection]);
+  }, [selection, dispatch]);
 
   const onUnmerge = useCallback(() => {
     if (focusedPanelId === null) return;
@@ -162,7 +162,7 @@ export function App(): JSX.Element {
     if (p === undefined) return;
     if (p.rowSpan === 1 && p.colSpan === 1) return;
     dispatch(unmergePanelAction(focusedPanelId));
-  }, [focusedPanelId]);
+  }, [focusedPanelId, dispatch]);
 
   const focusedPanel = useMemo(
     () =>
@@ -187,29 +187,29 @@ export function App(): JSX.Element {
   const onRotate90 = useCallback(() => {
     if (selectedImagePanel === undefined) return;
     dispatch(rotatePanel90(selectedImagePanel.id));
-  }, [selectedImagePanel]);
+  }, [selectedImagePanel, dispatch]);
 
   const onFlipH = useCallback(() => {
     if (selectedImagePanel === undefined) return;
     dispatch(flipPanelH(selectedImagePanel.id));
-  }, [selectedImagePanel]);
+  }, [selectedImagePanel, dispatch]);
 
   const onFlipV = useCallback(() => {
     if (selectedImagePanel === undefined) return;
     dispatch(flipPanelV(selectedImagePanel.id));
-  }, [selectedImagePanel]);
+  }, [selectedImagePanel, dispatch]);
 
   const onResetTransform = useCallback(() => {
     if (selectedImagePanel === undefined) return;
     dispatch(resetPanelTransform(selectedImagePanel.id));
-  }, [selectedImagePanel]);
+  }, [selectedImagePanel, dispatch]);
 
   const onSetFit = useCallback(
     (fit: "contain" | "cover" | "stretch") => {
       if (selectedImagePanel === undefined) return;
       dispatch(setPanelFit(selectedImagePanel.id, fit));
     },
-    [selectedImagePanel],
+    [selectedImagePanel, dispatch],
   );
 
   const onEscape = useCallback(() => {
@@ -224,7 +224,7 @@ export function App(): JSX.Element {
     if (annotationEditing) return; // an inline editor owns the keystroke
     dispatch(removeAnnotation(selectedAnnotationId));
     setSelectedAnnotationId(null);
-  }, [selectedAnnotationId, annotationEditing]);
+  }, [selectedAnnotationId, annotationEditing, dispatch]);
 
   useKeyboardShortcuts({
     onMerge,
@@ -311,7 +311,7 @@ export function App(): JSX.Element {
     }
     setProjectPath(r.filePath);
     toasts.push({ kind: "success", message: "Project saved" });
-  }, [state, projectPath]);
+  }, [state, projectPath, toasts]);
 
   const onOpenProject = useCallback(async () => {
     const r = await window.api.loadProject();
@@ -337,7 +337,7 @@ export function App(): JSX.Element {
       });
     }
     toasts.push({ kind: "success", message: "Project loaded" });
-  }, []);
+  }, [dispatch, toasts]);
 
   const onNew = useCallback(() => {
     dispatch(resetFigureAction());

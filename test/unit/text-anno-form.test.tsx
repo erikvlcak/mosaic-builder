@@ -31,7 +31,7 @@ describe("TextAnnoForm", () => {
         commit={{ markDirty, flush }}
       />,
     );
-    const text = screen.getByLabelText("Text") as HTMLTextAreaElement;
+    const text = screen.getByLabelText("Text");
     // <TextField> is a controlled component (no internal state). Per-character
     // userEvent.type fights the controlled value, so we use fireEvent.change
     // to simulate a single change to the final value.

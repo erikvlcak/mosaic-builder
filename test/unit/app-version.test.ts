@@ -7,7 +7,7 @@ describe("APP_VERSION", () => {
   it("matches package.json version", () => {
     const pkg = JSON.parse(
       readFileSync(resolve(__dirname, "../../package.json"), "utf8"),
-    );
+    ) as { version: string };
     expect(APP_VERSION).toBe(pkg.version);
   });
 });

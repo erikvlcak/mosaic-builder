@@ -2,9 +2,9 @@ import { useCallback, useEffect, useRef } from "react";
 
 export interface FieldCommit {
   /** Mark a pending edit; (re)starts the debounce window. */
-  markDirty(): void;
+  markDirty: (this: void) => void;
   /** Flush any pending edit immediately. Safe no-op when clean. */
-  flush(): void;
+  flush: (this: void) => void;
 }
 
 /**

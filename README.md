@@ -41,4 +41,4 @@ export APPLE_TEAM_ID=ABCD1234
 Without these set, the `.dmg` is built unsigned — fine for internal
 testing but Gatekeeper will warn end users.
 
-Status: M1 (skeleton). See `.claude/plans/` for milestone plans.
+Status: M8 (polish + packaging). See `docs/superpowers/plans/` for milestone plans.

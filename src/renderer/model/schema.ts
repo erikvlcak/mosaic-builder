@@ -14,7 +14,7 @@ import type { FigureState } from "./figure-state";
 import type { ImagePoolItem } from "./pool";
 import type { Panel } from "./panels";
 
-export const CURRENT_SCHEMA_VERSION = 1 as const;
+export const CURRENT_SCHEMA_VERSION = 1;
 
 export type Result<T> =
   | { ok: true; value: T }
@@ -67,9 +67,10 @@ function err<T>(msg: string): Result<T> {
 
 function validatePool(x: unknown, path: string): Result<MosaicFileV1["state"]["pool"]> {
   if (!Array.isArray(x)) return err(`${path}: expected array`);
+  const arr = x as unknown[];
   const out: MosaicFileV1["state"]["pool"] = [];
-  for (let i = 0; i < x.length; i++) {
-    const item = x[i];
+  for (let i = 0; i < arr.length; i++) {
+    const item: unknown = arr[i];
     if (!isObj(item)) return err(`${path}[${i}]: expected object`);
     if (!isStr(item.id)) return err(`${path}[${i}].id: expected string`);
     if (!isStr(item.filename)) return err(`${path}[${i}].filename: expected string`);
@@ -108,8 +109,9 @@ function validatePool(x: unknown, path: string): Result<MosaicFileV1["state"]["p
 
 function validatePanels(x: unknown, path: string): Result<Panel[]> {
   if (!Array.isArray(x)) return err(`${path}: expected array`);
-  for (let i = 0; i < x.length; i++) {
-    const p = x[i];
+  const arr = x as unknown[];
+  for (let i = 0; i < arr.length; i++) {
+    const p: unknown = arr[i];
     if (!isObj(p)) return err(`${path}[${i}]: expected object`);
     if (!isStr(p.id)) return err(`${path}[${i}].id`);
     if (!isInt(p.row) || p.row < 0) return err(`${path}[${i}].row`);
@@ -138,8 +140,9 @@ function validatePanels(x: unknown, path: string): Result<Panel[]> {
 
 function validateAnnotations(x: unknown, path: string): Result<FigureState["annotations"]> {
   if (!Array.isArray(x)) return err(`${path}: expected array`);
-  for (let i = 0; i < x.length; i++) {
-    const a = x[i];
+  const arr = x as unknown[];
+  for (let i = 0; i < arr.length; i++) {
+    const a: unknown = arr[i];
     if (!isObj(a)) return err(`${path}[${i}]: expected object`);
     if (!isStr(a.id)) return err(`${path}[${i}].id`);
     if (!isNum(a.z)) return err(`${path}[${i}].z`);
@@ -231,7 +234,7 @@ export function validateMosaicFile(x: unknown): Result<MosaicFileV1> {
 
   if (!isObj(st.letterOverrides)) return err("state.letterOverrides: expected object");
   for (const k in st.letterOverrides) {
-    if (!isStr((st.letterOverrides as Record<string, unknown>)[k])) {
+    if (!isStr(st.letterOverrides[k])) {
       return err(`state.letterOverrides.${k}: expected string`);
     }
   }

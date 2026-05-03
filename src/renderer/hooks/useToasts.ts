@@ -10,8 +10,8 @@ export interface Toast {
 
 export interface UseToasts {
   toasts: ReadonlyArray<Toast>;
-  push(t: Omit<Toast, "id">): string;
-  dismiss(id: string): void;
+  push: (this: void, t: Omit<Toast, "id">) => string;
+  dismiss: (this: void, id: string) => void;
 }
 
 let counter = 0;
@@ -41,9 +41,10 @@ export function useToasts(ttlMs = 5000): UseToasts {
   }, [ttlMs, dismiss]);
 
   useEffect(() => {
+    const timers = timersRef.current;
     return () => {
-      for (const t of timersRef.current.values()) clearTimeout(t);
-      timersRef.current.clear();
+      for (const t of timers.values()) clearTimeout(t);
+      timers.clear();
     };
   }, []);
 
