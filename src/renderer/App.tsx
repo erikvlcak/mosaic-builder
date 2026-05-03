@@ -41,6 +41,7 @@ import { canMergeSelection } from "./model/merge";
 import { useMergeSelection } from "./hooks/useMergeSelection";
 import { useKeyboardShortcuts } from "./hooks/useKeyboardShortcuts";
 import { toMosaicFile } from "./model/serialize";
+import { APP_VERSION } from "./app-version";
 
 const FIGURE_PX_W = 800;
 const FIGURE_PX_H = 600;
@@ -276,7 +277,7 @@ export function App(): JSX.Element {
         background: CANVAS_BG,
       },
       mosaicPath: projectPath ?? "untitled.mosaic",
-      appVersion: "0.1.0",
+      appVersion: APP_VERSION,
     });
     const r = await window.api.saveProject({
       file,
