@@ -16,7 +16,12 @@
     "test:watch": "vitest",
     "lint": "eslint . --max-warnings 0",
     "format": "prettier --write .",
-    "gen:icons": "node scripts/generate-icons.mjs"
+    "gen:icons": "node scripts/generate-icons.mjs",
+    "package": "pnpm build && electron-builder --publish=never",
+    "package:mac": "pnpm build && electron-builder --mac --publish=never",
+    "package:win": "pnpm build && electron-builder --win --publish=never",
+    "package:linux": "pnpm build && electron-builder --linux --publish=never",
+    "package:all": "pnpm build && electron-builder -mwl --publish=never"
   },
   "dependencies": {
     "pdf-lib": "^1.17.1",
@@ -36,6 +41,7 @@
     "@typescript-eslint/parser": "8.8.1",
     "@vitejs/plugin-react": "4.3.2",
     "electron": "32.1.2",
+    "electron-builder": "25.0.5",
     "eslint": "9.12.0",
     "eslint-plugin-react": "7.37.1",
     "eslint-plugin-react-hooks": "5.1.0-rc-fb9a90fa48-20240614",
