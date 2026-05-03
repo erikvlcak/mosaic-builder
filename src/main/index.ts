@@ -1,6 +1,7 @@
 import { app, BrowserWindow, dialog, ipcMain } from "electron";
 import path from "node:path";
 import { resolveWindowConfig } from "./window";
+import { installMenu } from "./menu";
 import { API_CHANNELS } from "../preload/api";
 import {
   pickJpegSavePath,
@@ -40,6 +41,8 @@ function createWindow(): void {
     backgroundColor: cfg.backgroundColor,
     webPreferences: cfg.webPreferences,
   });
+
+  installMenu(mainWindow);
 
   mainWindow.once("ready-to-show", () => {
     mainWindow?.show();
