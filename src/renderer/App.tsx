@@ -9,6 +9,7 @@ import { AnnotationInteractionLayer } from "./components/Annotations/AnnotationI
 import { CalibrationModal } from "./components/Annotations/CalibrationModal";
 import { RelinkModal } from "./components/Modals/RelinkModal";
 import { Tray } from "./components/Sidebar/Tray";
+import { PropertiesPanel } from "./components/Properties/PropertiesPanel";
 import { GridCells, type DropEvent } from "./components/Grid/GridCells";
 import { PanelInteractionLayer } from "./components/Grid/PanelInteractionLayer";
 import {
@@ -39,6 +40,7 @@ import { decodeImageBytes } from "./image/decode-bytes";
 import { dispatchDrop } from "./dnd/dispatch-drop";
 import { canMergeSelection } from "./model/merge";
 import { useMergeSelection } from "./hooks/useMergeSelection";
+import { useFieldCommit } from "./hooks/useFieldCommit";
 import { useKeyboardShortcuts } from "./hooks/useKeyboardShortcuts";
 import { toMosaicFile } from "./model/serialize";
 import { APP_VERSION } from "./app-version";
@@ -165,6 +167,15 @@ export function App(): JSX.Element {
 
   const selectedImagePanel =
     focusedPanel?.imageId !== undefined ? focusedPanel : undefined;
+
+  const fieldCommit = useFieldCommit(history.commit, 400);
+  const selectedAnno = useMemo(
+    () =>
+      selectedAnnotationId === null
+        ? undefined
+        : state.annotations.find((a) => a.id === selectedAnnotationId),
+    [state.annotations, selectedAnnotationId],
+  );
 
   const onRotate90 = useCallback(() => {
     if (selectedImagePanel === undefined) return;
@@ -466,6 +477,14 @@ export function App(): JSX.Element {
             />
           </div>
         </section>
+        <PropertiesPanel
+          state={state}
+          focusedPanel={selectedImagePanel}
+          selectedAnno={selectedAnno}
+          dispatch={dispatch}
+          commit={fieldCommit}
+          onCalibrate={onCalibrate}
+        />
       </div>
       {calibratingImageId !== null && calibratingBitmap !== undefined && (
         <CalibrationModal
