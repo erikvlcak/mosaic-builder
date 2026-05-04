@@ -17,7 +17,38 @@ The figure's pixel canvas is hardcoded at 800×600 in `src/renderer/App.tsx`
 ## Goal
 
 Use full source resolution end-to-end, in both the in-app preview AND the
-exported file. No hard caps; the user is responsible for managing memory.
+exported file. **No compression on import or export.** No hard caps; the
+user is responsible for managing memory.
+
+### Compression / fidelity rules
+
+Import:
+- PNG/JPEG/TIFF source bytes are read raw from disk (`fs.readFile`),
+  passed unmodified to the renderer, and decoded at full source pixel
+  dimensions. PNG/JPEG go through `createImageBitmap` (which preserves
+  source dims). TIFF goes through `utif` (decompresses to RGBA at full
+  source dims). Already correct — no code change needed.
+- No resizing, no recompression, no quantization on import.
+
+Export — must be byte-faithful w.r.t. the figure canvas pixels:
+- **PNG**: lossless by spec. Already correct.
+- **TIFF**: `UTIF.encodeImage` already emits uncompressed RGBA. Already
+  correct. Future 16-bit-direct path (TODO in `export/tiff.ts`) is out of
+  scope here.
+- **PDF**: embeds a PNG at full canvas dims. Lossless. Already correct.
+  Note: with a much larger canvas, the PDF page size in points grows
+  proportionally (`PDF_DPI = 300` is preserved). That's intentional — the
+  PDF still contains all the pixels; it just describes a physically
+  larger page.
+- **JPEG**: JPEG is lossy by format. Kept in the export menu with the
+  existing quality slider. Picking JPEG is an explicit opt-in to lossy
+  compression; the "no compression" rule applies to PNG/TIFF/PDF.
+
+In other words: with the canvas-size fix, the lossless export paths
+become byte-faithful to the figure canvas, which in turn (because
+`drawImage` does no resampling beyond what fit/zoom already specifies)
+preserves source pixels for any panel where the source dims fit
+naturally into the panel rect at the canvas's new resolution.
 
 ## Approach (option B/1c/2b)
 
@@ -226,3 +257,8 @@ fallback is belt-and-braces only.
   figure renders identically.
 - Removing the largest image from the pool shrinks the canvas back down.
   Annotations rescale back proportionally.
+- Exporting a figure containing a 4000×3000 source image as PNG or TIFF
+  produces a file whose panel pixels are byte-identical (modulo
+  fit/zoom transform) to the source image's pixels — i.e. no compression
+  artefacts, no resampling beyond what the panel's fit/zoom transform
+  prescribes.
