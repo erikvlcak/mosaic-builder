@@ -35,6 +35,8 @@ import {
   setGlobalStyle,
   setLettersEnabled,
   setImageCalibration,
+  setGutterPx,
+  resizeGrid,
 } from "../../src/renderer/model/figure-actions";
 import { findPanelAt, DEFAULT_TRANSFORM } from "../../src/renderer/model/panels";
 
@@ -993,5 +995,82 @@ describe("RESET_FIGURE", () => {
     __resetPanelIdsForTests();
     const reset = figureReducer(dirty, resetFigureAction());
     expect(reset).toEqual(fresh);
+  });
+});
+
+describe("figureReducer — canvas auto-resize (Task 4)", () => {
+  beforeEach(() => {
+    __resetPanelIdsForTests();
+  });
+
+  const BIG: ImagePoolItem = {
+    id: "big",
+    filename: "big.png",
+    filePath: "/big.png",
+    mime: "image/png",
+    width: 4000,
+    height: 3000,
+    bitDepth: 8,
+  };
+
+  it("ADD_TO_POOL grows canvas to fit the largest image (per cell)", () => {
+    const s0 = initialFigureState(); // 2x2, gutter 12, canvas 800x600
+    const s1 = figureReducer(s0, addToPool(BIG));
+    // 2 cols * 4000 + 3 * 12 = 8036
+    expect(s1.canvas.widthPx).toBe(2 * 4000 + 3 * 12);
+    // 2 rows * 3000 + 3 * 12 = 6036
+    expect(s1.canvas.heightPx).toBe(2 * 3000 + 3 * 12);
+  });
+
+  it("ADD_TO_POOL scales existing annotations proportionally", () => {
+    const text: Annotation = {
+      id: "t1",
+      kind: "text",
+      z: 1,
+      x: 100,
+      y: 100,
+      text: "hi",
+      font: "system-ui",
+      sizePt: 12,
+      bold: false,
+      italic: false,
+      color: "#000000",
+    };
+    let s = figureReducer(initialFigureState(), addAnnotation(text));
+    expect(s.annotations[0]).toMatchObject({ x: 100, y: 100 });
+    // canvas was 800x600; after adding BIG it becomes 8036x6036 → sx≈10.045, sy≈10.06
+    s = figureReducer(s, addToPool(BIG));
+    const sx = s.canvas.widthPx / 800;
+    const sy = s.canvas.heightPx / 600;
+    expect((s.annotations[0] as TextAnnotation).x).toBeCloseTo(100 * sx, 6);
+    expect((s.annotations[0] as TextAnnotation).y).toBeCloseTo(100 * sy, 6);
+  });
+
+  it("REMOVE_FROM_POOL shrinks the canvas back when the largest image is removed", () => {
+    let s = figureReducer(initialFigureState(), addToPool(BIG));
+    expect(s.canvas.widthPx).toBeGreaterThan(800);
+    s = figureReducer(s, removeFromPool(BIG.id));
+    expect(s.canvas).toEqual({ widthPx: 800, heightPx: 600 });
+  });
+
+  it("RESIZE_GRID recomputes canvas when cols change", () => {
+    const s0 = figureReducer(initialFigureState(), addToPool(BIG));
+    // resize to 3 cols → widthPx = 3*4000 + 4*12 = 12048
+    const s1 = figureReducer(s0, resizeGrid(2, 3));
+    expect(s1.canvas.widthPx).toBe(3 * 4000 + 4 * 12);
+  });
+
+  it("SET_GUTTER_PX recomputes canvas", () => {
+    const s0 = figureReducer(initialFigureState(), addToPool(BIG));
+    // gutter 0 → widthPx = 2*4000 = 8000
+    const s1 = figureReducer(s0, setGutterPx(0));
+    expect(s1.canvas.widthPx).toBe(2 * 4000);
+  });
+
+  it("does not modify state.canvas when ADD_TO_POOL is a duplicate (no-op)", () => {
+    let s = figureReducer(initialFigureState(), addToPool(BIG));
+    const before = s.canvas;
+    s = figureReducer(s, addToPool(BIG)); // dedupe path
+    expect(s.canvas).toBe(before);
   });
 });

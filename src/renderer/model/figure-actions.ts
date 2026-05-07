@@ -7,6 +7,7 @@ import { resizePanels } from "./grid-resize";
 import { canMergeSelection, mergePanels, unmergePanel, type CellCoord } from "./merge";
 import type { Annotation, AnnotationKind } from "./annotations";
 import type { GlobalAnnoStyle } from "./global-style";
+import { computeCanvasDims, scaleAnnotations } from "./canvas-dims";
 
 export type FigureAction =
   | { type: "ADD_TO_POOL"; item: ImagePoolItem }
@@ -205,7 +206,7 @@ export function figureReducer(s: FigureState, a: FigureAction): FigureState {
   switch (a.type) {
     case "ADD_TO_POOL": {
       if (s.pool.some((p) => p.id === a.item.id)) return s;
-      return { ...s, pool: [...s.pool, a.item] };
+      return applyCanvasResize(s, { ...s, pool: [...s.pool, a.item] });
     }
 
     case "PLACE_INTO_PANEL": {
@@ -263,12 +264,12 @@ export function figureReducer(s: FigureState, a: FigureAction): FigureState {
               (an) =>
                 !(an.kind === "scalebar" && affectedPanelIds.has(an.panelId)),
             );
-      return {
+      return applyCanvasResize(s, {
         ...s,
         pool: s.pool.filter((p) => p.id !== a.imageId),
         panels,
         annotations,
-      };
+      });
     }
 
     case "RESIZE_GRID": {
@@ -279,13 +280,19 @@ export function figureReducer(s: FigureState, a: FigureAction): FigureState {
       // Released imageIds simply stay in the pool unplaced — no pool mutation.
       const keptPanelIds = new Set(r.panels.map((p) => p.id));
       const letterOverrides = filterOverrides(s.letterOverrides, keptPanelIds);
-      return { ...s, rows, cols, panels: r.panels, letterOverrides };
+      return applyCanvasResize(s, {
+        ...s,
+        rows,
+        cols,
+        panels: r.panels,
+        letterOverrides,
+      });
     }
 
     case "SET_GUTTER_PX": {
       const gutterPx = clampInt(a.gutterPx, 0, 40);
       if (gutterPx === s.gutterPx) return s;
-      return { ...s, gutterPx };
+      return applyCanvasResize(s, { ...s, gutterPx });
     }
 
     case "SET_GUTTER_COLOR": {
@@ -579,6 +586,29 @@ function deleteOverride(
     if (k !== panelId) out[k] = overrides[k]!;
   }
   return out;
+}
+
+/**
+ * Apply a canvas-dims recompute to `next`, scaling annotations
+ * proportionally if dims actually changed. Returns the same `next`
+ * reference when dims are unchanged so React identity checks see no churn.
+ */
+function applyCanvasResize(
+  prev: FigureState,
+  next: FigureState,
+): FigureState {
+  const dims = computeCanvasDims(next.pool, next.rows, next.cols, next.gutterPx);
+  if (
+    dims.widthPx === prev.canvas.widthPx &&
+    dims.heightPx === prev.canvas.heightPx
+  ) {
+    // Dims unchanged — keep the existing canvas object identity.
+    return { ...next, canvas: prev.canvas };
+  }
+  const sx = dims.widthPx / prev.canvas.widthPx;
+  const sy = dims.heightPx / prev.canvas.heightPx;
+  const annotations = scaleAnnotations(next.annotations, sx, sy);
+  return { ...next, canvas: dims, annotations };
 }
 
 /**
