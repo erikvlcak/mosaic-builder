@@ -195,7 +195,7 @@ export function GridCells({
             ? "3px solid var(--c-hover-stroke)"
             : isEditing
               ? "1px dashed transparent"
-              : isSelected
+              : isSelected && occupied
                 ? "2px solid var(--c-focus-stroke)"
                 : "1px dashed transparent";
 

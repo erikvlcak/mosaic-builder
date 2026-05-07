@@ -503,6 +503,9 @@ export function App(): JSX.Element {
           }}
         />
         <section
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setPanelInteraction(null);
+          }}
           style={{
             flex: 1,
             display: "flex",

@@ -217,4 +217,32 @@ describe("GridCells — selected vs editing modes", () => {
     expect(onPanelClick).not.toHaveBeenCalled();
     expect(onPanelDoubleClick).not.toHaveBeenCalled();
   });
+
+  it("empty panel in selected mode shows NO green outline (only image panels do)", () => {
+    const s = stateWithImage();
+    // The state has 4 panels (default 2x2). panel index 1 is empty (no imageId).
+    const emptyPanel = s.panels.find((p) => p.imageId === undefined);
+    if (emptyPanel === undefined) {
+      expect.fail("test setup expects at least one empty panel");
+    }
+    render(
+      <GridCells
+        state={s}
+        figurePxW={800}
+        figurePxH={600}
+        cssW={800}
+        cssH={600}
+        onDrop={vi.fn()}
+        selection={new Set()}
+        onCellShiftClick={vi.fn()}
+        panelInteraction={{ mode: "selected", panelId: emptyPanel.id }}
+        onPanelClick={vi.fn()}
+        onPanelDoubleClick={vi.fn()}
+      />,
+    );
+    const el = screen.getByTestId(`panel-${emptyPanel.row}-${emptyPanel.col}`);
+    // Falls through to the transparent dashed default — no green focus stroke.
+    expect(el.style.outline).toContain("dashed transparent");
+    expect(el.style.outline).not.toContain("var(--c-focus-stroke)");
+  });
 });
