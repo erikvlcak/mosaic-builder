@@ -1,0 +1,70 @@
+import { describe, it, expect } from "vitest";
+import type { ImagePoolItem } from "../../src/renderer/model/pool";
+import { computeCanvasDims } from "../../src/renderer/model/canvas-dims";
+
+const MIN_W = 800;
+const MIN_H = 600;
+
+function img(width: number, height: number): ImagePoolItem {
+  return {
+    id: `${width}x${height}`,
+    filename: "x.png",
+    filePath: "/x.png",
+    mime: "image/png",
+    width,
+    height,
+    bitDepth: 8,
+  };
+}
+
+describe("computeCanvasDims", () => {
+  it("returns the minimum 800x600 for an empty pool", () => {
+    const d = computeCanvasDims([], 2, 2, 12);
+    expect(d).toEqual({ widthPx: MIN_W, heightPx: MIN_H });
+  });
+
+  it("returns the minimum when all pool images fit inside a single cell at min canvas", () => {
+    const d = computeCanvasDims([img(100, 100)], 2, 2, 12);
+    // single cell at 800x600 / 2x2 with 12px gutters easily fits 100x100
+    expect(d).toEqual({ widthPx: MIN_W, heightPx: MIN_H });
+  });
+
+  it("grows widthPx so the largest image fits a single cell on the X axis", () => {
+    // 1x1 grid, 12px gutter → widthPx = 1*4000 + 2*12 = 4024 (≥ MIN_W).
+    const d = computeCanvasDims([img(4000, 100)], 1, 1, 12);
+    expect(d.widthPx).toBe(4024);
+    // height stays at MIN_H since the largest image is short.
+    expect(d.heightPx).toBe(MIN_H);
+  });
+
+  it("grows heightPx so the largest image fits a single cell on the Y axis", () => {
+    const d = computeCanvasDims([img(100, 3000)], 1, 1, 12);
+    expect(d.heightPx).toBe(3024);
+    expect(d.widthPx).toBe(MIN_W);
+  });
+
+  it("scales width with cols (2 cols, 4000-wide image → 4000*2 + 3*12)", () => {
+    const d = computeCanvasDims([img(4000, 100)], 1, 2, 12);
+    expect(d.widthPx).toBe(4000 * 2 + 3 * 12);
+  });
+
+  it("scales height with rows (3 rows, 3000-tall image → 3000*3 + 4*12)", () => {
+    const d = computeCanvasDims([img(100, 3000)], 3, 1, 12);
+    expect(d.heightPx).toBe(3000 * 3 + 4 * 12);
+  });
+
+  it("uses the per-axis maximum across mixed-aspect images", () => {
+    // image A is wide (4000x100); image B is tall (100x3000). Per-axis max:
+    // width-axis → 4000, height-axis → 3000.
+    const d = computeCanvasDims([img(4000, 100), img(100, 3000)], 1, 1, 12);
+    expect(d.widthPx).toBe(4024);
+    expect(d.heightPx).toBe(3024);
+  });
+
+  it("respects gutter changes", () => {
+    const d0 = computeCanvasDims([img(4000, 3000)], 1, 1, 0);
+    expect(d0).toEqual({ widthPx: 4000, heightPx: 3000 });
+    const d40 = computeCanvasDims([img(4000, 3000)], 1, 1, 40);
+    expect(d40).toEqual({ widthPx: 4000 + 2 * 40, heightPx: 3000 + 2 * 40 });
+  });
+});
