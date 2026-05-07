@@ -49,8 +49,6 @@ import { APP_VERSION } from "./app-version";
 import { useToasts } from "./hooks/useToasts";
 import { ToastTray } from "./components/Toasts/ToastTray";
 
-const FIGURE_PX_W = 800;
-const FIGURE_PX_H = 600;
 const CANVAS_BG = "#FFFFFF";
 const CANVAS_CSS_W = 800;
 const CANVAS_CSS_H = 600;
@@ -82,8 +80,8 @@ export function App(): JSX.Element {
     () =>
       deriveFigure(state, {
         canvas: {
-          widthPx: FIGURE_PX_W,
-          heightPx: FIGURE_PX_H,
+          widthPx: state.canvas.widthPx,
+          heightPx: state.canvas.heightPx,
           background: CANVAS_BG,
         },
       }),
@@ -289,8 +287,8 @@ export function App(): JSX.Element {
     const file = toMosaicFile({
       state,
       canvas: {
-        widthPx: FIGURE_PX_W,
-        heightPx: FIGURE_PX_H,
+        widthPx: state.canvas.widthPx,
+        heightPx: state.canvas.heightPx,
         background: CANVAS_BG,
       },
       mosaicPath: projectPath ?? "untitled.mosaic",
@@ -480,8 +478,8 @@ export function App(): JSX.Element {
             <EditorCanvas figure={figure} images={bitmaps} pool={imagesByIdMemo} />
             <GridCells
               state={state}
-              figurePxW={FIGURE_PX_W}
-              figurePxH={FIGURE_PX_H}
+              figurePxW={state.canvas.widthPx}
+              figurePxH={state.canvas.heightPx}
               cssW={CANVAS_CSS_W}
               cssH={CANVAS_CSS_H}
               onDrop={onDrop}
@@ -499,8 +497,8 @@ export function App(): JSX.Element {
                   panelRect={focusedPanelRect}
                   transform={selectedImagePanel.transform}
                   bitmap={focusedBitmap}
-                  figurePxW={FIGURE_PX_W}
-                  figurePxH={FIGURE_PX_H}
+                  figurePxW={state.canvas.widthPx}
+                  figurePxH={state.canvas.heightPx}
                   cssW={CANVAS_CSS_W}
                   cssH={CANVAS_CSS_H}
                   dispatch={dispatch}
@@ -514,8 +512,8 @@ export function App(): JSX.Element {
               imagesById={imagesByIdMemo}
               cssW={CANVAS_CSS_W}
               cssH={CANVAS_CSS_H}
-              figurePxW={FIGURE_PX_W}
-              figurePxH={FIGURE_PX_H}
+              figurePxW={state.canvas.widthPx}
+              figurePxH={state.canvas.heightPx}
               selectedAnnotationId={selectedAnnotationId}
               onSelectAnnotation={setSelectedAnnotationId}
               onEditingChange={setAnnotationEditing}
