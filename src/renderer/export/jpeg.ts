@@ -20,10 +20,11 @@ export async function exportFigureAsJpeg(
   images: Map<string, ImageBitmap>,
   quality: number,
   pool?: Map<string, ImagePoolItem>,
+  exportScale = 1,
 ): Promise<ExportResult> {
   let blob: Blob;
   try {
-    const r = renderFigureToOffscreen(figure, images, 300, pool);
+    const r = renderFigureToOffscreen(figure, images, 300, pool, exportScale);
     blob = await r.canvas.convertToBlob({ type: "image/jpeg", quality });
   } catch (err) {
     return { ok: false, reason: "render-failed", message: String(err) };

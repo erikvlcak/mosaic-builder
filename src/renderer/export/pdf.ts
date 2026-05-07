@@ -19,13 +19,18 @@ export async function exportFigureAsPdf(
   figure: Figure,
   images: Map<string, ImageBitmap>,
   pool?: Map<string, ImagePoolItem>,
+  exportScale = 1,
 ): Promise<ExportResult> {
   let bytes: Uint8Array;
   try {
-    const blob = await renderFigureToPngBlob(figure, images, pool);
+    const blob = await renderFigureToPngBlob(figure, images, pool, exportScale);
     const pngBytes = new Uint8Array(await blob.arrayBuffer());
     const pdf = await PDFDocument.create();
     const img = await pdf.embedPng(pngBytes);
+    // Page size stays in editor figure-pt: the embedded PNG is bigger
+    // (figureW·s × figureH·s pixels) but printed at 300 DPI on a page
+    // sized for the editor figure — i.e. the higher-res pixels become
+    // higher effective DPI on the same physical page.
     const wPt = (figure.canvas.widthPx / PDF_DPI) * PT_PER_INCH;
     const hPt = (figure.canvas.heightPx / PDF_DPI) * PT_PER_INCH;
     const page = pdf.addPage([wPt, hPt]);

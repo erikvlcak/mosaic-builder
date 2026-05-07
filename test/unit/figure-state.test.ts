@@ -20,8 +20,4 @@ describe("initialFigureState — M6 shape", () => {
     expect(s.gutterColor).toBe("#FFFFFF");
   });
 
-  it("includes a canvas with default 800x600 dims", () => {
-    const s = initialFigureState();
-    expect(s.canvas).toEqual({ widthPx: 800, heightPx: 600 });
-  });
 });

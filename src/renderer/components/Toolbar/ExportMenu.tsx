@@ -1,15 +1,21 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { Figure } from "../../model/types";
 import type { ImagePoolItem } from "../../model/pool";
 import { exportFigureAsPng } from "../../export/png";
 import { exportFigureAsJpeg } from "../../export/jpeg";
 import { exportFigureAsTiff } from "../../export/tiff";
 import { exportFigureAsPdf } from "../../export/pdf";
+import { computeExportScale } from "../../render/export-scale";
 
 interface Props {
   figure: Figure;
   images: Map<string, ImageBitmap>;
   pool?: Map<string, ImagePoolItem>;
+  /** Pool ordered as the reducer holds it (for export-scale computation). */
+  poolList: readonly ImagePoolItem[];
+  rows: number;
+  cols: number;
+  gutterPx: number;
 }
 
 type Status =
@@ -20,7 +26,27 @@ type Status =
 
 const TIFF_DPI = 300;
 
-export function ExportMenu({ figure, images, pool }: Props): JSX.Element {
+export function ExportMenu({
+  figure,
+  images,
+  pool,
+  poolList,
+  rows,
+  cols,
+  gutterPx,
+}: Props): JSX.Element {
+  const exportScale = useMemo(
+    () =>
+      computeExportScale(
+        poolList,
+        rows,
+        cols,
+        gutterPx,
+        figure.canvas.widthPx,
+        figure.canvas.heightPx,
+      ),
+    [poolList, rows, cols, gutterPx, figure.canvas.widthPx, figure.canvas.heightPx],
+  );
   const [open, setOpen] = useState(false);
   const [status, setStatus] = useState<Status>({ kind: "idle" });
   const [jpegOpen, setJpegOpen] = useState(false);
@@ -67,19 +93,25 @@ export function ExportMenu({ figure, images, pool }: Props): JSX.Element {
 
   async function runPng(): Promise<void> {
     setStatus({ kind: "exporting", format: "PNG" });
-    applyResult("PNG", await exportFigureAsPng(figure, images, pool));
+    applyResult("PNG", await exportFigureAsPng(figure, images, pool, exportScale));
   }
   async function runJpeg(): Promise<void> {
     setStatus({ kind: "exporting", format: "JPEG" });
-    applyResult("JPEG", await exportFigureAsJpeg(figure, images, jpegQuality, pool));
+    applyResult(
+      "JPEG",
+      await exportFigureAsJpeg(figure, images, jpegQuality, pool, exportScale),
+    );
   }
   async function runTiff(): Promise<void> {
     setStatus({ kind: "exporting", format: "TIFF" });
-    applyResult("TIFF", await exportFigureAsTiff(figure, images, TIFF_DPI, pool));
+    applyResult(
+      "TIFF",
+      await exportFigureAsTiff(figure, images, TIFF_DPI, pool, exportScale),
+    );
   }
   async function runPdf(): Promise<void> {
     setStatus({ kind: "exporting", format: "PDF" });
-    applyResult("PDF", await exportFigureAsPdf(figure, images, pool));
+    applyResult("PDF", await exportFigureAsPdf(figure, images, pool, exportScale));
   }
 
   const exporting = status.kind === "exporting";

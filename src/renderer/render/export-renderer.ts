@@ -4,22 +4,27 @@ import { drawFigure } from "./draw-figure";
 
 /**
  * Renders the figure into an OffscreenCanvas at full pixel size and
- * returns a PNG Blob. M2: pixel mode only. M6 will route physical
- * mode (inches * dpi) through the same path.
+ * returns a PNG Blob. `exportScale` (default 1) uniformly enlarges the
+ * output canvas while drawing the figure in editor-figure-px space — so
+ * source images preserve their full pixel resolution inside their panel
+ * rects, and annotations/text/strokes scale proportionally. The figure
+ * itself is unmodified; the scale is purely a render-time concern.
  */
 export async function renderFigureToPngBlob(
   figure: Figure,
   images: Map<string, ImageBitmap>,
   pool?: Map<string, ImagePoolItem>,
+  exportScale = 1,
 ): Promise<Blob> {
   const off = new OffscreenCanvas(
-    figure.canvas.widthPx,
-    figure.canvas.heightPx,
+    Math.round(figure.canvas.widthPx * exportScale),
+    Math.round(figure.canvas.heightPx * exportScale),
   );
   const ctx = off.getContext("2d");
   if (ctx === null) {
     throw new Error("renderFigureToPngBlob: failed to get 2D context");
   }
+  if (exportScale !== 1) ctx.scale(exportScale, exportScale);
   drawFigure(ctx, figure, images, pool);
   return off.convertToBlob({ type: "image/png" });
 }
@@ -47,20 +52,21 @@ export function renderFigureToOffscreen(
   images: Map<string, ImageBitmap>,
   dpi: number = 300,
   pool?: Map<string, ImagePoolItem>,
+  exportScale = 1,
 ): OffscreenRender {
-  const off = new OffscreenCanvas(
-    figure.canvas.widthPx,
-    figure.canvas.heightPx,
-  );
+  const w = Math.round(figure.canvas.widthPx * exportScale);
+  const h = Math.round(figure.canvas.heightPx * exportScale);
+  const off = new OffscreenCanvas(w, h);
   const ctx = off.getContext("2d");
   if (ctx === null) {
     throw new Error("renderFigureToOffscreen: failed to get 2D context");
   }
+  if (exportScale !== 1) ctx.scale(exportScale, exportScale);
   drawFigure(ctx, figure, images, pool);
   return {
     canvas: off,
-    width: figure.canvas.widthPx,
-    height: figure.canvas.heightPx,
+    width: w,
+    height: h,
     dpi,
   };
 }

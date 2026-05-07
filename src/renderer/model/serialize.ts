@@ -50,24 +50,14 @@ export function toMosaicFile(inp: ToMosaicInput): MosaicFileV1 {
     return out;
   });
 
-  // Top-level file.canvas reads from state.canvas; background still comes
-  // from the input (no canonical home in state). On-disk state strips its
-  // nested `canvas` so the file shape doesn't duplicate the dims.
-  const canvas = {
-    widthPx: inp.state.canvas.widthPx,
-    heightPx: inp.state.canvas.heightPx,
-    background: inp.canvas.background,
-  };
-  // Build the on-disk state without the runtime-only `canvas` field.
-  const { canvas: _ignoredCanvas, ...stateWithoutCanvas } = inp.state;
   return {
     schemaVersion: 1,
     app: "mosaic-builder",
     appVersion: inp.appVersion,
     createdAt: stamp,
     modifiedAt: stamp,
-    canvas,
-    state: { ...stateWithoutCanvas, pool } as MosaicFileV1["state"],
+    canvas: inp.canvas,
+    state: { ...inp.state, pool } as MosaicFileV1["state"],
   };
 }
 
@@ -95,7 +85,6 @@ export function fromMosaicFile(file: MosaicFileV1): FromMosaicResult {
   const state: FigureState = {
     ...file.state,
     pool: runtimePool,
-    canvas: { widthPx: canvas.widthPx, heightPx: canvas.heightPx },
   };
   return { state, canvas, relinkHints };
 }

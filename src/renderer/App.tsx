@@ -52,6 +52,8 @@ import { ToastTray } from "./components/Toasts/ToastTray";
 const CANVAS_BG = "#FFFFFF";
 const CANVAS_CSS_W = 800;
 const CANVAS_CSS_H = 600;
+const FIGURE_PX_W = 800;
+const FIGURE_PX_H = 600;
 
 function basename(p: string): string {
   const ix = Math.max(p.lastIndexOf("/"), p.lastIndexOf("\\"));
@@ -80,8 +82,8 @@ export function App(): JSX.Element {
     () =>
       deriveFigure(state, {
         canvas: {
-          widthPx: state.canvas.widthPx,
-          heightPx: state.canvas.heightPx,
+          widthPx: FIGURE_PX_W,
+          heightPx: FIGURE_PX_H,
           background: CANVAS_BG,
         },
       }),
@@ -287,8 +289,8 @@ export function App(): JSX.Element {
     const file = toMosaicFile({
       state,
       canvas: {
-        widthPx: state.canvas.widthPx,
-        heightPx: state.canvas.heightPx,
+        widthPx: FIGURE_PX_W,
+        heightPx: FIGURE_PX_H,
         background: CANVAS_BG,
       },
       mosaicPath: projectPath ?? "untitled.mosaic",
@@ -412,7 +414,15 @@ export function App(): JSX.Element {
         >
           Save
         </button>
-        <ExportMenu figure={figure} images={bitmaps} pool={imagesByIdMemo} />
+        <ExportMenu
+          figure={figure}
+          images={bitmaps}
+          pool={imagesByIdMemo}
+          poolList={state.pool}
+          rows={state.rows}
+          cols={state.cols}
+          gutterPx={state.gutterPx}
+        />
         <GridControls
           rows={state.rows}
           cols={state.cols}
@@ -478,8 +488,8 @@ export function App(): JSX.Element {
             <EditorCanvas figure={figure} images={bitmaps} pool={imagesByIdMemo} />
             <GridCells
               state={state}
-              figurePxW={state.canvas.widthPx}
-              figurePxH={state.canvas.heightPx}
+              figurePxW={FIGURE_PX_W}
+              figurePxH={FIGURE_PX_H}
               cssW={CANVAS_CSS_W}
               cssH={CANVAS_CSS_H}
               onDrop={onDrop}
@@ -497,8 +507,8 @@ export function App(): JSX.Element {
                   panelRect={focusedPanelRect}
                   transform={selectedImagePanel.transform}
                   bitmap={focusedBitmap}
-                  figurePxW={state.canvas.widthPx}
-                  figurePxH={state.canvas.heightPx}
+                  figurePxW={FIGURE_PX_W}
+                  figurePxH={FIGURE_PX_H}
                   cssW={CANVAS_CSS_W}
                   cssH={CANVAS_CSS_H}
                   dispatch={dispatch}
@@ -512,8 +522,8 @@ export function App(): JSX.Element {
               imagesById={imagesByIdMemo}
               cssW={CANVAS_CSS_W}
               cssH={CANVAS_CSS_H}
-              figurePxW={state.canvas.widthPx}
-              figurePxH={state.canvas.heightPx}
+              figurePxW={FIGURE_PX_W}
+              figurePxH={FIGURE_PX_H}
               selectedAnnotationId={selectedAnnotationId}
               onSelectAnnotation={setSelectedAnnotationId}
               onEditingChange={setAnnotationEditing}

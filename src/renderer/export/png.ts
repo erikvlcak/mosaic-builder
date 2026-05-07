@@ -12,10 +12,11 @@ export async function exportFigureAsPng(
   figure: Figure,
   images: Map<string, ImageBitmap>,
   pool?: Map<string, ImagePoolItem>,
+  exportScale = 1,
 ): Promise<ExportResult> {
   let blob: Blob;
   try {
-    blob = await renderFigureToPngBlob(figure, images, pool);
+    blob = await renderFigureToPngBlob(figure, images, pool, exportScale);
   } catch (err) {
     return { ok: false, reason: "render-failed", message: String(err) };
   }

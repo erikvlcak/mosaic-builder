@@ -29,10 +29,11 @@ export async function exportFigureAsTiff(
   images: Map<string, ImageBitmap>,
   dpi: number,
   pool?: Map<string, ImagePoolItem>,
+  exportScale = 1,
 ): Promise<ExportResult> {
   let bytes: Uint8Array;
   try {
-    const r = renderFigureToOffscreen(figure, images, dpi, pool);
+    const r = renderFigureToOffscreen(figure, images, dpi, pool, exportScale);
     const ctx = r.canvas.getContext("2d");
     if (ctx === null) {
       return {
