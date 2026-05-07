@@ -1,6 +1,13 @@
 import { describe, it, expect } from "vitest";
 import type { ImagePoolItem } from "../../src/renderer/model/pool";
-import { computeCanvasDims } from "../../src/renderer/model/canvas-dims";
+import { computeCanvasDims, scaleAnnotations } from "../../src/renderer/model/canvas-dims";
+import type {
+  Annotation,
+  TextAnnotation,
+  ArrowAnnotation,
+  BoxAnnotation,
+  ScaleBarAnnotation,
+} from "../../src/renderer/model/annotations";
 
 const MIN_W = 800;
 const MIN_H = 600;
@@ -66,5 +73,101 @@ describe("computeCanvasDims", () => {
     expect(d0).toEqual({ widthPx: 4000, heightPx: 3000 });
     const d40 = computeCanvasDims([img(4000, 3000)], 1, 1, 40);
     expect(d40).toEqual({ widthPx: 4000 + 2 * 40, heightPx: 3000 + 2 * 40 });
+  });
+});
+
+const TEXT: TextAnnotation = {
+  id: "t1",
+  kind: "text",
+  z: 1,
+  x: 100,
+  y: 200,
+  text: "hi",
+  font: "system-ui",
+  sizePt: 12,
+  bold: false,
+  italic: false,
+  color: "#000000",
+};
+
+const ARROW: ArrowAnnotation = {
+  id: "a1",
+  kind: "arrow",
+  z: 1,
+  x1: 10,
+  y1: 20,
+  x2: 30,
+  y2: 40,
+  color: "#000000",
+  thicknessPx: 2,
+  head: "filled",
+};
+
+const BOX: BoxAnnotation = {
+  id: "b1",
+  kind: "box",
+  z: 1,
+  x: 50,
+  y: 60,
+  w: 100,
+  h: 200,
+  stroke: "#000000",
+  strokeWidthPx: 1,
+};
+
+const SCALE: ScaleBarAnnotation = {
+  id: "s1",
+  kind: "scalebar",
+  z: 1,
+  panelId: "p1",
+  lengthValue: 100,
+  lengthUnit: "um",
+};
+
+describe("scaleAnnotations", () => {
+  it("returns the same array reference when sx and sy are both 1", () => {
+    const arr: Annotation[] = [TEXT, ARROW, BOX, SCALE];
+    const out = scaleAnnotations(arr, 1, 1);
+    expect(out).toBe(arr);
+  });
+
+  it("scales text x/y", () => {
+    const out = scaleAnnotations([TEXT], 2, 3);
+    const t = out[0] as TextAnnotation;
+    expect(t.x).toBe(200);
+    expect(t.y).toBe(600);
+    expect(t.sizePt).toBe(12); // unchanged — points are not figure-px
+  });
+
+  it("scales arrow endpoints", () => {
+    const out = scaleAnnotations([ARROW], 2, 3);
+    const a = out[0] as ArrowAnnotation;
+    expect(a.x1).toBe(20);
+    expect(a.y1).toBe(60);
+    expect(a.x2).toBe(60);
+    expect(a.y2).toBe(120);
+    expect(a.thicknessPx).toBe(2); // unchanged
+  });
+
+  it("scales box position and size", () => {
+    const out = scaleAnnotations([BOX], 2, 3);
+    const b = out[0] as BoxAnnotation;
+    expect(b.x).toBe(100);
+    expect(b.y).toBe(180);
+    expect(b.w).toBe(200);
+    expect(b.h).toBe(600);
+    expect(b.strokeWidthPx).toBe(1); // unchanged
+  });
+
+  it("leaves scalebar unchanged (corner-anchored, no figure-px coords)", () => {
+    const out = scaleAnnotations([SCALE], 2, 3);
+    expect(out[0]).toEqual(SCALE);
+  });
+
+  it("returns a new array (does not mutate input) when scale != 1", () => {
+    const arr: Annotation[] = [TEXT];
+    const out = scaleAnnotations(arr, 2, 2);
+    expect(out).not.toBe(arr);
+    expect(arr[0]).toEqual(TEXT); // input untouched
   });
 });
