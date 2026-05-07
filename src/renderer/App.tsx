@@ -13,6 +13,11 @@ import { PropertiesPanel } from "./components/Properties/PropertiesPanel";
 import { GridCells, type DropEvent } from "./components/Grid/GridCells";
 import { PanelInteractionLayer } from "./components/Grid/PanelInteractionLayer";
 import {
+  type PanelInteraction,
+  editingIdOf,
+  focusedIdOf,
+} from "./model/panel-interaction";
+import {
   initialFigureState,
   type FigureState,
 } from "./model/figure-state";
@@ -64,7 +69,9 @@ export function App(): JSX.Element {
   const [state, dispatch, history] = useHistoryReducer(initialFigureState());
   const [bitmaps, setBitmaps] = useState<Map<string, ImageBitmap>>(new Map());
   const toasts = useToasts(5000);
-  const [focusedPanelId, setFocusedPanelId] = useState<string | null>(null);
+  const [panelInteraction, setPanelInteraction] =
+    useState<PanelInteraction>(null);
+  const focusedPanelId = focusedIdOf(panelInteraction);
   const [activeTool, setActiveTool] = useState<Tool>("select");
   const [projectPath, setProjectPath] = useState<string | null>(null);
   const [missingImages, setMissingImages] = useState<
@@ -204,6 +211,34 @@ export function App(): JSX.Element {
     dispatch(resetPanelTransform(selectedImagePanel.id));
   }, [selectedImagePanel, dispatch]);
 
+  const onPanelSingleClick = useCallback(
+    (panelId: string) => {
+      // Single-click while already editing this same panel: no-op (stay
+      // in editing so the user doesn't lose pan/zoom state mid-drag).
+      if (
+        panelInteraction !== null &&
+        panelInteraction.mode === "editing" &&
+        panelInteraction.panelId === panelId
+      ) {
+        return;
+      }
+      // Same shape for image and empty panels — empty panels can't drag
+      // anyway (GridCells gates on `occupied`), but they still need
+      // "selected" focus for the Unmerge action and properties panel.
+      setPanelInteraction({ mode: "selected", panelId });
+    },
+    [panelInteraction],
+  );
+
+  const onPanelDoubleClick = useCallback(
+    (panelId: string) => {
+      const panel = stateRef.current.panels.find((p) => p.id === panelId);
+      if (panel === undefined || panel.imageId === undefined) return;
+      setPanelInteraction({ mode: "editing", panelId });
+    },
+    [],
+  );
+
   const onSetFit = useCallback(
     (fit: "contain" | "cover" | "stretch") => {
       if (selectedImagePanel === undefined) return;
@@ -214,7 +249,7 @@ export function App(): JSX.Element {
 
   const onEscape = useCallback(() => {
     selection.clear();
-    setFocusedPanelId(null);
+    setPanelInteraction(null);
     setSelectedAnnotationId(null);
     setActiveTool("select");
   }, [selection]);
@@ -343,7 +378,7 @@ export function App(): JSX.Element {
     dispatch(resetFigureAction());
     setBitmaps(new Map());
     setProjectPath(null);
-    setFocusedPanelId(null);
+    setPanelInteraction(null);
     setSelectedAnnotationId(null);
     toasts.push({ kind: "info", message: "New figure" });
   }, [dispatch, toasts]);
@@ -495,10 +530,12 @@ export function App(): JSX.Element {
               onDrop={onDrop}
               selection={selection.selected}
               onCellShiftClick={selection.toggle}
-              focusedPanelId={focusedPanelId}
-              onPanelClick={setFocusedPanelId}
+              panelInteraction={panelInteraction}
+              onPanelClick={onPanelSingleClick}
+              onPanelDoubleClick={onPanelDoubleClick}
             />
-            {selectedImagePanel !== undefined &&
+            {editingIdOf(panelInteraction) !== null &&
+              selectedImagePanel !== undefined &&
               focusedPanelRect !== null &&
               focusedBitmap !== undefined &&
               selectedImagePanel.transform !== undefined && (

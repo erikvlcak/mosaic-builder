@@ -199,7 +199,9 @@ export function PanelInteractionLayer({
         cursor: dragging ? "grabbing" : "grab",
         // Box-only chrome to indicate the active pan/zoom region.
         boxSizing: "border-box",
-        outline: "3px solid #0066FF",
+        // Dashed warm orange distinguishes editing mode from the solid
+        // focus-stroke green that GridCells draws around a selected panel.
+        outline: "3px dashed var(--c-warn)",
         outlineOffset: -3,
         // Don't draw anything — the canvas underneath shows the image.
         background: "transparent",
