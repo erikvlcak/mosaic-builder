@@ -10,7 +10,6 @@ function stateWithImage(): FigureState {
   // Default initialFigureState gives a 2x2 grid of empty panels. Place an
   // imageId on the first panel so it counts as "occupied".
   const s = initialFigureState();
-  const first = s.panels[0]!;
   return {
     ...s,
     pool: [
@@ -97,15 +96,11 @@ describe("GridCells — selected vs editing modes", () => {
   });
 
   it("image panel is HTML5-draggable when it is in selected mode (the bug fix)", () => {
-    const { state } = renderGrid({ interaction: null }); // get id
-    const p = state.panels[0]!;
-    // Re-render with this panel in selected mode.
-    const onPanelClick = vi.fn();
-    const onPanelDoubleClick = vi.fn();
-    const interaction: PanelInteraction = { mode: "selected", panelId: p.id };
+    const s = stateWithImage();
+    const p = s.panels[0]!;
     render(
       <GridCells
-        state={stateWithImage()}
+        state={s}
         figurePxW={800}
         figurePxH={600}
         cssW={800}
@@ -113,14 +108,14 @@ describe("GridCells — selected vs editing modes", () => {
         onDrop={vi.fn()}
         selection={new Set()}
         onCellShiftClick={vi.fn()}
-        panelInteraction={interaction}
-        onPanelClick={onPanelClick}
-        onPanelDoubleClick={onPanelDoubleClick}
+        panelInteraction={{ mode: "selected", panelId: p.id }}
+        onPanelClick={vi.fn()}
+        onPanelDoubleClick={vi.fn()}
       />,
     );
-    // Two grids exist after the second render; pick the second instance.
-    const els = screen.getAllByTestId(`panel-${p.row}-${p.col}`);
-    expect(els[els.length - 1]!.getAttribute("draggable")).toBe("true");
+    expect(
+      screen.getByTestId(`panel-${p.row}-${p.col}`).getAttribute("draggable"),
+    ).toBe("true");
   });
 
   it("image panel is NOT HTML5-draggable when it is in editing mode", () => {

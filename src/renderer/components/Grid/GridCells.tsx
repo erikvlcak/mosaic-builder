@@ -169,6 +169,8 @@ export function GridCells({
             }
             return;
           }
+          // Fires for empty panels too — they can't be dragged but still
+          // need "selected" focus for Unmerge / properties panel.
           onPanelClick(panel.id);
         }
 
@@ -187,11 +189,7 @@ export function GridCells({
         // disables drag, so single-click eats the drag-to-swap gesture.
         const draggable = occupied && !isEditing;
 
-        // Outline rules:
-        //   hover (DnD) → strong hover-stroke
-        //   editing → none here; PanelInteractionLayer draws its own
-        //   selected (image OR empty) → solid focus-stroke
-        //   neither → transparent dashed (default placeholder line)
+        // editing: no outline here — PanelInteractionLayer owns editing-mode chrome.
         const outline =
           hoverPanelId === panel.id
             ? "3px solid var(--c-hover-stroke)"
