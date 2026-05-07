@@ -4,6 +4,11 @@ import { cellKey } from "../../model/figure-state";
 import { computePanelRects } from "../../render/coords";
 import { DEFAULT_GLOBAL_STYLE } from "../../model/global-style";
 import {
+  type PanelInteraction,
+  selectedIdOf,
+  editingIdOf,
+} from "../../model/panel-interaction";
+import {
   DRAG_MIME,
   parseDrag,
   serializeDrag,
@@ -27,9 +32,10 @@ interface Props {
   /** Per-cell merge selection. Shift-click toggles. */
   selection: ReadonlySet<string>;
   onCellShiftClick: (row: number, col: number) => void;
-  /** Tracks "focused panel" for the Unmerge action. */
-  focusedPanelId: string | null;
+  /** Tristate: which panel (if any) is selected or editing. */
+  panelInteraction: PanelInteraction;
   onPanelClick: (panelId: string) => void;
+  onPanelDoubleClick: (panelId: string) => void;
 }
 
 export function GridCells({
@@ -41,10 +47,14 @@ export function GridCells({
   onDrop,
   selection,
   onCellShiftClick,
-  focusedPanelId,
+  panelInteraction,
   onPanelClick,
+  onPanelDoubleClick,
 }: Props): JSX.Element {
   const [hoverPanelId, setHoverPanelId] = useState<string | null>(null);
+
+  const selectedId = selectedIdOf(panelInteraction);
+  const editingId = editingIdOf(panelInteraction);
 
   // Build a Figure-shaped object purely for layout. We map state.panels
   // (which already carry rowSpan/colSpan) directly so rect computation
@@ -65,8 +75,6 @@ export function GridCells({
       rowSpan: p.rowSpan,
       colSpan: p.colSpan,
     })),
-    // computePanelRects only reads canvas/grid/panels, but the Figure type
-    // requires these. Pass empty annotations + the frozen default style.
     annotations: [],
     globalStyle: DEFAULT_GLOBAL_STYLE,
   });
@@ -83,15 +91,13 @@ export function GridCells({
         pointerEvents: "none",
       }}
     >
-      {/* Selection layer — one box per cell, shift-click to toggle.
-          Sits underneath the per-panel drop layer; only handles shift-click. */}
+      {/* Selection layer (unchanged) */}
       {Array.from({ length: state.rows * state.cols }).map((_, idx) => {
         const row = Math.floor(idx / state.cols);
         const col = idx % state.cols;
         const k = cellKey(row, col);
         const sel = selection.has(k);
 
-        // Compute single-cell rect inline, so this layer doesn't need the panels.
         const availW = figurePxW - state.gutterPx * (state.cols + 1);
         const availH = figurePxH - state.gutterPx * (state.rows + 1);
         const cellW = Math.floor(availW / state.cols);
@@ -109,8 +115,6 @@ export function GridCells({
               top: y * sy,
               width: cellW * sx,
               height: cellH * sy,
-              // Visual-only layer; clicks pass through to the panel layer
-              // above, which dispatches shift-clicks back to onCellShiftClick.
               pointerEvents: "none",
               boxSizing: "border-box",
               outline: sel
@@ -160,10 +164,6 @@ export function GridCells({
 
         function onClick(e: React.MouseEvent<HTMLDivElement>): void {
           if (e.shiftKey) {
-            // Shift-click on a 1x1 panel toggles its cell in the merge
-            // selection. Merged panels can't participate in a merge selection
-            // (canMergeSelection rejects them), so shift-click on a merged
-            // panel is a no-op.
             if (panel.rowSpan === 1 && panel.colSpan === 1) {
               onCellShiftClick(panel.row, panel.col);
             }
@@ -172,14 +172,40 @@ export function GridCells({
           onPanelClick(panel.id);
         }
 
-        const isFocused = focusedPanelId === panel.id;
-        // When an image panel is focused, the PanelInteractionLayer renders
-        // its own selection chrome on top — so we drop our outline here to
-        // avoid double-borders. We also disable HTML5 drag on focused image
-        // panels so the user can pan/zoom without accidentally starting a
-        // drag; deselect (Escape, or click another panel) to move it again.
-        const showSelectionOutline = isFocused && !occupied;
-        const draggable = occupied && !isFocused;
+        function onDoubleClick(): void {
+          if (!occupied) return;
+          onPanelDoubleClick(panel.id);
+        }
+
+        const isSelected = selectedId === panel.id;
+        const isEditing = editingId === panel.id;
+
+        // Drag rules:
+        //   editing → never draggable (PanelInteractionLayer owns gestures)
+        //   selected or no-mode → draggable iff occupied
+        // The selected-stays-draggable case is the bug fix: today, any focus
+        // disables drag, so single-click eats the drag-to-swap gesture.
+        const draggable = occupied && !isEditing;
+
+        // Outline rules:
+        //   hover (DnD) → strong hover-stroke
+        //   editing → none here; PanelInteractionLayer draws its own
+        //   selected (image OR empty) → solid focus-stroke
+        //   neither → transparent dashed (default placeholder line)
+        const outline =
+          hoverPanelId === panel.id
+            ? "3px solid var(--c-hover-stroke)"
+            : isEditing
+              ? "1px dashed transparent"
+              : isSelected
+                ? "2px solid var(--c-focus-stroke)"
+                : "1px dashed transparent";
+
+        // Cursor rules:
+        //   editing → default (PanelInteractionLayer sits on top with its own)
+        //   occupied → grab (selectable / draggable)
+        //   empty → default
+        const cursor = isEditing ? "default" : occupied ? "grab" : "default";
 
         return (
           <div
@@ -190,9 +216,10 @@ export function GridCells({
             onDragLeave={onDragLeave}
             onDrop={onDropEvt}
             onClick={onClick}
+            onDoubleClick={onDoubleClick}
             data-testid={`panel-${panel.row}-${panel.col}`}
             data-panel-id={panel.id}
-            data-focused={isFocused ? "true" : undefined}
+            data-mode={isEditing ? "editing" : isSelected ? "selected" : undefined}
             style={{
               position: "absolute",
               left: r.x * sx,
@@ -200,13 +227,8 @@ export function GridCells({
               width: r.w * sx,
               height: r.h * sy,
               pointerEvents: "auto",
-              cursor: occupied ? "grab" : "default",
-              outline:
-                hoverPanelId === panel.id
-                  ? "3px solid var(--c-hover-stroke)"
-                  : showSelectionOutline
-                    ? "2px solid var(--c-focus-stroke)"
-                    : "1px dashed transparent",
+              cursor,
+              outline,
               outlineOffset: -2,
               transition: "outline-color 80ms ease",
               boxSizing: "border-box",
