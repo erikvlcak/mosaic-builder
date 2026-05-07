@@ -35,41 +35,67 @@ export function CanvasAndGlobalStyleForm({
     else commit.markDirty();
   }
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-      <h3 style={{ margin: 0, fontSize: 12, color: "#444" }}>Subpanel letters</h3>
-      <NumberField label="Letters size (pt)" value={globalStyle.letters.sizePt}
-        min={4} max={144}
-        onChange={(sizePt) => patchLetters({ sizePt })}
-        onBlur={commit.flush} />
-      <ColorField label="Letters color" value={globalStyle.letters.color}
-        onChange={(color) => patchLetters({ color })}
-        onBlur={commit.flush} />
-      <CornerField label="Letters corner"
-        value={globalStyle.letters.corner}
-        onChange={(c) => patchLetters({ corner: c }, true)} />
+    <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+      <fieldset
+        style={{
+          border: "none",
+          padding: 0,
+          margin: 0,
+          display: "flex",
+          flexDirection: "column",
+          gap: 10,
+        }}
+      >
+        <legend className="section-heading" style={{ padding: 0, marginBottom: 4 }}>
+          Subpanel letters
+        </legend>
+        <NumberField label="Size (pt)" value={globalStyle.letters.sizePt}
+          min={4} max={144}
+          onChange={(sizePt) => patchLetters({ sizePt })}
+          onBlur={commit.flush} />
+        <ColorField label="Color" value={globalStyle.letters.color}
+          onChange={(color) => patchLetters({ color })}
+          onBlur={commit.flush} />
+        <CornerField label="Corner"
+          value={globalStyle.letters.corner}
+          onChange={(c) => patchLetters({ corner: c }, true)} />
+      </fieldset>
 
-      <h3 style={{ margin: 0, fontSize: 12, color: "#444", marginTop: 8 }}>Scale bar</h3>
-      <NumberField label="Scale-bar thickness (px)"
-        value={globalStyle.scalebar.thicknessPx} min={1} max={32}
-        onChange={(thicknessPx) => patchScalebar({ thicknessPx })}
-        onBlur={commit.flush} />
-      <ColorField label="Scale-bar color" value={globalStyle.scalebar.barColor}
-        onChange={(barColor) => patchScalebar({ barColor, color: barColor })}
-        onBlur={commit.flush} />
-      <NumberField label="Scale-bar label size (pt)"
-        value={globalStyle.scalebar.sizePt} min={4} max={48}
-        onChange={(sizePt) => patchScalebar({ sizePt })}
-        onBlur={commit.flush} />
-      <CornerField label="Scale-bar corner"
-        value={globalStyle.scalebar.corner}
-        onChange={(c) => patchScalebar({ corner: c }, true)} />
-      <label style={{ display: "flex", gap: 6, alignItems: "center", fontSize: 12 }}>
-        <input type="checkbox"
-          checked={globalStyle.scalebar.showLabel}
-          onChange={(e) =>
-            patchScalebar({ showLabel: e.currentTarget.checked }, true)} />
-        Show scale-bar label
-      </label>
+      <fieldset
+        style={{
+          border: "none",
+          padding: 0,
+          margin: 0,
+          display: "flex",
+          flexDirection: "column",
+          gap: 10,
+        }}
+      >
+        <legend className="section-heading" style={{ padding: 0, marginBottom: 4 }}>
+          Scale bar
+        </legend>
+        <NumberField label="Thickness (px)"
+          value={globalStyle.scalebar.thicknessPx} min={1} max={32}
+          onChange={(thicknessPx) => patchScalebar({ thicknessPx })}
+          onBlur={commit.flush} />
+        <ColorField label="Color" value={globalStyle.scalebar.barColor}
+          onChange={(barColor) => patchScalebar({ barColor, color: barColor })}
+          onBlur={commit.flush} />
+        <NumberField label="Label size (pt)"
+          value={globalStyle.scalebar.sizePt} min={4} max={48}
+          onChange={(sizePt) => patchScalebar({ sizePt })}
+          onBlur={commit.flush} />
+        <CornerField label="Corner"
+          value={globalStyle.scalebar.corner}
+          onChange={(c) => patchScalebar({ corner: c }, true)} />
+        <label className="checkbox-row">
+          <input type="checkbox"
+            checked={globalStyle.scalebar.showLabel}
+            onChange={(e) =>
+              patchScalebar({ showLabel: e.currentTarget.checked }, true)} />
+          Show label
+        </label>
+      </fieldset>
     </div>
   );
 }

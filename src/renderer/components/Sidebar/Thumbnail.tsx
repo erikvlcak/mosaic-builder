@@ -8,7 +8,11 @@ interface Props {
   placed: boolean;
 }
 
-const SIZE = 64;
+const SIZE = 56;
+
+function formatSize(item: ImagePoolItem): string {
+  return `${item.width}×${item.height}`;
+}
 
 export function Thumbnail({ item, bitmap, placed }: Props): JSX.Element {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -20,7 +24,7 @@ export function Thumbnail({ item, bitmap, placed }: Props): JSX.Element {
     c.height = SIZE;
     const ctx = c.getContext("2d");
     if (ctx === null) return;
-    ctx.fillStyle = "#222";
+    ctx.fillStyle = "#1E232B";
     ctx.fillRect(0, 0, SIZE, SIZE);
     const scale = Math.min(SIZE / bitmap.width, SIZE / bitmap.height);
     const w = bitmap.width * scale;
@@ -45,45 +49,19 @@ export function Thumbnail({ item, bitmap, placed }: Props): JSX.Element {
       draggable={!placed}
       onDragStart={onDragStart}
       data-testid={`thumb-${item.id}`}
-      title={item.filename}
-      style={{
-        display: "flex",
-        alignItems: "center",
-        gap: 8,
-        padding: 6,
-        borderRadius: 4,
-        cursor: placed ? "default" : "grab",
-        opacity: placed ? 0.45 : 1,
-        background: placed ? "transparent" : "#F5F5F5",
-        userSelect: "none",
-      }}
+      title={`${item.filename} — ${formatSize(item)}${placed ? " (placed)" : ""}`}
+      className={`thumb ${placed ? "thumb--placed" : "thumb--draggable"}`}
     >
       <canvas
         ref={canvasRef}
         width={SIZE}
         height={SIZE}
-        style={{
-          width: SIZE,
-          height: SIZE,
-          background: "#222",
-          borderRadius: 2,
-          flex: "0 0 auto",
-        }}
+        className="thumb-canvas"
+        style={{ width: SIZE, height: SIZE }}
       />
-      <div style={{ minWidth: 0, flex: 1 }}>
-        <div
-          style={{
-            whiteSpace: "nowrap",
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-            fontSize: 12,
-          }}
-        >
-          {item.filename}
-        </div>
-        <div style={{ fontSize: 10, color: "#888" }}>
-          {placed ? "placed" : "unplaced"}
-        </div>
+      <div className="thumb-meta">
+        <div className="thumb-name">{item.filename}</div>
+        <div className="thumb-sub">{formatSize(item)}</div>
       </div>
     </div>
   );

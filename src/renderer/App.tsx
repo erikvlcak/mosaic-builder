@@ -376,7 +376,6 @@ export function App(): JSX.Element {
   return (
     <main
       style={{
-        fontFamily: "system-ui, sans-serif",
         height: "100vh",
         margin: 0,
         display: "flex",
@@ -384,19 +383,20 @@ export function App(): JSX.Element {
       }}
     >
       <header
+        className="app-header"
         style={{
-          padding: 8,
-          borderBottom: "1px solid #DDD",
+          padding: "8px 12px",
           display: "flex",
           alignItems: "center",
-          gap: 12,
+          gap: 10,
           flexWrap: "wrap",
         }}
       >
-        <h1 style={{ margin: 0, fontSize: 16 }}>Mosaic Builder</h1>
-        <ExportMenu figure={figure} images={bitmaps} pool={imagesByIdMemo} />
+        <h1 className="app-title">Mosaic Builder</h1>
+        <span className="toolbar-divider" aria-hidden="true" />
         <button
           type="button"
+          className="btn"
           onClick={() => {
             void onOpenProject();
           }}
@@ -406,6 +406,7 @@ export function App(): JSX.Element {
         </button>
         <button
           type="button"
+          className="btn"
           onClick={() => {
             void onSaveProject();
           }}
@@ -413,6 +414,7 @@ export function App(): JSX.Element {
         >
           Save
         </button>
+        <ExportMenu figure={figure} images={bitmaps} pool={imagesByIdMemo} />
         <GridControls
           rows={state.rows}
           cols={state.cols}
@@ -462,8 +464,9 @@ export function App(): JSX.Element {
             display: "flex",
             justifyContent: "center",
             alignItems: "flex-start",
-            padding: 16,
+            padding: 24,
             overflow: "auto",
+            background: "var(--c-surface-sunken)",
           }}
         >
           <div
@@ -471,9 +474,10 @@ export function App(): JSX.Element {
               position: "relative",
               width: CANVAS_CSS_W,
               height: CANVAS_CSS_H,
+              boxShadow: "var(--sh-md)",
             }}
           >
-            <EditorCanvas figure={figure} images={bitmaps} />
+            <EditorCanvas figure={figure} images={bitmaps} pool={imagesByIdMemo} />
             <GridCells
               state={state}
               figurePxW={FIGURE_PX_W}

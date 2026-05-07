@@ -235,9 +235,14 @@ export function AnnotationInteractionLayer({
   dispatch,
 }: Props): JSX.Element {
   const ref = useRef<HTMLDivElement | null>(null);
+  const textInputRef = useRef<HTMLInputElement | null>(null);
   const [drag, setDrag] = useState<DragState | null>(null);
   const [pendingScalebar, setPendingScalebar] = useState<PendingScalebar | null>(null);
   const [pendingText, setPendingText] = useState<PendingText | null>(null);
+  // Controlled value for the inline text input. Mirroring it in React state
+  // (instead of relying on the DOM input's defaultValue) makes the commit
+  // path immune to focus loss / blur racing the keydown.
+  const [pendingTextValue, setPendingTextValue] = useState<string>("");
   const [scalebarLength, setScalebarLength] = useState<string>("100");
   const [scalebarUnit, setScalebarUnit] = useState<"um" | "mm">("um");
   /**
@@ -291,6 +296,25 @@ export function AnnotationInteractionLayer({
     setPendingScalebar(null);
     setPendingText(null);
   }, [activeTool]);
+
+  // Imperatively focus the inline text input AFTER it mounts. `autoFocus`
+  // races the synthetic pointerdown that opened it — when the layer is the
+  // pointerdown target, the browser keeps focus on document.body so the
+  // input never receives keystrokes. A useEffect runs post-commit, after
+  // the pointerdown has fully resolved.
+  useEffect(() => {
+    if (pendingText === null) {
+      setPendingTextValue("");
+      return;
+    }
+    // requestAnimationFrame ensures we run after the input is in the DOM
+    // and after any pending focus changes from the click that opened it.
+    const handle = requestAnimationFrame(() => {
+      textInputRef.current?.focus();
+      textInputRef.current?.select();
+    });
+    return () => cancelAnimationFrame(handle);
+  }, [pendingText]);
 
   function clientToFigure(e: React.PointerEvent | PointerEvent): { fx: number; fy: number; cssX: number; cssY: number } | null {
     const el = ref.current;
@@ -931,33 +955,45 @@ export function AnnotationInteractionLayer({
         </svg>
       )}
 
-      {/* Inline text-input for the "text" tool. */}
+      {/* Inline text-input for the "text" tool. The pointerdown handlers
+          stop propagation so a click inside the input (to focus it, place
+          the cursor, or select text) doesn't bubble up to onLayerPointerDown
+          and reset pendingText — which would unmount the input mid-typing.
+          Focus is set imperatively in a useEffect (autoFocus races the
+          opening click and silently fails). */}
       {pendingText !== null && (
         <input
-          autoFocus
+          ref={textInputRef}
           data-testid="anno-text-input"
-          defaultValue=""
-          onBlur={(e) => commitPendingText(e.currentTarget.value)}
+          value={pendingTextValue}
+          onChange={(e) => setPendingTextValue(e.currentTarget.value)}
+          onPointerDown={(e) => e.stopPropagation()}
+          onPointerUp={(e) => e.stopPropagation()}
+          onClick={(e) => e.stopPropagation()}
+          onBlur={() => commitPendingText(pendingTextValue)}
           onKeyDown={(e) => {
             if (e.key === "Enter") {
               e.preventDefault();
-              commitPendingText(e.currentTarget.value);
+              commitPendingText(pendingTextValue);
             } else if (e.key === "Escape") {
               e.preventDefault();
               setPendingText(null);
             }
           }}
+          placeholder="Type, then Enter"
           style={{
             position: "absolute",
             left: pendingText.cssX,
             top: pendingText.cssY,
+            // Match the eventual annotation's font/size so the user sees
+            // the result roughly in place as they type.
             font: `${DEFAULT_TEXT_SIZE_PT}px ${DEFAULT_TEXT_FONT}`,
             color: DEFAULT_TEXT_COLOR,
             background: "rgba(255,255,255,0.95)",
             border: "1px dashed #0066FF",
             padding: "1px 3px",
             outline: "none",
-            minWidth: 60,
+            minWidth: 80,
             zIndex: 5,
           }}
         />

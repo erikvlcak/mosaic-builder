@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import type { Figure } from "../../model/types";
+import type { ImagePoolItem } from "../../model/pool";
 import {
   createEditorRenderer,
   type EditorRenderer,
@@ -8,9 +9,11 @@ import {
 interface Props {
   figure: Figure;
   images: Map<string, ImageBitmap>;
+  /** Pool items keyed by image id. Required for scale-bar calibration. */
+  pool: Map<string, ImagePoolItem>;
 }
 
-export function EditorCanvas({ figure, images }: Props): JSX.Element {
+export function EditorCanvas({ figure, images, pool }: Props): JSX.Element {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const rendererRef = useRef<EditorRenderer | null>(null);
 
@@ -30,15 +33,21 @@ export function EditorCanvas({ figure, images }: Props): JSX.Element {
   useEffect(() => {
     rendererRef.current?.setImages(images);
   }, [images]);
+  useEffect(() => {
+    rendererRef.current?.setPool(pool);
+  }, [pool]);
 
   return (
     <canvas
       ref={canvasRef}
       data-testid="editor-canvas"
       style={{
+        // CSS size is set imperatively by the renderer to figure-px, so the
+        // backing store can stay at figure-px × dpr for crisp text on HiDPI
+        // displays. We leave width/height OUT of the inline style so the
+        // renderer's pixel-perfect sizing wins; setting "width: 100%" here
+        // would force the browser to up- or down-sample.
         display: "block",
-        width: "100%",
-        height: "100%",
         border: "1px solid #DDD",
       }}
     />

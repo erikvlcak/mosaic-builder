@@ -21,15 +21,6 @@ const FONT_OPTIONS = [
   "Courier New, monospace",
 ];
 
-const toggleBtn = (active: boolean): React.CSSProperties => ({
-  padding: "4px 8px",
-  border: "1px solid #BBB",
-  background: active ? "#0066FF" : "#FFF",
-  color: active ? "#FFF" : "#222",
-  cursor: "pointer",
-  fontSize: 12,
-});
-
 export function TextAnnoForm({ anno, dispatch, commit }: Props): JSX.Element {
   function patch(p: Partial<TextAnnotation>, immediate = false): void {
     dispatch(updateAnnotation(anno.id, p));
@@ -37,7 +28,7 @@ export function TextAnnoForm({ anno, dispatch, commit }: Props): JSX.Element {
     else commit.markDirty();
   }
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
       <TextField
         label="Text"
         value={anno.text}
@@ -45,15 +36,14 @@ export function TextAnnoForm({ anno, dispatch, commit }: Props): JSX.Element {
         onChange={(text) => patch({ text })}
         onBlur={commit.flush}
       />
-      <label
-        style={{ display: "flex", flexDirection: "column", fontSize: 11, gap: 2 }}
-      >
-        <span style={{ color: "#555" }}>Font</span>
+      <label htmlFor="text-anno-font" className="field">
+        <span className="field-label">Font</span>
         <select
+          id="text-anno-font"
           aria-label="Font"
+          className="input"
           value={anno.font}
           onChange={(e) => patch({ font: e.currentTarget.value }, true)}
-          style={{ padding: 4, border: "1px solid #BBB", fontSize: 12 }}
         >
           {FONT_OPTIONS.map((f) => (
             <option key={f} value={f}>
@@ -70,27 +60,32 @@ export function TextAnnoForm({ anno, dispatch, commit }: Props): JSX.Element {
         onChange={(sizePt) => patch({ sizePt })}
         onBlur={commit.flush}
       />
-      <div style={{ display: "flex", gap: 4 }}>
-        <button
-          type="button"
-          aria-label="Bold"
-          aria-pressed={anno.bold}
-          title="Bold"
-          onClick={() => patch({ bold: !anno.bold }, true)}
-          style={toggleBtn(anno.bold)}
-        >
-          B
-        </button>
-        <button
-          type="button"
-          aria-label="Italic"
-          aria-pressed={anno.italic}
-          title="Italic"
-          onClick={() => patch({ italic: !anno.italic }, true)}
-          style={{ ...toggleBtn(anno.italic), fontStyle: "italic" }}
-        >
-          I
-        </button>
+      <div className="field">
+        <span className="field-label">Style</span>
+        <div className="seg" role="group" aria-label="Text style">
+          <button
+            type="button"
+            className="btn"
+            aria-label="Bold"
+            aria-pressed={anno.bold}
+            title="Bold"
+            onClick={() => patch({ bold: !anno.bold }, true)}
+            style={{ fontWeight: 700, minWidth: 32 }}
+          >
+            B
+          </button>
+          <button
+            type="button"
+            className="btn"
+            aria-label="Italic"
+            aria-pressed={anno.italic}
+            title="Italic"
+            onClick={() => patch({ italic: !anno.italic }, true)}
+            style={{ fontStyle: "italic", minWidth: 32 }}
+          >
+            I
+          </button>
+        </div>
       </div>
       <ColorField
         label="Color"
@@ -104,11 +99,9 @@ export function TextAnnoForm({ anno, dispatch, commit }: Props): JSX.Element {
         onChange={(bgColor) => {
           const isTransparent = bgColor.toLowerCase() === "#ffffff00";
           if (isTransparent && anno.bgColor === undefined) {
-            // No-op: field is already unset; don't pollute the model.
             return;
           }
           if (isTransparent) {
-            // Explicit clear: user wants to remove a previously-set bg.
             // EOPT prevents { bgColor: undefined } from typing as
             // Partial<TextAnnotation>; cast at the dispatch boundary
             // since the reducer just spreads the patch.
@@ -124,18 +117,12 @@ export function TextAnnoForm({ anno, dispatch, commit }: Props): JSX.Element {
       />
       <button
         type="button"
+        className="btn btn-danger"
         onClick={() => {
           dispatch(removeAnnotation(anno.id));
           commit.flush();
         }}
-        style={{
-          padding: "4px 8px",
-          border: "1px solid #BBB",
-          background: "#FFF",
-          cursor: "pointer",
-          fontSize: 12,
-          color: "#A00",
-        }}
+        style={{ marginTop: 4 }}
       >
         Delete annotation
       </button>

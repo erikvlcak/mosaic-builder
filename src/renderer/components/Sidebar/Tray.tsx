@@ -19,28 +19,37 @@ export function Tray({
 
   return (
     <aside
+      className="surface-sidebar"
       data-testid="tray"
       style={{
-        width: 220,
-        borderRight: "1px solid #DDD",
-        padding: 8,
+        width: 232,
+        padding: 12,
         display: "flex",
         flexDirection: "column",
-        gap: 8,
+        gap: 10,
         overflowY: "auto",
       }}
     >
       <button
         type="button"
+        className="btn btn-primary"
         onClick={onAddImagesClick}
         data-testid="add-images"
-        style={{ padding: "6px 10px" }}
+        style={{ width: "100%", padding: "7px 10px" }}
       >
         Add images…
       </button>
-      <SectionLabel text="Unplaced" />
+
+      <Section
+        label="Unplaced"
+        count={unplaced.length}
+        hint="Drag onto a panel to place."
+      />
       {unplaced.length === 0 ? (
-        <Empty text="No images yet. Click Add images…" />
+        <Empty
+          primary="No images yet"
+          secondary="Click Add images… to import."
+        />
       ) : (
         unplaced.map((it) => (
           <Thumbnail
@@ -51,9 +60,10 @@ export function Tray({
           />
         ))
       )}
-      <SectionLabel text="Placed" />
+
+      <Section label="Placed" count={placed.length} />
       {placed.length === 0 ? (
-        <Empty text="—" />
+        <Empty primary="—" />
       ) : (
         placed.map((it) => (
           <Thumbnail
@@ -68,21 +78,64 @@ export function Tray({
   );
 }
 
-function SectionLabel({ text }: { text: string }): JSX.Element {
+function Section({
+  label,
+  count,
+  hint,
+}: {
+  label: string;
+  count: number;
+  hint?: string;
+}): JSX.Element {
   return (
-    <div
-      style={{
-        fontSize: 11,
-        textTransform: "uppercase",
-        color: "#888",
-        marginTop: 6,
-      }}
-    >
-      {text}
+    <div style={{ marginTop: 4 }}>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "baseline",
+          justifyContent: "space-between",
+          gap: 8,
+        }}
+      >
+        <h2 className="section-heading">{label}</h2>
+        <span style={{ fontSize: 11, color: "var(--c-text-faint)", fontVariantNumeric: "tabular-nums" }}>
+          {count}
+        </span>
+      </div>
+      {hint !== undefined && count > 0 && (
+        <div style={{ fontSize: 11, color: "var(--c-text-faint)", marginTop: 2 }}>
+          {hint}
+        </div>
+      )}
     </div>
   );
 }
 
-function Empty({ text }: { text: string }): JSX.Element {
-  return <div style={{ fontSize: 12, color: "#AAA" }}>{text}</div>;
+function Empty({
+  primary,
+  secondary,
+}: {
+  primary: string;
+  secondary?: string;
+}): JSX.Element {
+  return (
+    <div
+      style={{
+        padding: "10px 8px",
+        fontSize: 12,
+        color: "var(--c-text-muted)",
+        background: "var(--c-surface-muted)",
+        border: "1px dashed var(--c-border)",
+        borderRadius: "var(--r-md)",
+        textAlign: "center",
+      }}
+    >
+      <div>{primary}</div>
+      {secondary !== undefined && (
+        <div style={{ fontSize: 11, color: "var(--c-text-faint)", marginTop: 2 }}>
+          {secondary}
+        </div>
+      )}
+    </div>
+  );
 }

@@ -114,10 +114,10 @@ export function GridCells({
               pointerEvents: "none",
               boxSizing: "border-box",
               outline: sel
-                ? "2px solid #FFC400"
+                ? "2px solid var(--c-select-stroke)"
                 : "1px dashed transparent",
               outlineOffset: -2,
-              background: sel ? "rgba(255,196,0,0.10)" : "transparent",
+              background: sel ? "var(--c-select-fill)" : "transparent",
               transition: "outline-color 80ms ease, background 80ms ease",
             }}
           />
@@ -203,9 +203,9 @@ export function GridCells({
               cursor: occupied ? "grab" : "default",
               outline:
                 hoverPanelId === panel.id
-                  ? "3px solid #4C9AFF"
+                  ? "3px solid var(--c-hover-stroke)"
                   : showSelectionOutline
-                    ? "2px solid #00875A"
+                    ? "2px solid var(--c-focus-stroke)"
                     : "1px dashed transparent",
               outlineOffset: -2,
               transition: "outline-color 80ms ease",

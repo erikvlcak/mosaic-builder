@@ -48,7 +48,6 @@ export function CalibrationModal({
   const canvasW = Math.max(1, Math.round(bitmap.width * fitScale));
   const canvasH = Math.max(1, Math.round(bitmap.height * fitScale));
 
-  // Draw bitmap when the canvas mounts or bitmap changes.
   useEffect(() => {
     const c = canvasRef.current;
     if (c === null) return;
@@ -82,7 +81,6 @@ export function CalibrationModal({
       setError("Length must be a positive number.");
       return;
     }
-    // Convert canvas-px to source-px (proportional).
     const srcScale = bitmap.width / canvasW;
     const sx1 = pts[0]!.cx * srcScale;
     const sy1 = pts[0]!.cy * srcScale;
@@ -93,8 +91,6 @@ export function CalibrationModal({
       setError("Pick two points farther apart.");
       return;
     }
-    // Calibration is stored in source-px-per-µm. If the user typed mm,
-    // convert (1 mm = 1000 µm).
     const lenInUm = unit === "mm" ? lenVal * 1000 : lenVal;
     const pixelsPerUnit = srcDist / lenInUm;
     dispatch(
@@ -116,8 +112,6 @@ export function CalibrationModal({
       } else if (e.key === "Enter") {
         const t = e.target as HTMLElement | null;
         const tag = t?.tagName;
-        // Only intercept Enter when focus is on the modal's number input,
-        // to avoid stealing it from arbitrary background controls.
         if (tag === "INPUT" || tag === "SELECT" || tag === "BUTTON") {
           e.preventDefault();
           onSave();
@@ -132,37 +126,20 @@ export function CalibrationModal({
   return (
     <div
       data-testid="calibration-backdrop"
+      className="dialog-backdrop"
       onPointerDown={(e) => {
         if (e.target === e.currentTarget) onClose();
-      }}
-      style={{
-        position: "fixed",
-        inset: 0,
-        background: "rgba(0,0,0,0.45)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        zIndex: 1000,
       }}
     >
       <div
         data-testid="calibration-modal"
-        style={{
-          background: "#FFF",
-          borderRadius: 6,
-          padding: 16,
-          minWidth: canvasW + 32,
-          boxShadow: "0 8px 24px rgba(0,0,0,0.25)",
-          fontFamily: "system-ui, sans-serif",
-          fontSize: 13,
-        }}
+        className="dialog"
+        style={{ padding: 20, minWidth: canvasW + 40 }}
       >
-        <h2 style={{ margin: "0 0 8px", fontSize: 14 }}>
-          Calibrate scale (µm/px)
-        </h2>
-        <p style={{ margin: "0 0 8px", color: "#555" }}>
-          Click two points on a known-length feature (e.g. a printed scale
-          bar in the image), then enter that length below.
+        <h2 className="dialog-title">Calibrate scale</h2>
+        <p className="dialog-body">
+          Click two points on a feature of known length (e.g. an existing
+          scale bar in the image), then enter that length below.
         </p>
         <div style={{ position: "relative", display: "inline-block" }}>
           <canvas
@@ -174,10 +151,10 @@ export function CalibrationModal({
             style={{
               display: "block",
               cursor: "crosshair",
-              border: "1px solid #888",
+              border: "1px solid var(--c-border-strong)",
+              borderRadius: "var(--r-sm)",
             }}
           />
-          {/* Overlaid dots + connecting line */}
           {pts.map((p, i) => (
             <div
               key={i}
@@ -188,9 +165,9 @@ export function CalibrationModal({
                 width: 10,
                 height: 10,
                 borderRadius: "50%",
-                background: "#FF3B30",
+                background: "var(--c-accent)",
                 border: "2px solid #FFF",
-                boxShadow: "0 0 0 1px #000",
+                boxShadow: "0 0 0 1px rgba(15,23,42,0.5)",
                 pointerEvents: "none",
               }}
             />
@@ -199,18 +176,14 @@ export function CalibrationModal({
             <svg
               width={canvasW}
               height={canvasH}
-              style={{
-                position: "absolute",
-                inset: 0,
-                pointerEvents: "none",
-              }}
+              style={{ position: "absolute", inset: 0, pointerEvents: "none" }}
             >
               <line
                 x1={pts[0]!.cx}
                 y1={pts[0]!.cy}
                 x2={pts[1]!.cx}
                 y2={pts[1]!.cy}
-                stroke="#FF3B30"
+                stroke="var(--c-accent)"
                 strokeWidth={2}
                 strokeDasharray="4 3"
               />
@@ -219,41 +192,56 @@ export function CalibrationModal({
         </div>
         <div
           style={{
-            marginTop: 10,
+            marginTop: 14,
             display: "flex",
-            gap: 6,
+            gap: 8,
             alignItems: "center",
             flexWrap: "wrap",
           }}
         >
-          <span>Length:</span>
+          <label htmlFor="cal-len" className="field-row" style={{ marginRight: 4 }}>
+            Length
+          </label>
           <input
+            id="cal-len"
             type="number"
+            className="input input-num"
             min={0}
             step="any"
             value={length}
             onChange={(e) => setLength(e.target.value)}
-            style={{ width: 80 }}
             data-testid="calibration-length"
+            style={{ width: 96 }}
           />
           <select
             value={unit}
+            className="input"
             onChange={(e) => setUnit(e.target.value as "um" | "mm")}
             data-testid="calibration-unit"
+            aria-label="Unit"
           >
             <option value="um">µm</option>
             <option value="mm">mm</option>
           </select>
-          <span style={{ color: "#666", marginLeft: 8 }}>
-            Points picked: {pts.length}/2
+          <span style={{ color: "var(--c-text-muted)", fontSize: 12, marginLeft: "auto" }}>
+            Points: {pts.length}/2
           </span>
         </div>
         {error !== null && (
-          <p style={{ margin: "8px 0 0", color: "#B00" }}>{error}</p>
+          <p
+            role="alert"
+            style={{
+              margin: "10px 0 0",
+              color: "var(--c-danger)",
+              fontSize: 12,
+            }}
+          >
+            {error}
+          </p>
         )}
         <div
           style={{
-            marginTop: 12,
+            marginTop: 16,
             display: "flex",
             justifyContent: "flex-end",
             gap: 6,
@@ -261,6 +249,7 @@ export function CalibrationModal({
         >
           <button
             type="button"
+            className="btn"
             onClick={onClose}
             data-testid="calibration-cancel"
           >
@@ -268,11 +257,12 @@ export function CalibrationModal({
           </button>
           <button
             type="button"
+            className="btn btn-primary"
             onClick={onSave}
             disabled={pts.length < 2}
             data-testid="calibration-save"
           >
-            Save
+            Save calibration
           </button>
         </div>
       </div>

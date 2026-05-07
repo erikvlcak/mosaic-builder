@@ -1,9 +1,11 @@
 import type { Figure } from "../model/types";
+import type { ImagePoolItem } from "../model/pool";
 import { drawFigure } from "./draw-figure";
 
 export interface EditorRenderer {
   setFigure(figure: Figure): void;
   setImages(images: Map<string, ImageBitmap>): void;
+  setPool(pool: Map<string, ImagePoolItem>): void;
   dispose(): void;
 }
 
@@ -18,6 +20,10 @@ export function createEditorRenderer(
 ): EditorRenderer {
   let figure: Figure | null = null;
   let images: Map<string, ImageBitmap> = new Map();
+  // Pool items carry per-image calibration; without them, drawFigure's
+  // scale-bar pass treats every image as uncalibrated and silently skips
+  // the bar.
+  let pool: Map<string, ImagePoolItem> = new Map();
   let rafHandle: number | null = null;
   let disposed = false;
 
@@ -31,15 +37,36 @@ export function createEditorRenderer(
 
   function paint(): void {
     if (figure === null) return;
-    if (canvas.width !== figure.canvas.widthPx) {
-      canvas.width = figure.canvas.widthPx;
-    }
-    if (canvas.height !== figure.canvas.heightPx) {
-      canvas.height = figure.canvas.heightPx;
-    }
+    // Match the canvas backing store to the device pixel ratio so text and
+    // strokes stay crisp on Retina/HiDPI displays. Without this, the 800×600
+    // logical canvas paints into 800×600 device pixels and the browser
+    // upscales to 1600×1200 on a 2× screen — every glyph turns into 2× blocks.
+    //
+    // We keep the *drawing* coordinate system in figure-px (translate via
+    // ctx.scale(dpr, dpr) below) so annotations and exports don't have to
+    // know about DPR.
+    const dpr =
+      typeof window !== "undefined" && Number.isFinite(window.devicePixelRatio)
+        ? Math.max(1, window.devicePixelRatio)
+        : 1;
+    const targetW = Math.round(figure.canvas.widthPx * dpr);
+    const targetH = Math.round(figure.canvas.heightPx * dpr);
+    if (canvas.width !== targetW) canvas.width = targetW;
+    if (canvas.height !== targetH) canvas.height = targetH;
+    // Set CSS size so the canvas occupies figure-px on screen; without
+    // this, default <canvas> sizing would mirror the (now larger) backing
+    // store.
+    canvas.style.width = `${figure.canvas.widthPx}px`;
+    canvas.style.height = `${figure.canvas.heightPx}px`;
     const ctx = canvas.getContext("2d");
     if (ctx === null) return;
-    drawFigure(ctx, figure, images);
+    // Reset to identity, scale once, then let drawFigure paint in figure-px.
+    if (typeof ctx.setTransform === "function") {
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    } else {
+      ctx.scale(dpr, dpr);
+    }
+    drawFigure(ctx, figure, images, pool);
   }
 
   return {
@@ -49,6 +76,10 @@ export function createEditorRenderer(
     },
     setImages(next: Map<string, ImageBitmap>): void {
       images = next;
+      schedule();
+    },
+    setPool(next: Map<string, ImagePoolItem>): void {
+      pool = next;
       schedule();
     },
     dispose(): void {

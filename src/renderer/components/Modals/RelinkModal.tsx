@@ -20,14 +20,6 @@ interface Props {
   dispatch: Dispatch<FigureAction>;
 }
 
-/**
- * One-by-one relink: shows a list of missing images. Clicking "Locate…"
- * opens the native file picker; the user picks one file and we attempt
- * to decode it. On success, the imageId is removed from the missing list
- * and its bitmap is reported via `onRelinked`. The user can also "Skip"
- * an image (keeps the pool entry but no bitmap — placed panels render
- * as a missing-image placeholder).
- */
 export function RelinkModal({
   missing,
   onRelinked,
@@ -61,7 +53,7 @@ export function RelinkModal({
       });
       setPending((prev) => prev.filter((p) => p.imageId !== entry.imageId));
     } catch (e) {
-      setError(`Decode failed for ${f.filePath}: ${e instanceof Error ? e.message : String(e)}`);
+      setError(`Could not decode ${f.filePath}: ${e instanceof Error ? e.message : String(e)}`);
     } finally {
       setBusy(null);
     }
@@ -79,53 +71,58 @@ export function RelinkModal({
   return (
     <div
       data-testid="relink-backdrop"
+      className="dialog-backdrop"
       onPointerDown={(e) => {
         if (e.target === e.currentTarget) onClose();
-      }}
-      style={{
-        position: "fixed",
-        inset: 0,
-        background: "rgba(0,0,0,0.45)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        zIndex: 1000,
       }}
     >
       <div
         data-testid="relink-modal"
+        className="dialog"
         style={{
-          background: "#FFF",
-          borderRadius: 6,
-          padding: 16,
-          minWidth: 480,
+          padding: 20,
+          minWidth: 520,
           maxHeight: "80vh",
           overflow: "auto",
-          fontFamily: "system-ui, sans-serif",
-          fontSize: 13,
         }}
       >
-        <h2 style={{ margin: "0 0 8px", fontSize: 14 }}>
-          Locate missing images
-        </h2>
-        <p style={{ margin: "0 0 12px", color: "#555" }}>
-          The project references files that aren&apos;t where it expected.
-          Click <strong>Locate…</strong> to point at the correct file, or
-          <strong> Skip</strong> to leave the panel empty.
+        <h2 className="dialog-title">Locate missing images</h2>
+        <p className="dialog-body">
+          This project references images that aren&rsquo;t at their saved paths.
+          Click <strong>Locate…</strong> to browse for the file, or{" "}
+          <strong>Skip</strong> to leave the panel empty.
         </p>
         {missing.length === 0 ? (
-          <p>(none)</p>
+          <p style={{ color: "var(--c-text-muted)" }}>(none)</p>
         ) : (
-          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
             <thead>
-              <tr>
-                <th style={{ textAlign: "left", padding: "4px 6px" }}>
+              <tr style={{ color: "var(--c-text-muted)", textAlign: "left" }}>
+                <th
+                  style={{
+                    padding: "6px 8px",
+                    fontWeight: 500,
+                    borderBottom: "1px solid var(--c-divider)",
+                  }}
+                >
                   Filename
                 </th>
-                <th style={{ textAlign: "left", padding: "4px 6px" }}>
+                <th
+                  style={{
+                    padding: "6px 8px",
+                    fontWeight: 500,
+                    borderBottom: "1px solid var(--c-divider)",
+                  }}
+                >
                   Status
                 </th>
-                <th style={{ textAlign: "left", padding: "4px 6px" }}>
+                <th
+                  style={{
+                    padding: "6px 8px",
+                    fontWeight: 500,
+                    borderBottom: "1px solid var(--c-divider)",
+                  }}
+                >
                   Action
                 </th>
               </tr>
@@ -136,22 +133,26 @@ export function RelinkModal({
                 const isResolved = resolved.has(entry.imageId);
                 const isBusy = busy === entry.imageId;
                 return (
-                  <tr key={entry.imageId} style={{ borderTop: "1px solid #EEE" }}>
-                    <td style={{ padding: "4px 6px" }}>{entry.filename}</td>
-                    <td style={{ padding: "4px 6px" }}>
+                  <tr
+                    key={entry.imageId}
+                    style={{ borderBottom: "1px solid var(--c-divider)" }}
+                  >
+                    <td style={{ padding: "8px" }}>{entry.filename}</td>
+                    <td style={{ padding: "8px" }}>
                       {isResolved ? (
-                        <span style={{ color: "#080" }}>relinked</span>
+                        <span style={{ color: "var(--c-success)" }}>Relinked</span>
                       ) : isPending ? (
-                        <span style={{ color: "#B00" }}>missing</span>
+                        <span style={{ color: "var(--c-danger)" }}>Missing</span>
                       ) : (
-                        <span style={{ color: "#888" }}>skipped</span>
+                        <span style={{ color: "var(--c-text-faint)" }}>Skipped</span>
                       )}
                     </td>
-                    <td style={{ padding: "4px 6px" }}>
+                    <td style={{ padding: "8px" }}>
                       {isPending && (
-                        <>
+                        <span style={{ display: "inline-flex", gap: 4 }}>
                           <button
                             type="button"
+                            className="btn"
                             disabled={isBusy}
                             onClick={() => {
                               void onLocate(entry);
@@ -162,13 +163,13 @@ export function RelinkModal({
                           </button>
                           <button
                             type="button"
+                            className="btn"
                             onClick={() => onSkip(entry)}
-                            style={{ marginLeft: 4 }}
                             data-testid={`relink-skip-${entry.imageId}`}
                           >
                             Skip
                           </button>
-                        </>
+                        </span>
                       )}
                     </td>
                   </tr>
@@ -178,20 +179,32 @@ export function RelinkModal({
           </table>
         )}
         {error !== null && (
-          <p style={{ margin: "8px 0 0", color: "#B00" }}>{error}</p>
+          <p
+            role="alert"
+            style={{
+              margin: "10px 0 0",
+              color: "var(--c-danger)",
+              fontSize: 12,
+            }}
+          >
+            {error}
+          </p>
         )}
         <div
           style={{
-            marginTop: 12,
+            marginTop: 16,
             display: "flex",
             justifyContent: "flex-end",
+            gap: 6,
           }}
         >
           <button
             type="button"
+            className="btn btn-primary"
             onClick={onDone}
             data-testid="relink-done"
             disabled={pending.length > 0}
+            title={pending.length > 0 ? "Resolve all images first" : undefined}
           >
             Done
           </button>

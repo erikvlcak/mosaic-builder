@@ -15,15 +15,13 @@ export function NumberField({
 }: Props): JSX.Element {
   const id = useId();
   return (
-    <label
-      htmlFor={id}
-      style={{ display: "flex", flexDirection: "column", fontSize: 11, gap: 2 }}
-    >
-      <span style={{ color: "#555" }}>{label}</span>
+    <label htmlFor={id} className="field">
+      <span className="field-label">{label}</span>
       <input
         id={id}
         aria-label={label}
         type="number"
+        className="input"
         value={value}
         step={step}
         // EOPT (exactOptionalPropertyTypes) requires conditional spread for optional DOM attrs;
@@ -41,7 +39,6 @@ export function NumberField({
           onChange(clamped);
         }}
         onBlur={onBlur}
-        style={{ padding: 4, border: "1px solid #BBB", fontSize: 12 }}
       />
     </label>
   );

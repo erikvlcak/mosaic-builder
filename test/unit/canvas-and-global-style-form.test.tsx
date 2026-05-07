@@ -18,7 +18,9 @@ describe("CanvasAndGlobalStyleForm", () => {
         commit={{ markDirty: vi.fn(), flush: vi.fn() }}
       />,
     );
-    const input = screen.getByLabelText("Letters size (pt)");
+    // The form groups letters/scalebar fields in <fieldset> elements with a
+    // legend providing context; the bare label inside is "Size (pt)".
+    const input = screen.getByLabelText("Size (pt)");
     // NumberField is a controlled component — fireEvent.change to set the
     // final value in one shot rather than per-keystroke (jsdom number-input limitation).
     fireEvent.change(input, { target: { value: "16" } });

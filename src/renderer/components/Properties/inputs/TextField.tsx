@@ -22,14 +22,12 @@ export function TextField({
     ) => onChange(e.currentTarget.value),
     onBlur,
     placeholder,
-    style: { padding: 4, border: "1px solid #BBB", fontSize: 12, width: "100%" },
+    className: "input",
+    style: { width: "100%", resize: "vertical" as const },
   };
   return (
-    <label
-      htmlFor={id}
-      style={{ display: "flex", flexDirection: "column", fontSize: 11, gap: 2 }}
-    >
-      <span style={{ color: "#555" }}>{label}</span>
+    <label htmlFor={id} className="field">
+      <span className="field-label">{label}</span>
       {multiline === true
         ? <textarea {...common} rows={3} />
         : <input type="text" {...common} />}

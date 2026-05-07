@@ -13,7 +13,6 @@
  *     so the loader can resolve files.
  */
 
-import path from "node:path";
 import type { FigureState } from "./figure-state";
 import type { ImagePoolItem } from "./pool";
 import type { MosaicFileV1 } from "./schema";
@@ -39,7 +38,7 @@ export interface ToMosaicInput {
 
 export function toMosaicFile(inp: ToMosaicInput): MosaicFileV1 {
   const now = inp.now ?? (() => new Date().toISOString());
-  const baseDir = path.dirname(inp.mosaicPath);
+  const baseDir = posixDirname(inp.mosaicPath);
   const stamp = now();
 
   const pool = inp.state.pool.map((item) => {
@@ -85,19 +84,32 @@ export function fromMosaicFile(file: MosaicFileV1): FromMosaicResult {
   };
 }
 
+function isPosixAbsolute(p: string): boolean {
+  return p.startsWith("/");
+}
+
+function posixDirname(p: string): string {
+  const i = p.lastIndexOf("/");
+  if (i < 0) return ".";
+  if (i === 0) return "/";
+  return p.slice(0, i);
+}
+
 /**
  * Compute a posix-form relative path from `fromDir` to `toFile`, or null
- * if they don't share a common root (e.g. different windows drives, or
- * `toFile` isn't an absolute path). The returned path always begins with
+ * if either path isn't posix-absolute. The returned path always begins with
  * "./" or "../" so it's unambiguously relative.
  */
 function posixRelative(fromDir: string, toFile: string): string | null {
-  if (!path.isAbsolute(toFile)) return null;
-  // Detect different windows drives (e.g. C: vs D:) — node:path.relative
-  // returns an absolute-looking path in that case which we must reject.
-  const r = path.relative(fromDir, toFile);
-  if (r === "" || path.isAbsolute(r)) return null;
-  // Normalize to posix separators for cross-platform .mosaic files.
-  const posix = r.split(path.sep).join("/");
-  return posix.startsWith(".") ? posix : `./${posix}`;
+  if (!isPosixAbsolute(fromDir) || !isPosixAbsolute(toFile)) return null;
+  const fromParts = fromDir.split("/").filter((s) => s.length > 0);
+  const toParts = toFile.split("/").filter((s) => s.length > 0);
+  let i = 0;
+  while (i < fromParts.length && i < toParts.length && fromParts[i] === toParts[i]) i++;
+  const ups = fromParts.slice(i).map(() => "..");
+  const downs = toParts.slice(i);
+  const segs = [...ups, ...downs];
+  if (segs.length === 0) return null;
+  const joined = segs.join("/");
+  return joined.startsWith(".") ? joined : `./${joined}`;
 }

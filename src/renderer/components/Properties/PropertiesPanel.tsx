@@ -17,15 +17,22 @@ interface Props {
   onCalibrate: () => void;
 }
 
+const ANNO_TITLES: Record<Annotation["kind"], string> = {
+  text: "Text annotation",
+  arrow: "Arrow annotation",
+  box: "Box annotation",
+  scalebar: "Scale bar",
+};
+
 export function PropertiesPanel({
   state, focusedPanel, selectedAnno, dispatch, commit, onCalibrate,
 }: Props): JSX.Element {
   let title: string;
+  let subtitle: string | null = null;
   let body: JSX.Element;
 
   if (selectedAnno !== undefined) {
-    const k = selectedAnno.kind;
-    title = `${k.charAt(0).toUpperCase()}${k.slice(1)} annotation`;
+    title = ANNO_TITLES[selectedAnno.kind];
     body = (
       <AnnotationPropertiesForm
         anno={selectedAnno} dispatch={dispatch} commit={commit}
@@ -36,13 +43,15 @@ export function PropertiesPanel({
     focusedPanel.imageId !== undefined &&
     focusedPanel.transform !== undefined
   ) {
-    // Narrowed: focusedPanel.transform is PanelTransform.
     const panelWithTransform: Panel & { transform: PanelTransform } = {
       ...focusedPanel,
       transform: focusedPanel.transform,
     };
-    title = `Panel ${focusedPanel.id.slice(0, 6)}`;
+    title = "Selected panel";
     const letterOverride = state.letterOverrides[focusedPanel.id];
+    subtitle = letterOverride !== undefined
+      ? `Subpanel ${letterOverride}`
+      : `Row ${focusedPanel.row + 1}, col ${focusedPanel.col + 1}`;
     body = (
       <PanelPropertiesForm
         panel={panelWithTransform}
@@ -54,6 +63,7 @@ export function PropertiesPanel({
     );
   } else {
     title = "Figure";
+    subtitle = "No selection — editing global style";
     body = (
       <CanvasAndGlobalStyleForm
         globalStyle={state.globalStyle} dispatch={dispatch} commit={commit}
@@ -64,14 +74,26 @@ export function PropertiesPanel({
   return (
     <aside
       data-testid="properties-panel"
+      className="surface-sidebar-end"
       style={{
-        width: 300, padding: 12, borderLeft: "1px solid #DDD",
-        background: "#FAFAFA", overflowY: "auto",
-        display: "flex", flexDirection: "column", gap: 12,
-        fontFamily: "system-ui, sans-serif",
+        width: 304,
+        padding: 16,
+        overflowY: "auto",
+        display: "flex",
+        flexDirection: "column",
+        gap: 14,
       }}
     >
-      <h2 style={{ margin: 0, fontSize: 14, color: "#333" }}>{title}</h2>
+      <div>
+        <h2 style={{ margin: 0, fontSize: 13, fontWeight: 600, color: "var(--c-text)" }}>
+          {title}
+        </h2>
+        {subtitle !== null && (
+          <div style={{ fontSize: 11, color: "var(--c-text-faint)", marginTop: 2 }}>
+            {subtitle}
+          </div>
+        )}
+      </div>
       {body}
     </aside>
   );

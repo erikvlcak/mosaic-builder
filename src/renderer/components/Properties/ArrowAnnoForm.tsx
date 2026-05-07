@@ -20,7 +20,7 @@ export function ArrowAnnoForm({ anno, dispatch, commit }: Props): JSX.Element {
     else commit.markDirty();
   }
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
       <ColorField label="Color" value={anno.color}
         onChange={(color) => patch({ color })} onBlur={commit.flush} />
       <NumberField label="Thickness (px)" value={anno.thicknessPx} min={1} max={32}
@@ -34,11 +34,9 @@ export function ArrowAnnoForm({ anno, dispatch, commit }: Props): JSX.Element {
           { value: "filled", label: "Filled" },
         ] as const}
         onChange={(head) => patch({ head }, true)} />
-      <button type="button"
+      <button type="button" className="btn btn-danger"
         onClick={() => { dispatch(removeAnnotation(anno.id)); commit.flush(); }}
-        style={{ padding: "4px 8px", border: "1px solid #BBB",
-                 background: "#FFF", cursor: "pointer",
-                 fontSize: 12, color: "#A00" }}>
+        style={{ marginTop: 4 }}>
         Delete annotation
       </button>
     </div>

@@ -29,31 +29,30 @@ export function ColorField({
   // The native picker only emits 6-digit hex; the text input handles 8-digit if allowed.
   const swatch = value.length >= 7 ? value.slice(0, 7) : "#000000";
   return (
-    <label
-      htmlFor={id}
-      style={{ display: "flex", flexDirection: "column", fontSize: 11, gap: 2 }}
-    >
-      <span style={{ color: "#555" }}>{label}</span>
-      <span style={{ display: "flex", gap: 4 }}>
+    <label htmlFor={id} className="field">
+      <span className="field-label">{label}</span>
+      <span style={{ display: "flex", gap: 6 }}>
         <input
           id={id}
           aria-label={label}
           type="color"
+          className="input-color"
           value={swatch}
           onChange={(e) => onChange(e.currentTarget.value)}
           onBlur={onBlur}
-          style={{ width: 32, height: 26, border: "1px solid #BBB", padding: 0 }}
         />
         <input
           type="text"
           aria-label={`${label} hex`}
+          className="input"
           value={value}
+          spellCheck={false}
           onChange={(e) => {
             const v = e.currentTarget.value;
             if (isValidHex(v, allowAlpha)) onChange(v);
           }}
           onBlur={onBlur}
-          style={{ flex: 1, padding: 4, border: "1px solid #BBB", fontSize: 12 }}
+          style={{ flex: 1, fontVariantNumeric: "tabular-nums" }}
         />
       </span>
     </label>

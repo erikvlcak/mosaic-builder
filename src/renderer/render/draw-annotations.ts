@@ -223,31 +223,50 @@ function drawBox(
 function drawArrow(ctx: DrawCtx, a: ArrowAnnotation): void {
   ctx.strokeStyle = a.color;
   ctx.lineWidth = a.thicknessPx;
-  ctx.lineCap = "round";
+  // "butt" (not "round") so a thick shaft doesn't bulge a half-disc past
+  // the tip — that's what made fat arrows look distorted at high thickness.
+  ctx.lineCap = "butt";
 
-  // Shaft
-  ctx.beginPath();
-  ctx.moveTo(a.x1, a.y1);
-  ctx.lineTo(a.x2, a.y2);
-  ctx.stroke();
-
-  if (a.head === "none") return;
-
-  // Compute head endpoints
   const dx = a.x2 - a.x1;
   const dy = a.y2 - a.y1;
   const len = Math.sqrt(dx * dx + dy * dy);
   if (len === 0) return;
-  const angle = Math.atan2(dy, dx);
-  const headLen = Math.max(8, a.thicknessPx * 4);
-  const headAngle = Math.PI / 8;
 
-  // Two endpoints of the head, splayed by ±headAngle from the reverse
-  // shaft direction so the head opens behind the tip.
+  if (a.head === "none") {
+    // No head: draw the full shaft to the tip.
+    ctx.beginPath();
+    ctx.moveTo(a.x1, a.y1);
+    ctx.lineTo(a.x2, a.y2);
+    ctx.stroke();
+    return;
+  }
+
+  const angle = Math.atan2(dy, dx);
+  // Head proportional to thickness, with a sane floor so 1-2px arrows
+  // still get a recognizable head.
+  const headLen = Math.max(8, a.thicknessPx * 4);
+  const headAngle = Math.PI / 7; // ~25.7° — a touch wider than a needle
+
+  // Head triangle endpoints (splayed ±headAngle from the reverse shaft).
   const hx1 = a.x2 - headLen * Math.cos(angle - headAngle);
   const hy1 = a.y2 - headLen * Math.sin(angle - headAngle);
   const hx2 = a.x2 - headLen * Math.cos(angle + headAngle);
   const hy2 = a.y2 - headLen * Math.sin(angle + headAngle);
+
+  // Stop the shaft at the back of the head so it doesn't double-up
+  // underneath the head triangle. Use full headLen for "open" so the tip
+  // is owned entirely by the V-shape; for "filled", inset slightly inside
+  // the head so the shaft seam disappears under the fill.
+  const shaftBack = a.head === "filled" ? headLen * 0.85 : headLen;
+  const ux = dx / len;
+  const uy = dy / len;
+  const sx = a.x2 - ux * Math.min(shaftBack, len);
+  const sy = a.y2 - uy * Math.min(shaftBack, len);
+
+  ctx.beginPath();
+  ctx.moveTo(a.x1, a.y1);
+  ctx.lineTo(sx, sy);
+  ctx.stroke();
 
   if (a.head === "filled") {
     ctx.fillStyle = a.color;

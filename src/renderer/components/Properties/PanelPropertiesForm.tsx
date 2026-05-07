@@ -18,17 +18,12 @@ interface Props {
   commit: FieldCommit;
 }
 
-const btn: React.CSSProperties = {
-  padding: "4px 8px", border: "1px solid #BBB", background: "#FFF",
-  cursor: "pointer", fontSize: 12,
-};
-
 export function PanelPropertiesForm({
   panel, letterOverride, dispatch, onCalibrate, commit,
 }: Props): JSX.Element {
   const t = panel.transform;
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
       <SelectField label="Fit"
         value={t.fit}
         options={[
@@ -38,29 +33,56 @@ export function PanelPropertiesForm({
         ] as const}
         onChange={(fit) => { dispatch(setPanelFit(panel.id, fit)); commit.flush(); }} />
 
-      <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
-        <button type="button" style={btn}
-          onClick={() => { dispatch(rotatePanel90(panel.id)); commit.flush(); }}>
-          Rotate 90°
-        </button>
-        <button type="button" style={btn} aria-pressed={t.flipH}
-          onClick={() => { dispatch(flipPanelH(panel.id)); commit.flush(); }}>
-          Flip H
-        </button>
-        <button type="button" style={btn} aria-pressed={t.flipV}
-          onClick={() => { dispatch(flipPanelV(panel.id)); commit.flush(); }}>
-          Flip V
-        </button>
-        <button type="button" style={btn}
-          onClick={() => { dispatch(resetPanelTransform(panel.id)); commit.flush(); }}>
-          Reset transform
-        </button>
+      <div className="field">
+        <span className="field-label">Transform</span>
+        <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+          <button type="button" className="btn"
+            onClick={() => { dispatch(rotatePanel90(panel.id)); commit.flush(); }}
+            title="Rotate 90° clockwise (R)">
+            ↻ 90°
+          </button>
+          <button type="button" className="btn" aria-pressed={t.flipH}
+            onClick={() => { dispatch(flipPanelH(panel.id)); commit.flush(); }}
+            title="Flip horizontally (H)">
+            ⇄ H
+          </button>
+          <button type="button" className="btn" aria-pressed={t.flipV}
+            onClick={() => { dispatch(flipPanelV(panel.id)); commit.flush(); }}
+            title="Flip vertically (V)">
+            ⇅ V
+          </button>
+          <button type="button" className="btn"
+            onClick={() => { dispatch(resetPanelTransform(panel.id)); commit.flush(); }}
+            title="Reset pan, zoom, and rotation (0)">
+            Reset
+          </button>
+        </div>
       </div>
 
-      <div style={{ fontSize: 11, color: "#777", lineHeight: 1.5 }}>
-        Pan: ({t.panX.toFixed(0)}, {t.panY.toFixed(0)}) px<br />
-        Zoom: {t.zoom.toFixed(2)}× &middot; Rotation: {t.rotation}°
-      </div>
+      <dl
+        style={{
+          margin: 0,
+          padding: "8px 10px",
+          background: "var(--c-surface-muted)",
+          borderRadius: "var(--r-md)",
+          fontSize: 11,
+          color: "var(--c-text-muted)",
+          display: "grid",
+          gridTemplateColumns: "auto 1fr",
+          rowGap: 3,
+          columnGap: 10,
+          fontVariantNumeric: "tabular-nums",
+        }}
+      >
+        <dt>Pan</dt>
+        <dd style={{ margin: 0 }}>
+          {t.panX.toFixed(0)}, {t.panY.toFixed(0)} px
+        </dd>
+        <dt>Zoom</dt>
+        <dd style={{ margin: 0 }}>{t.zoom.toFixed(2)}×</dd>
+        <dt>Rotation</dt>
+        <dd style={{ margin: 0 }}>{t.rotation}°</dd>
+      </dl>
 
       <TextField label="Subpanel letter"
         value={letterOverride ?? ""}
@@ -71,7 +93,7 @@ export function PanelPropertiesForm({
         }}
         onBlur={commit.flush} />
 
-      <button type="button" style={btn} onClick={onCalibrate}>
+      <button type="button" className="btn" onClick={onCalibrate}>
         Calibrate scale…
       </button>
     </div>

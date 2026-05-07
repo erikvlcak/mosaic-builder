@@ -19,7 +19,7 @@ export function BoxAnnoForm({ anno, dispatch, commit }: Props): JSX.Element {
     else commit.markDirty();
   }
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
       <ColorField label="Stroke" value={anno.stroke}
         onChange={(stroke) => patch({ stroke })} onBlur={commit.flush} />
       <NumberField label="Stroke width (px)"
@@ -30,11 +30,9 @@ export function BoxAnnoForm({ anno, dispatch, commit }: Props): JSX.Element {
         onChange={(fill) => {
           const isTransparent = fill.toLowerCase() === "#00000000";
           if (isTransparent && anno.fill === undefined) {
-            // No-op: field is already unset; don't pollute the model.
             return;
           }
           if (isTransparent) {
-            // Explicit clear: user wants to remove a previously-set fill.
             // EOPT prevents { fill: undefined } from typing as
             // Partial<BoxAnnotation>; cast at the dispatch boundary
             // since the reducer just spreads the patch.
@@ -47,11 +45,9 @@ export function BoxAnnoForm({ anno, dispatch, commit }: Props): JSX.Element {
         }}
         onBlur={commit.flush}
         allowAlpha />
-      <button type="button"
+      <button type="button" className="btn btn-danger"
         onClick={() => { dispatch(removeAnnotation(anno.id)); commit.flush(); }}
-        style={{ padding: "4px 8px", border: "1px solid #BBB",
-                 background: "#FFF", cursor: "pointer",
-                 fontSize: 12, color: "#A00" }}>
+        style={{ marginTop: 4 }}>
         Delete annotation
       </button>
     </div>

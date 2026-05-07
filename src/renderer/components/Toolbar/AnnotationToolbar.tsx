@@ -1,10 +1,6 @@
 /**
  * Toolbar exposing the annotation tool selector + the global "letters"
- * visibility toggle. Active-tool state lives in App.tsx; this component
- * is purely presentational.
- *
- * Styling mirrors PanelControls: a leading vertical separator, then a
- * 5-button segmented control (active = blue), then the checkbox.
+ * visibility toggle.
  */
 
 export type Tool = "select" | "text" | "arrow" | "box" | "scalebar";
@@ -16,30 +12,12 @@ interface Props {
   onToggleLetters: () => void;
 }
 
-const groupStyle: React.CSSProperties = {
-  display: "flex",
-  gap: 6,
-  alignItems: "center",
-  paddingLeft: 8,
-  borderLeft: "1px solid #DDD",
-};
-
-const segStyle = (active: boolean): React.CSSProperties => ({
-  padding: "4px 8px",
-  borderRadius: 0,
-  border: "1px solid #BBB",
-  background: active ? "#0066FF" : "#FFF",
-  color: active ? "#FFF" : "#222",
-  cursor: "pointer",
-  fontSize: 12,
-});
-
 const TOOLS: ReadonlyArray<{ id: Tool; label: string; title: string }> = [
-  { id: "select", label: "Select", title: "Select / move annotations" },
-  { id: "text", label: "Text", title: "Add text" },
-  { id: "arrow", label: "Arrow", title: "Add arrow (drag)" },
-  { id: "box", label: "Box", title: "Add box (drag)" },
-  { id: "scalebar", label: "Scale", title: "Add scale bar (click panel)" },
+  { id: "select", label: "Select", title: "Select and move annotations" },
+  { id: "text", label: "Text", title: "Add text — click to place" },
+  { id: "arrow", label: "Arrow", title: "Add arrow — drag to draw" },
+  { id: "box", label: "Box", title: "Add box — drag to draw" },
+  { id: "scalebar", label: "Scale", title: "Add scale bar — click a panel" },
 ];
 
 export function AnnotationToolbar({
@@ -49,40 +27,40 @@ export function AnnotationToolbar({
   onToggleLetters,
 }: Props): JSX.Element {
   return (
-    <div data-testid="annotation-toolbar" style={groupStyle}>
-      <div role="group" aria-label="Annotation tool" style={{ display: "flex" }}>
-        {TOOLS.map((t) => (
-          <button
-            key={t.id}
-            type="button"
-            onClick={() => onChange(t.id)}
-            style={segStyle(active === t.id)}
-            data-testid={`anno-tool-${t.id}`}
-            title={t.title}
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
-      <label
-        style={{
-          display: "inline-flex",
-          alignItems: "center",
-          gap: 4,
-          fontSize: 12,
-          cursor: "pointer",
-          userSelect: "none",
-        }}
-        title="Show / hide derived per-panel letter labels"
+    <>
+      <span className="toolbar-divider" aria-hidden="true" />
+      <div
+        data-testid="annotation-toolbar"
+        style={{ display: "flex", gap: 8, alignItems: "center" }}
       >
-        <input
-          type="checkbox"
-          checked={lettersEnabled}
-          onChange={onToggleLetters}
-          data-testid="anno-letters-toggle"
-        />
-        Letters
-      </label>
-    </div>
+        <div className="seg" role="group" aria-label="Annotation tool">
+          {TOOLS.map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              className="btn"
+              onClick={() => onChange(t.id)}
+              aria-pressed={active === t.id}
+              data-testid={`anno-tool-${t.id}`}
+              title={t.title}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+        <label
+          className="checkbox-row"
+          title="Show or hide auto-generated per-panel letter labels (A, B, C…)"
+        >
+          <input
+            type="checkbox"
+            checked={lettersEnabled}
+            onChange={onToggleLetters}
+            data-testid="anno-letters-toggle"
+          />
+          Letters
+        </label>
+      </div>
+    </>
   );
 }

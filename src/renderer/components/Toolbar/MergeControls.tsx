@@ -12,36 +12,33 @@ export function MergeControls({
   onUnmerge,
 }: Props): JSX.Element {
   return (
-    <div
-      data-testid="merge-controls"
-      style={{
-        display: "flex",
-        gap: 6,
-        alignItems: "center",
-        paddingLeft: 8,
-        borderLeft: "1px solid #DDD",
-      }}
-    >
-      <button
-        type="button"
-        onClick={onMerge}
-        disabled={!canMerge}
-        title="Merge selected cells (M)"
-        data-testid="merge-button"
-        style={{ padding: "4px 8px" }}
+    <>
+      <span className="toolbar-divider" aria-hidden="true" />
+      <div
+        data-testid="merge-controls"
+        style={{ display: "flex", gap: 6, alignItems: "center" }}
       >
-        Merge
-      </button>
-      <button
-        type="button"
-        onClick={onUnmerge}
-        disabled={!canUnmerge}
-        title="Unmerge focused panel (U)"
-        data-testid="unmerge-button"
-        style={{ padding: "4px 8px" }}
-      >
-        Unmerge
-      </button>
-    </div>
+        <button
+          type="button"
+          className="btn"
+          onClick={onMerge}
+          disabled={!canMerge}
+          title="Merge selected cells (M)"
+          data-testid="merge-button"
+        >
+          Merge
+        </button>
+        <button
+          type="button"
+          className="btn"
+          onClick={onUnmerge}
+          disabled={!canUnmerge}
+          title="Unmerge focused panel (U)"
+          data-testid="unmerge-button"
+        >
+          Unmerge
+        </button>
+      </div>
+    </>
   );
 }

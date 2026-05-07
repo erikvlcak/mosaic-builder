@@ -22,7 +22,7 @@ export function ScalebarAnnoForm({ anno, dispatch, commit }: Props): JSX.Element
   }
   const corner: Corner = anno.cornerOverride ?? "br";
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
       <NumberField label="Length"
         value={anno.lengthValue} min={0.001} step={1}
         onChange={(lengthValue) => patch({ lengthValue })}
@@ -35,14 +35,12 @@ export function ScalebarAnnoForm({ anno, dispatch, commit }: Props): JSX.Element
           { value: "px", label: "px" },
         ] as const}
         onChange={(lengthUnit) => patch({ lengthUnit }, true)} />
-      <CornerField label="Corner override"
+      <CornerField label="Corner"
         value={corner}
         onChange={(c) => patch({ cornerOverride: c }, true)} />
-      <button type="button"
+      <button type="button" className="btn btn-danger"
         onClick={() => { dispatch(removeAnnotation(anno.id)); commit.flush(); }}
-        style={{ padding: "4px 8px", border: "1px solid #BBB",
-                 background: "#FFF", cursor: "pointer",
-                 fontSize: 12, color: "#A00" }}>
+        style={{ marginTop: 4 }}>
         Delete annotation
       </button>
     </div>
