@@ -29,6 +29,8 @@ describe("PanelInteraction helpers", () => {
     const x: PanelInteraction = { mode: "selected", panelId: "p1" };
     if (x !== null && x.mode === "selected") {
       expect(x.panelId).toBe("p1");
+    } else {
+      expect.fail("narrowing failed — union type has regressed");
     }
   });
 });
