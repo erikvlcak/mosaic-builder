@@ -3,6 +3,9 @@ import type { Panel } from "./panels";
 import type { Annotation } from "./annotations";
 import { type GlobalAnnoStyle, DEFAULT_GLOBAL_STYLE } from "./global-style";
 
+export const MIN_CANVAS_W = 800;
+export const MIN_CANVAS_H = 600;
+
 export interface CellCoord {
   row: number;
   col: number;
@@ -49,6 +52,15 @@ export interface FigureState {
   globalStyle: GlobalAnnoStyle;
   /** panelId → letter override (e.g. "A1"). Empty when using derived label. */
   letterOverrides: Record<string, string>;
+
+  /**
+   * Figure pixel dimensions. Derived from `pool + rows + cols + gutterPx`
+   * by `computeCanvasDims` and recomputed inside the reducer whenever
+   * those inputs change. Stored (rather than recomputed at every render)
+   * because annotation coordinates need a stable previous value to scale
+   * against on every recompute.
+   */
+  canvas: { widthPx: number; heightPx: number };
 }
 
 let __panelIdCounter = 0;
@@ -86,6 +98,7 @@ export function initialFigureState(): FigureState {
     annotations: [],
     globalStyle: DEFAULT_GLOBAL_STYLE,
     letterOverrides: {},
+    canvas: { widthPx: MIN_CANVAS_W, heightPx: MIN_CANVAS_H },
   };
 }
 
