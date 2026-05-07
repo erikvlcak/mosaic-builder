@@ -361,6 +361,7 @@ export function App(): JSX.Element {
     }
     const outcome = await applyLoadedProject(r, dispatch);
     setBitmaps(outcome.bitmaps);
+    setPanelInteraction(null);
     setProjectPath(r.filePath);
     setMissingImages(r.missing);
     if (outcome.decodeFailures.length > 0) {
