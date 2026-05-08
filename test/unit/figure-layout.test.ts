@@ -122,3 +122,68 @@ describe("computePanelRects with merged panels", () => {
     expect(rects[0]).toEqual({ x: 0, y: 0, w: 100, h: 100 });
   });
 });
+
+describe("computePanelRects with outerGutter=false", () => {
+  it("panels reach the canvas edge; only inter-panel gutters consume space", () => {
+    const rects = computePanelRects({
+      canvas: { widthPx: 800, heightPx: 600, background: "#FFFFFF" },
+      grid: {
+        rows: 2,
+        cols: 2,
+        gutterPx: 12,
+        gutterColor: "#FFFFFF",
+        outerGutter: false,
+      },
+      panels: [
+        { row: 0, col: 0, kind: "placeholder", label: "A" },
+        { row: 0, col: 1, kind: "placeholder", label: "B" },
+        { row: 1, col: 0, kind: "placeholder", label: "C" },
+        { row: 1, col: 1, kind: "placeholder", label: "D" },
+      ],
+      annotations: [],
+      globalStyle: DEFAULT_GLOBAL_STYLE,
+    });
+
+    // Available width = 800 - (cols-1)*gutter = 800 - 12 = 788; per cell = 394
+    // Available height = 600 - 12 = 588; per cell = 294
+    expect(rects[0]).toEqual({ x: 0, y: 0, w: 394, h: 294 });
+    expect(rects[1]).toEqual({ x: 394 + 12, y: 0, w: 394, h: 294 });
+    expect(rects[2]).toEqual({ x: 0, y: 294 + 12, w: 394, h: 294 });
+    expect(rects[3]).toEqual({ x: 394 + 12, y: 294 + 12, w: 394, h: 294 });
+    // Top-left panel sits at the canvas origin; bottom-right reaches the canvas edge.
+    expect(rects[3]?.x ?? 0 + (rects[3]?.w ?? 0)).toBeGreaterThanOrEqual(0);
+    const last = rects[3]!;
+    expect(last.x + last.w).toBe(800);
+    expect(last.y + last.h).toBe(600);
+  });
+
+  it("a 1x1 grid with outerGutter=false fills the canvas with one panel", () => {
+    const rects = computePanelRects({
+      canvas: { widthPx: 100, heightPx: 100, background: "#FFFFFF" },
+      grid: {
+        rows: 1,
+        cols: 1,
+        gutterPx: 8,
+        gutterColor: "#FFFFFF",
+        outerGutter: false,
+      },
+      panels: [{ row: 0, col: 0, kind: "placeholder", label: "A" }],
+      annotations: [],
+      globalStyle: DEFAULT_GLOBAL_STYLE,
+    });
+    // No inter-panel gutters and no outer band → whole canvas is the panel.
+    expect(rects[0]).toEqual({ x: 0, y: 0, w: 100, h: 100 });
+  });
+
+  it("an undefined outerGutter falls back to true (legacy behavior)", () => {
+    const rects = computePanelRects({
+      canvas: { widthPx: 100, heightPx: 100, background: "#FFFFFF" },
+      // No outerGutter key — must behave identically to the historic default.
+      grid: { rows: 1, cols: 1, gutterPx: 8, gutterColor: "#FFFFFF" },
+      panels: [{ row: 0, col: 0, kind: "placeholder", label: "A" }],
+      annotations: [],
+      globalStyle: DEFAULT_GLOBAL_STYLE,
+    });
+    expect(rects[0]).toEqual({ x: 8, y: 8, w: 84, h: 84 });
+  });
+});

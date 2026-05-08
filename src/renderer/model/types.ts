@@ -27,6 +27,14 @@ export interface FigureGrid {
   cols: number;
   gutterPx: number;
   gutterColor: Hex;
+  /**
+   * When true (default), the gutter color fills the canvas's outer band
+   * around the panel grid. When false, panels reach the canvas edge.
+   * Optional on the type to keep historic test fixtures buildable;
+   * `computePanelRects` defaults missing values to `true` (the prior
+   * behavior). Production figures always populate this via `deriveFigure`.
+   */
+  outerGutter?: boolean;
 }
 
 export type HardCodedPanel =

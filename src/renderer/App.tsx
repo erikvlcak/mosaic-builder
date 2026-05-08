@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { EditorCanvas } from "./components/Canvas/EditorCanvas";
 import { ExportMenu } from "./components/Toolbar/ExportMenu";
 import { GridControls } from "./components/Toolbar/GridControls";
@@ -26,6 +26,7 @@ import {
   resizeGrid,
   setGutterPx,
   setGutterColor,
+  setOuterGutter,
   mergeCells,
   unmergePanelAction,
   setPanelFit,
@@ -36,6 +37,7 @@ import {
   removeAnnotation,
   setLettersEnabled,
   resetFigureAction,
+  unplacePanel,
 } from "./model/figure-actions";
 import { useHistoryReducer } from "./state/use-history-reducer";
 import { applyLoadedProject } from "./state/load-project";
@@ -73,6 +75,7 @@ export function App(): JSX.Element {
     useState<PanelInteraction>(null);
   const focusedPanelId = focusedIdOf(panelInteraction);
   const [activeTool, setActiveTool] = useState<Tool>("select");
+  const [spacebarHeld, setSpacebarHeld] = useState<boolean>(false);
   const [projectPath, setProjectPath] = useState<string | null>(null);
   const [missingImages, setMissingImages] = useState<
     { imageId: string; filename: string; attemptedPaths: string[] }[]
@@ -274,6 +277,45 @@ export function App(): JSX.Element {
     onRedo: history.redo,
   });
 
+  // Hold-spacebar = temporary Select mode. Release returns to the prior tool.
+  // We don't steal Space from form fields (text input, scalebar number, etc.);
+  // a window blur clears the held state defensively in case keyup is missed.
+  useEffect(() => {
+    function isFormElementFocused(): boolean {
+      const el = document.activeElement;
+      if (el === null) return false;
+      if (el instanceof HTMLInputElement) return true;
+      if (el instanceof HTMLTextAreaElement) return true;
+      if (el instanceof HTMLSelectElement) return true;
+      if (el instanceof HTMLElement && el.isContentEditable) return true;
+      return false;
+    }
+    function onKeyDown(e: KeyboardEvent): void {
+      if (e.code !== "Space") return;
+      if (isFormElementFocused()) return;
+      if (e.repeat) return;
+      e.preventDefault();
+      setSpacebarHeld(true);
+    }
+    function onKeyUp(e: KeyboardEvent): void {
+      if (e.code !== "Space") return;
+      setSpacebarHeld(false);
+    }
+    function onBlur(): void {
+      setSpacebarHeld(false);
+    }
+    window.addEventListener("keydown", onKeyDown);
+    window.addEventListener("keyup", onKeyUp);
+    window.addEventListener("blur", onBlur);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("keyup", onKeyUp);
+      window.removeEventListener("blur", onBlur);
+    };
+  }, []);
+
+  const effectiveTool: Tool = spacebarHeld ? "select" : activeTool;
+
   const canMerge = useMemo(() => {
     const check = canMergeSelection(state.panels, selection.asCoords());
     return check.ok;
@@ -462,10 +504,12 @@ export function App(): JSX.Element {
             cols={state.cols}
             gutterPx={state.gutterPx}
             gutterColor={state.gutterColor}
+            outerGutter={state.outerGutter}
             onChangeRows={(rows) => dispatch(resizeGrid(rows, state.cols))}
             onChangeCols={(cols) => dispatch(resizeGrid(state.rows, cols))}
             onChangeGutterPx={(px) => dispatch(setGutterPx(px))}
             onChangeGutterColor={(c) => dispatch(setGutterColor(c))}
+            onChangeOuterGutter={(v) => dispatch(setOuterGutter(v))}
           />
         </ToolGroup>
         <ToolGroup label="Selection">
@@ -506,6 +550,7 @@ export function App(): JSX.Element {
           onAddImagesClick={() => {
             void onAddImagesClick();
           }}
+          onUnplacePanel={(panelId) => dispatch(unplacePanel(panelId))}
         />
         <section
           onClick={(e) => {
@@ -562,7 +607,7 @@ export function App(): JSX.Element {
                 />
               )}
             <AnnotationInteractionLayer
-              activeTool={activeTool}
+              activeTool={effectiveTool}
               figure={figure}
               panelRectsById={panelRectsByIdMemo}
               imagesById={imagesByIdMemo}
@@ -575,6 +620,16 @@ export function App(): JSX.Element {
               onEditingChange={setAnnotationEditing}
               dispatch={dispatch}
             />
+            {spacebarHeld && activeTool !== "select" && (
+              <div
+                data-testid="select-mode-chip"
+                className="select-mode-chip"
+                role="status"
+                aria-live="polite"
+              >
+                SELECT MODE (release ␣)
+              </div>
+            )}
           </div>
         </section>
         <PropertiesPanel

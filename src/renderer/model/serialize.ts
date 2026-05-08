@@ -85,6 +85,8 @@ export function fromMosaicFile(file: MosaicFileV1): FromMosaicResult {
   const state: FigureState = {
     ...file.state,
     pool: runtimePool,
+    // Pre-spec-10 files lack `outerGutter`; default to true (the prior behavior).
+    outerGutter: file.state.outerGutter ?? true,
   };
   return { state, canvas, relinkHints };
 }

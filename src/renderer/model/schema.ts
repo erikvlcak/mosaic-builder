@@ -222,6 +222,10 @@ export function validateMosaicFile(x: unknown): Result<MosaicFileV1> {
   if (!isInt(st.cols) || st.cols < 1 || st.cols > 10) return err("state.cols: 1..10");
   if (!isInt(st.gutterPx) || st.gutterPx < 0) return err("state.gutterPx: non-negative int");
   if (!isHex(st.gutterColor)) return err("state.gutterColor");
+  // Optional in v1 (added post-launch); pre-toggle files default to true.
+  if (st.outerGutter !== undefined && typeof st.outerGutter !== "boolean") {
+    return err("state.outerGutter: expected boolean");
+  }
 
   const pool = validatePool(st.pool, "state.pool");
   if (!pool.ok) return pool;

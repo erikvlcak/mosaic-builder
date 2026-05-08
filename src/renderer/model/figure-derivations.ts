@@ -86,6 +86,7 @@ export function deriveFigure(
       cols: state.cols,
       gutterPx: state.gutterPx,
       gutterColor: state.gutterColor,
+      outerGutter: state.outerGutter,
     },
     panels,
     annotations: [...letters, ...userAnnos],

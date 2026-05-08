@@ -13,10 +13,12 @@ export type FigureAction =
   | { type: "PLACE_INTO_PANEL"; imageId: string; panelId: string }
   | { type: "SWAP_PANELS"; aPanelId: string; bPanelId: string }
   | { type: "REPLACE_INTO_PANEL"; imageId: string; panelId: string }
+  | { type: "UNPLACE_PANEL"; panelId: string }
   | { type: "REMOVE_FROM_POOL"; imageId: string }
   | { type: "RESIZE_GRID"; rows: number; cols: number }
   | { type: "SET_GUTTER_PX"; gutterPx: number }
   | { type: "SET_GUTTER_COLOR"; gutterColor: string }
+  | { type: "SET_OUTER_GUTTER"; outerGutter: boolean }
   | { type: "MERGE_CELLS"; cells: CellCoord[] }
   | { type: "UNMERGE_PANEL"; panelId: string }
   | { type: "SET_PANEL_TRANSFORM"; panelId: string; transform: PanelTransform }
@@ -55,6 +57,10 @@ export const removeFromPool = (imageId: string): FigureAction => ({
   type: "REMOVE_FROM_POOL",
   imageId,
 });
+export const unplacePanel = (panelId: string): FigureAction => ({
+  type: "UNPLACE_PANEL",
+  panelId,
+});
 export const resizeGrid = (rows: number, cols: number): FigureAction => ({
   type: "RESIZE_GRID",
   rows,
@@ -67,6 +73,10 @@ export const setGutterPx = (gutterPx: number): FigureAction => ({
 export const setGutterColor = (gutterColor: string): FigureAction => ({
   type: "SET_GUTTER_COLOR",
   gutterColor,
+});
+export const setOuterGutter = (outerGutter: boolean): FigureAction => ({
+  type: "SET_OUTER_GUTTER",
+  outerGutter,
 });
 export const mergeCells = (cells: CellCoord[]): FigureAction => ({
   type: "MERGE_CELLS",
@@ -246,6 +256,19 @@ export function figureReducer(s: FigureState, a: FigureAction): FigureState {
       return { ...s, panels: setPanelImage(s.panels, a.panelId, a.imageId) };
     }
 
+    case "UNPLACE_PANEL": {
+      const target = findPanelById(s.panels, a.panelId);
+      if (target === undefined) return s;
+      if (target.imageId === undefined) return s;
+      const panels = s.panels.map((p) => (p.id === a.panelId ? omitImage(p) : p));
+      // Drop scale bars anchored to the now-empty panel — same logic as
+      // REMOVE_FROM_POOL applies to a single panel.
+      const annotations = s.annotations.filter(
+        (an) => !(an.kind === "scalebar" && an.panelId === a.panelId),
+      );
+      return { ...s, panels, annotations };
+    }
+
     case "REMOVE_FROM_POOL": {
       if (!s.pool.some((p) => p.id === a.imageId)) return s;
       // Snapshot panels currently holding this image — used to drop scale
@@ -298,6 +321,11 @@ export function figureReducer(s: FigureState, a: FigureAction): FigureState {
       if (!isHexColor(a.gutterColor)) return s;
       if (a.gutterColor === s.gutterColor) return s;
       return { ...s, gutterColor: a.gutterColor };
+    }
+
+    case "SET_OUTER_GUTTER": {
+      if (a.outerGutter === s.outerGutter) return s;
+      return { ...s, outerGutter: a.outerGutter };
     }
 
     case "MERGE_CELLS": {
