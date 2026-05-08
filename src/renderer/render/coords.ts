@@ -54,7 +54,16 @@ export function computeGridLayout(
   const cellH = Math.floor(availH / rows);
   const wRemainder = availW - cellW * cols;
   const hRemainder = availH - cellH * rows;
-  return { rows, cols, gutterPx, outerOffset, cellW, cellH, wRemainder, hRemainder };
+  return {
+    rows,
+    cols,
+    gutterPx,
+    outerOffset,
+    cellW,
+    cellH,
+    wRemainder,
+    hRemainder,
+  };
 }
 
 /**
@@ -70,7 +79,16 @@ export function computeCellRect(
   rowSpan = 1,
   colSpan = 1,
 ): PanelRect {
-  const { rows, cols, gutterPx, outerOffset, cellW, cellH, wRemainder, hRemainder } = layout;
+  const {
+    rows,
+    cols,
+    gutterPx,
+    outerOffset,
+    cellW,
+    cellH,
+    wRemainder,
+    hRemainder,
+  } = layout;
   const lastCol = col + colSpan - 1;
   const lastRow = row + rowSpan - 1;
   const baseW = colSpan * cellW + (colSpan - 1) * gutterPx;
@@ -96,13 +114,7 @@ export function computePanelRects(figure: Figure): PanelRect[] {
   );
   return figure.panels.map(
     (p: HardCodedPanel): PanelRect =>
-      computeCellRect(
-        layout,
-        p.row,
-        p.col,
-        p.rowSpan ?? 1,
-        p.colSpan ?? 1,
-      ),
+      computeCellRect(layout, p.row, p.col, p.rowSpan ?? 1, p.colSpan ?? 1),
   );
 }
 
@@ -205,7 +217,15 @@ export function snapTransform(
   if (t.fit === "contain") {
     return { ...t, zoom };
   }
-  const { panX, panY } = clampCoverPan(t.panX, t.panY, panelW, panelH, rw, rh, zoom);
+  const { panX, panY } = clampCoverPan(
+    t.panX,
+    t.panY,
+    panelW,
+    panelH,
+    rw,
+    rh,
+    zoom,
+  );
   return { ...t, zoom, panX, panY };
 }
 
@@ -293,7 +313,13 @@ export function figureToSource(
 
   // Step 2: divide by effective panel scale.
   const rotImg = rotatedImageDims(imgW, imgH, t.rotation);
-  const S = effectivePanelScale(t, panelRect.w, panelRect.h, rotImg.w, rotImg.h);
+  const S = effectivePanelScale(
+    t,
+    panelRect.w,
+    panelRect.h,
+    rotImg.w,
+    rotImg.h,
+  );
   if (S === 0) return null;
   lx /= S;
   ly /= S;
@@ -328,4 +354,66 @@ export function figureToSource(
   // Bounds-check: outside the source image (e.g. letterbox in Contain).
   if (sx < 0 || sx > imgW || sy < 0 || sy > imgH) return null;
   return { sx, sy };
+}
+
+/**
+ * Forward of `figureToSource`: given a point in source-image px, return
+ * its position in figure-canvas px under the panel's current transform.
+ * The point may legally land outside `panelRect` — Cover-mode pan or zoom
+ * pushes parts of the image past the panel edge, and image-bound
+ * annotations clipped by the panel still want their re-projected position
+ * (the renderer clips at draw time).
+ *
+ * Mirrors the forward chain in `drawPanelImage`:
+ *     translate(rect.cx, rect.cy);
+ *     translate(t.panX, t.panY);
+ *     scale(S, S);                          // S = effectivePanelScale
+ *     rotate(θ);
+ *     scale(flipH ? -1 : 1, flipV ? -1 : 1);
+ *     translate(-imgW/2, -imgH/2);
+ *     drawImage(bitmap, 0, 0, imgW, imgH);
+ * Composed right-to-left on a source point P, so we walk the chain
+ * from the rightmost operator (translate to image-center) outward.
+ */
+export function sourceToFigure(
+  panelRect: PanelRect,
+  t: PanelTransform,
+  imgW: number,
+  imgH: number,
+  sx: number,
+  sy: number,
+): { fx: number; fy: number } {
+  // Step 1: translate to image-center origin.
+  let lx = sx - imgW / 2;
+  let ly = sy - imgH / 2;
+
+  // Step 2: apply flip.
+  if (t.flipH) lx = -lx;
+  if (t.flipV) ly = -ly;
+
+  // Step 3: apply rotation by +θ.
+  const theta = (t.rotation * Math.PI) / 180;
+  const cos = Math.cos(theta);
+  const sin = Math.sin(theta);
+  const rx = lx * cos - ly * sin;
+  const ry = lx * sin + ly * cos;
+  lx = rx;
+  ly = ry;
+
+  // Step 4: scale by S.
+  const rotImg = rotatedImageDims(imgW, imgH, t.rotation);
+  const S = effectivePanelScale(
+    t,
+    panelRect.w,
+    panelRect.h,
+    rotImg.w,
+    rotImg.h,
+  );
+  lx *= S;
+  ly *= S;
+
+  // Step 5: translate by pan + panel center.
+  const fx = lx + t.panX + panelRect.x + panelRect.w / 2;
+  const fy = ly + t.panY + panelRect.y + panelRect.h / 2;
+  return { fx, fy };
 }

@@ -22,9 +22,32 @@ export interface BaseAnnotation {
    * (calibration is per-image-on-panel); letters are always per-panel.
    */
   panelId?: string;
+  /**
+   * When set, this annotation is bound to the image with this id and
+   * follows it to whatever panel currently holds it. The relocator
+   * (`relocateImageBoundAnnotations`) keeps `panelId` and the kind-specific
+   * geometry (`x/y/w/h`/endpoints) in sync with the bound image's current
+   * panel + transform on each move/rotate/flip. If the image is unplaced
+   * or removed, image-bound annotations are dropped. Letters never carry
+   * an `imageId`; scale bars optionally do (their meaningful binding is
+   * the calibration on the image underneath).
+   */
+  imageId?: string;
   /** Higher draws on top; ties broken by array index. */
   z: number;
   kind: AnnotationKind;
+}
+
+/**
+ * Source-image anchor for one point of an image-bound annotation. Stored
+ * as a 0..1 fraction of the image's source extent so it survives rotation,
+ * flip, and resize: 0,0 is image top-left in source-pixel space, 1,1 is
+ * image bottom-right. We re-project this through the panel's current
+ * transform to recompute figure-px on each move.
+ */
+export interface ImageAnchor {
+  imgU: number;
+  imgV: number;
 }
 
 export interface TextAnnotation extends BaseAnnotation {
@@ -32,6 +55,12 @@ export interface TextAnnotation extends BaseAnnotation {
   /** figure-canvas px (top-left origin). Anchored at the text's top-left. */
   x: number;
   y: number;
+  /**
+   * Image-anchor for the text's top-left, in 0..1 source-image space.
+   * Present iff `imageId` is set; the relocator uses it to reproject `x/y`
+   * when the image moves to a new panel.
+   */
+  anchor?: ImageAnchor;
   text: string;
   /** CSS font-family. */
   font: string;
@@ -52,6 +81,9 @@ export interface ArrowAnnotation extends BaseAnnotation {
   y1: number;
   x2: number;
   y2: number;
+  /** Image-anchors for the two endpoints. Present iff `imageId` is set. */
+  anchor1?: ImageAnchor;
+  anchor2?: ImageAnchor;
   color: string;
   thicknessPx: number;
   head: "none" | "open" | "filled";
@@ -64,6 +96,14 @@ export interface BoxAnnotation extends BaseAnnotation {
   y: number;
   w: number;
   h: number;
+  /**
+   * Image-anchors for the box's top-left and bottom-right corners.
+   * Present iff `imageId` is set. We anchor opposite corners (rather than
+   * top-left + size) so rotation re-projects correctly: a box rotated 90°
+   * with the panel keeps its on-image footprint.
+   */
+  anchor1?: ImageAnchor;
+  anchor2?: ImageAnchor;
   stroke: string;
   strokeWidthPx: number;
   fill?: string;

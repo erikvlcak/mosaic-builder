@@ -33,10 +33,21 @@
 import { useEffect, useRef, useState } from "react";
 import type { Dispatch } from "react";
 import type { Figure, ResolvedAnnotation } from "../../model/types";
-import type { Annotation, TextAnnotation, BoxAnnotation, ArrowAnnotation, ScaleBarAnnotation } from "../../model/annotations";
+import type {
+  Annotation,
+  ImageAnchor,
+  TextAnnotation,
+  BoxAnnotation,
+  ArrowAnnotation,
+  ScaleBarAnnotation,
+} from "../../model/annotations";
 import type { FigureAction } from "../../model/figure-actions";
-import { addAnnotation, updateAnnotation, removeAnnotation } from "../../model/figure-actions";
-import type { PanelRect } from "../../render/coords";
+import {
+  addAnnotation,
+  updateAnnotation,
+  removeAnnotation,
+} from "../../model/figure-actions";
+import { figureToSource, type PanelRect } from "../../render/coords";
 import type { ImagePoolItem } from "../../model/pool";
 import type { Tool } from "../Toolbar/AnnotationToolbar";
 
@@ -172,6 +183,64 @@ function panelAt(
 }
 
 /**
+ * If `(fx, fy)` lands inside an image-bearing panel, return the image's
+ * pool entry + the panel rect + the panel's transform — so creation
+ * handlers can derive `imgU/imgV` anchors via `figureToSource`. Returns
+ * null when the point is in the figure margin, on an empty/hidden panel,
+ * or on a panel without an image.
+ */
+function imageContextAt(
+  fx: number,
+  fy: number,
+  figure: Figure,
+  panelRectsById: Map<string, PanelRect>,
+  imagesById: Map<string, ImagePoolItem>,
+): {
+  imageId: string;
+  panel: Extract<Figure["panels"][number], { kind: "image" }>;
+  panelRect: PanelRect;
+  image: ImagePoolItem;
+} | null {
+  const panelId = panelAt(panelRectsById, fx, fy);
+  if (panelId === null) return null;
+  const panel = figure.panels.find(
+    (p) => p.panelId === panelId && p.kind === "image",
+  );
+  if (panel === undefined || panel.kind !== "image") return null;
+  const panelRect = panelRectsById.get(panelId);
+  if (panelRect === undefined) return null;
+  const image = imagesById.get(panel.imageId);
+  if (image === undefined) return null;
+  return { imageId: panel.imageId, panel, panelRect, image };
+}
+
+/**
+ * Given a figure-px point inside an image-bearing panel, return the
+ * normalized image anchor (imgU, imgV in 0..1 source-image space). Null
+ * when the point lies outside the source image (e.g. Contain-mode
+ * letterbox click).
+ */
+function anchorFromFigure(
+  fx: number,
+  fy: number,
+  ctx: NonNullable<ReturnType<typeof imageContextAt>>,
+): ImageAnchor | null {
+  const src = figureToSource(
+    ctx.panelRect,
+    ctx.panel.transform,
+    ctx.image.width,
+    ctx.image.height,
+    fx,
+    fy,
+  );
+  if (src === null) return null;
+  return {
+    imgU: src.sx / ctx.image.width,
+    imgV: src.sy / ctx.image.height,
+  };
+}
+
+/**
  * Conservative bounding-box approximation of an annotation's hit-rect, in
  * figure-px. For text, we estimate width as `text.length * sizePx * 0.6`
  * and height as `sizePx * 1.2`. For arrows, we use the segment's bbox
@@ -237,7 +306,8 @@ export function AnnotationInteractionLayer({
   const ref = useRef<HTMLDivElement | null>(null);
   const textInputRef = useRef<HTMLInputElement | null>(null);
   const [drag, setDrag] = useState<DragState | null>(null);
-  const [pendingScalebar, setPendingScalebar] = useState<PendingScalebar | null>(null);
+  const [pendingScalebar, setPendingScalebar] =
+    useState<PendingScalebar | null>(null);
   const [pendingText, setPendingText] = useState<PendingText | null>(null);
   // Controlled value for the inline text input. Mirroring it in React state
   // (instead of relying on the DOM input's defaultValue) makes the commit
@@ -250,16 +320,22 @@ export function AnnotationInteractionLayer({
    * uncalibrated/empty panel. Auto-dismissed after SCALEBAR_ERROR_TTL_MS.
    * Coordinates are CSS-px relative to the layer.
    */
-  const [scalebarError, setScalebarError] = useState<
-    { message: string; cssX: number; cssY: number } | null
-  >(null);
+  const [scalebarError, setScalebarError] = useState<{
+    message: string;
+    cssX: number;
+    cssY: number;
+  } | null>(null);
   const scalebarErrorTimerRef = useRef<number | null>(null);
 
   /**
    * Show the transient scalebar error banner. Replaces any existing timer
    * so rapid repeated clicks reset the fade-out.
    */
-  function flashScalebarError(message: string, cssX: number, cssY: number): void {
+  function flashScalebarError(
+    message: string,
+    cssX: number,
+    cssY: number,
+  ): void {
     if (scalebarErrorTimerRef.current !== null) {
       window.clearTimeout(scalebarErrorTimerRef.current);
     }
@@ -316,7 +392,9 @@ export function AnnotationInteractionLayer({
     return () => cancelAnimationFrame(handle);
   }, [pendingText]);
 
-  function clientToFigure(e: React.PointerEvent | PointerEvent): { fx: number; fy: number; cssX: number; cssY: number } | null {
+  function clientToFigure(
+    e: React.PointerEvent | PointerEvent,
+  ): { fx: number; fy: number; cssX: number; cssY: number } | null {
     const el = ref.current;
     if (el === null) return null;
     const r = el.getBoundingClientRect();
@@ -336,7 +414,13 @@ export function AnnotationInteractionLayer({
     if (c === null) return;
 
     if (activeTool === "text") {
-      setPendingText({ id: newAnnoId(), fx: c.fx, fy: c.fy, cssX: c.cssX, cssY: c.cssY });
+      setPendingText({
+        id: newAnnoId(),
+        fx: c.fx,
+        fy: c.fy,
+        cssX: c.cssX,
+        cssY: c.cssY,
+      });
       return;
     }
 
@@ -348,7 +432,7 @@ export function AnnotationInteractionLayer({
       if (panel === undefined || panel.kind !== "image") {
         console.warn(
           `[scalebar] Cannot add scale bar: panel ${panel?.panelId ?? "(none)"} requires a calibrated image. ` +
-          `Use the "Calibrate…" button on the panel toolbar first.`,
+            `Use the "Calibrate…" button on the panel toolbar first.`,
         );
         flashScalebarError("Place an image first.", c.cssX, c.cssY);
         return;
@@ -357,7 +441,7 @@ export function AnnotationInteractionLayer({
       if (img === undefined || img.calibration === undefined) {
         console.warn(
           `[scalebar] Cannot add scale bar: panel ${panel?.panelId ?? "(none)"} requires a calibrated image. ` +
-          `Use the "Calibrate…" button on the panel toolbar first.`,
+            `Use the "Calibrate…" button on the panel toolbar first.`,
         );
         flashScalebarError(
           "Calibrate this image first (Calibrate… button).",
@@ -418,6 +502,37 @@ export function AnnotationInteractionLayer({
         thicknessPx: DEFAULT_ARROW_THICKNESS,
         head: "filled",
       };
+      // Bind to the image if BOTH endpoints land in the same image-bearing
+      // panel. A cross-panel arrow stays unbound (panel-anchored at most).
+      const startCtx = imageContextAt(
+        drag.startFx,
+        drag.startFy,
+        figure,
+        panelRectsById,
+        imagesById,
+      );
+      const endCtx = imageContextAt(
+        endFx,
+        endFy,
+        figure,
+        panelRectsById,
+        imagesById,
+      );
+      if (
+        startCtx !== null &&
+        endCtx !== null &&
+        startCtx.imageId === endCtx.imageId &&
+        startCtx.panel.panelId !== undefined
+      ) {
+        const a1 = anchorFromFigure(drag.startFx, drag.startFy, startCtx);
+        const a2 = anchorFromFigure(endFx, endFy, startCtx);
+        if (a1 !== null && a2 !== null) {
+          ann.imageId = startCtx.imageId;
+          ann.panelId = startCtx.panel.panelId;
+          ann.anchor1 = a1;
+          ann.anchor2 = a2;
+        }
+      }
       dispatch(addAnnotation(ann));
       onSelectAnnotation(ann.id);
     } else if (drag.kind === "create-box") {
@@ -440,6 +555,30 @@ export function AnnotationInteractionLayer({
         stroke: DEFAULT_BOX_STROKE,
         strokeWidthPx: DEFAULT_BOX_STROKE_PX,
       };
+      // Bind to the image if BOTH corners land in the same image-bearing panel.
+      const tlCtx = imageContextAt(x, y, figure, panelRectsById, imagesById);
+      const brCtx = imageContextAt(
+        x + w,
+        y + h,
+        figure,
+        panelRectsById,
+        imagesById,
+      );
+      if (
+        tlCtx !== null &&
+        brCtx !== null &&
+        tlCtx.imageId === brCtx.imageId &&
+        tlCtx.panel.panelId !== undefined
+      ) {
+        const a1 = anchorFromFigure(x, y, tlCtx);
+        const a2 = anchorFromFigure(x + w, y + h, tlCtx);
+        if (a1 !== null && a2 !== null) {
+          ann.imageId = tlCtx.imageId;
+          ann.panelId = tlCtx.panel.panelId;
+          ann.anchor1 = a1;
+          ann.anchor2 = a2;
+        }
+      }
       dispatch(addAnnotation(ann));
       onSelectAnnotation(ann.id);
     }
@@ -473,7 +612,8 @@ export function AnnotationInteractionLayer({
   }
 
   function onHitPointerMove(e: React.PointerEvent<HTMLDivElement>): void {
-    if (drag === null || drag.kind !== "move" || drag.pointerId !== e.pointerId) return;
+    if (drag === null || drag.kind !== "move" || drag.pointerId !== e.pointerId)
+      return;
     const c = clientToFigure(e);
     if (c === null) return;
     const dx = c.fx - drag.startFx;
@@ -483,20 +623,100 @@ export function AnnotationInteractionLayer({
     // Dispatch a patch with the annotation's new (x, y) (or arrow endpoints).
     let patch: Partial<Annotation> | null = null;
     switch (start.kind) {
-      case "text":
-        patch = { x: start.x + dx, y: start.y + dy };
+      case "text": {
+        const nx = start.x + dx;
+        const ny = start.y + dy;
+        patch = { x: nx, y: ny };
+        // Re-anchor on every move so the image-bound fields stay in sync
+        // with the user's drag — otherwise a later swap would teleport
+        // the annotation back to its create-time position.
+        if (start.imageId !== undefined) {
+          const ctx = imageContextAt(
+            nx,
+            ny,
+            figure,
+            panelRectsById,
+            imagesById,
+          );
+          if (ctx !== null && ctx.imageId === start.imageId) {
+            const a = anchorFromFigure(nx, ny, ctx);
+            if (a !== null) (patch as Partial<TextAnnotation>).anchor = a;
+          }
+        }
         break;
-      case "box":
-        patch = { x: start.x + dx, y: start.y + dy };
+      }
+      case "box": {
+        const nx = start.x + dx;
+        const ny = start.y + dy;
+        patch = { x: nx, y: ny };
+        if (start.imageId !== undefined) {
+          const tlCtx = imageContextAt(
+            nx,
+            ny,
+            figure,
+            panelRectsById,
+            imagesById,
+          );
+          const brCtx = imageContextAt(
+            nx + start.w,
+            ny + start.h,
+            figure,
+            panelRectsById,
+            imagesById,
+          );
+          if (
+            tlCtx !== null &&
+            brCtx !== null &&
+            tlCtx.imageId === start.imageId &&
+            brCtx.imageId === start.imageId
+          ) {
+            const a1 = anchorFromFigure(nx, ny, tlCtx);
+            const a2 = anchorFromFigure(nx + start.w, ny + start.h, tlCtx);
+            if (a1 !== null && a2 !== null) {
+              (patch as Partial<BoxAnnotation>).anchor1 = a1;
+              (patch as Partial<BoxAnnotation>).anchor2 = a2;
+            }
+          }
+        }
         break;
-      case "arrow":
-        patch = {
-          x1: start.x1 + dx,
-          y1: start.y1 + dy,
-          x2: start.x2 + dx,
-          y2: start.y2 + dy,
-        };
+      }
+      case "arrow": {
+        const nx1 = start.x1 + dx;
+        const ny1 = start.y1 + dy;
+        const nx2 = start.x2 + dx;
+        const ny2 = start.y2 + dy;
+        patch = { x1: nx1, y1: ny1, x2: nx2, y2: ny2 };
+        if (start.imageId !== undefined) {
+          const c1 = imageContextAt(
+            nx1,
+            ny1,
+            figure,
+            panelRectsById,
+            imagesById,
+          );
+          const c2 = imageContextAt(
+            nx2,
+            ny2,
+            figure,
+            panelRectsById,
+            imagesById,
+          );
+          if (
+            c1 !== null &&
+            c2 !== null &&
+            c1.imageId === start.imageId &&
+            c2.imageId === start.imageId
+          ) {
+            const a1 = anchorFromFigure(nx1, ny1, c1);
+            const a2 = anchorFromFigure(nx2, ny2, c1);
+            if (a1 !== null && a2 !== null) {
+              (patch as Partial<ArrowAnnotation>).anchor1 = a1;
+              (patch as Partial<ArrowAnnotation>).anchor2 = a2;
+            }
+          }
+        }
         break;
+      }
       case "scalebar":
         // Scale bars are positioned via panel + corner; dragging is a no-op.
         break;
@@ -507,7 +727,8 @@ export function AnnotationInteractionLayer({
   }
 
   function onHitPointerUp(e: React.PointerEvent<HTMLDivElement>): void {
-    if (drag === null || drag.kind !== "move" || drag.pointerId !== e.pointerId) return;
+    if (drag === null || drag.kind !== "move" || drag.pointerId !== e.pointerId)
+      return;
     if (e.currentTarget.hasPointerCapture(e.pointerId)) {
       e.currentTarget.releasePointerCapture(e.pointerId);
     }
@@ -551,7 +772,11 @@ export function AnnotationInteractionLayer({
   function onArrowEndpointPointerMove(
     e: React.PointerEvent<HTMLDivElement>,
   ): void {
-    if (drag === null || drag.kind !== "arrow-endpoint" || drag.pointerId !== e.pointerId) {
+    if (
+      drag === null ||
+      drag.kind !== "arrow-endpoint" ||
+      drag.pointerId !== e.pointerId
+    ) {
       return;
     }
     const c = clientToFigure(e);
@@ -561,17 +786,34 @@ export function AnnotationInteractionLayer({
     if (start === undefined || start.kind !== "arrow") return;
     const dx = c.fx - drag.startFx;
     const dy = c.fy - drag.startFy;
-    const patch =
+    const patch: Partial<ArrowAnnotation> =
       drag.endpoint === "start"
         ? { x1: start.x1 + dx, y1: start.y1 + dy }
         : { x2: start.x2 + dx, y2: start.y2 + dy };
+    // Re-anchor the dragged endpoint when the arrow is image-bound.
+    if (start.imageId !== undefined) {
+      const fx = drag.endpoint === "start" ? start.x1 + dx : start.x2 + dx;
+      const fy = drag.endpoint === "start" ? start.y1 + dy : start.y2 + dy;
+      const ctx = imageContextAt(fx, fy, figure, panelRectsById, imagesById);
+      if (ctx !== null && ctx.imageId === start.imageId) {
+        const a = anchorFromFigure(fx, fy, ctx);
+        if (a !== null) {
+          if (drag.endpoint === "start") patch.anchor1 = a;
+          else patch.anchor2 = a;
+        }
+      }
+    }
     dispatch(updateAnnotation(drag.movingId, patch));
   }
 
   function onArrowEndpointPointerUp(
     e: React.PointerEvent<HTMLDivElement>,
   ): void {
-    if (drag === null || drag.kind !== "arrow-endpoint" || drag.pointerId !== e.pointerId) {
+    if (
+      drag === null ||
+      drag.kind !== "arrow-endpoint" ||
+      drag.pointerId !== e.pointerId
+    ) {
       return;
     }
     if (e.currentTarget.hasPointerCapture(e.pointerId)) {
@@ -605,7 +847,11 @@ export function AnnotationInteractionLayer({
   }
 
   function onBoxCornerPointerMove(e: React.PointerEvent<HTMLDivElement>): void {
-    if (drag === null || drag.kind !== "box-corner" || drag.pointerId !== e.pointerId) {
+    if (
+      drag === null ||
+      drag.kind !== "box-corner" ||
+      drag.pointerId !== e.pointerId
+    ) {
       return;
     }
     const c = clientToFigure(e);
@@ -668,11 +914,40 @@ export function AnnotationInteractionLayer({
         if (nh < MIN_BOX_DIM) nh = MIN_BOX_DIM;
         break;
     }
-    dispatch(updateAnnotation(drag.movingId, { x: nx, y: ny, w: nw, h: nh }));
+    const patch: Partial<BoxAnnotation> = { x: nx, y: ny, w: nw, h: nh };
+    // Re-anchor when image-bound: both corners re-derive from the current rect.
+    if (start.imageId !== undefined) {
+      const tlCtx = imageContextAt(nx, ny, figure, panelRectsById, imagesById);
+      const brCtx = imageContextAt(
+        nx + nw,
+        ny + nh,
+        figure,
+        panelRectsById,
+        imagesById,
+      );
+      if (
+        tlCtx !== null &&
+        brCtx !== null &&
+        tlCtx.imageId === start.imageId &&
+        brCtx.imageId === start.imageId
+      ) {
+        const a1 = anchorFromFigure(nx, ny, tlCtx);
+        const a2 = anchorFromFigure(nx + nw, ny + nh, tlCtx);
+        if (a1 !== null && a2 !== null) {
+          patch.anchor1 = a1;
+          patch.anchor2 = a2;
+        }
+      }
+    }
+    dispatch(updateAnnotation(drag.movingId, patch));
   }
 
   function onBoxCornerPointerUp(e: React.PointerEvent<HTMLDivElement>): void {
-    if (drag === null || drag.kind !== "box-corner" || drag.pointerId !== e.pointerId) {
+    if (
+      drag === null ||
+      drag.kind !== "box-corner" ||
+      drag.pointerId !== e.pointerId
+    ) {
       return;
     }
     if (e.currentTarget.hasPointerCapture(e.pointerId)) {
@@ -697,6 +972,15 @@ export function AnnotationInteractionLayer({
       lengthValue,
       lengthUnit: scalebarUnit,
     };
+    // Bind to the image on this panel: scale bars are conceptually
+    // anchored to the calibration on the image, so when that image moves
+    // to another panel the scale bar follows it.
+    const panel = figure.panels.find(
+      (p) => p.panelId === pendingScalebar.panelId,
+    );
+    if (panel?.kind === "image") {
+      ann.imageId = panel.imageId;
+    }
     dispatch(addAnnotation(ann));
     setPendingScalebar(null);
   }
@@ -725,6 +1009,23 @@ export function AnnotationInteractionLayer({
       italic: false,
       color: DEFAULT_TEXT_COLOR,
     };
+    // If the click landed on an image-bearing panel, bind the annotation
+    // to that image so it follows the image when swapped to another panel.
+    const imgCtx = imageContextAt(
+      pendingText.fx,
+      pendingText.fy,
+      figure,
+      panelRectsById,
+      imagesById,
+    );
+    if (imgCtx !== null && imgCtx.panel.panelId !== undefined) {
+      const anchor = anchorFromFigure(pendingText.fx, pendingText.fy, imgCtx);
+      if (anchor !== null) {
+        ann.imageId = imgCtx.imageId;
+        ann.panelId = imgCtx.panel.panelId;
+        ann.anchor = anchor;
+      }
+    }
     dispatch(addAnnotation(ann));
     onSelectAnnotation(ann.id);
     setPendingText(null);
@@ -854,19 +1155,67 @@ export function AnnotationInteractionLayer({
       )}
 
       {/* Arrow endpoint handles (only when a selected arrow exists). */}
-      {activeTool === "select" && selected !== undefined && selected.kind === "arrow" && (
-        <>
-          {(["start", "end"] as const).map((endpoint) => {
-            const fx = endpoint === "start" ? selected.x1 : selected.x2;
-            const fy = endpoint === "start" ? selected.y1 : selected.y2;
-            return (
+      {activeTool === "select" &&
+        selected !== undefined &&
+        selected.kind === "arrow" && (
+          <>
+            {(["start", "end"] as const).map((endpoint) => {
+              const fx = endpoint === "start" ? selected.x1 : selected.x2;
+              const fy = endpoint === "start" ? selected.y1 : selected.y2;
+              return (
+                <div
+                  key={`arrow-handle-${endpoint}`}
+                  data-testid={`anno-arrow-handle-${endpoint}`}
+                  onPointerDown={(e) =>
+                    onArrowEndpointPointerDown(e, selected, endpoint)
+                  }
+                  onPointerMove={onArrowEndpointPointerMove}
+                  onPointerUp={onArrowEndpointPointerUp}
+                  onPointerCancel={onArrowEndpointPointerUp}
+                  style={{
+                    position: "absolute",
+                    left: fx * figToCssX - HANDLE_PX / 2,
+                    top: fy * figToCssY - HANDLE_PX / 2,
+                    width: HANDLE_PX,
+                    height: HANDLE_PX,
+                    background: "#0066FF",
+                    pointerEvents: "auto",
+                    cursor: "crosshair",
+                    zIndex: 4,
+                  }}
+                />
+              );
+            })}
+          </>
+        )}
+
+      {/* Box corner handles (only when a selected box exists). */}
+      {activeTool === "select" &&
+        selected !== undefined &&
+        selected.kind === "box" && (
+          <>
+            {(
+              [
+                ["tl", selected.x, selected.y, "nwse-resize"],
+                ["tr", selected.x + selected.w, selected.y, "nesw-resize"],
+                ["bl", selected.x, selected.y + selected.h, "nesw-resize"],
+                [
+                  "br",
+                  selected.x + selected.w,
+                  selected.y + selected.h,
+                  "nwse-resize",
+                ],
+              ] as const
+            ).map(([corner, fx, fy, cursor]) => (
               <div
-                key={`arrow-handle-${endpoint}`}
-                data-testid={`anno-arrow-handle-${endpoint}`}
-                onPointerDown={(e) => onArrowEndpointPointerDown(e, selected, endpoint)}
-                onPointerMove={onArrowEndpointPointerMove}
-                onPointerUp={onArrowEndpointPointerUp}
-                onPointerCancel={onArrowEndpointPointerUp}
+                key={`box-handle-${corner}`}
+                data-testid={`anno-box-handle-${corner}`}
+                onPointerDown={(e) =>
+                  onBoxCornerPointerDown(e, selected, corner)
+                }
+                onPointerMove={onBoxCornerPointerMove}
+                onPointerUp={onBoxCornerPointerUp}
+                onPointerCancel={onBoxCornerPointerUp}
                 style={{
                   position: "absolute",
                   left: fx * figToCssX - HANDLE_PX / 2,
@@ -875,48 +1224,13 @@ export function AnnotationInteractionLayer({
                   height: HANDLE_PX,
                   background: "#0066FF",
                   pointerEvents: "auto",
-                  cursor: "crosshair",
+                  cursor,
                   zIndex: 4,
                 }}
               />
-            );
-          })}
-        </>
-      )}
-
-      {/* Box corner handles (only when a selected box exists). */}
-      {activeTool === "select" && selected !== undefined && selected.kind === "box" && (
-        <>
-          {(
-            [
-              ["tl", selected.x, selected.y, "nwse-resize"],
-              ["tr", selected.x + selected.w, selected.y, "nesw-resize"],
-              ["bl", selected.x, selected.y + selected.h, "nesw-resize"],
-              ["br", selected.x + selected.w, selected.y + selected.h, "nwse-resize"],
-            ] as const
-          ).map(([corner, fx, fy, cursor]) => (
-            <div
-              key={`box-handle-${corner}`}
-              data-testid={`anno-box-handle-${corner}`}
-              onPointerDown={(e) => onBoxCornerPointerDown(e, selected, corner)}
-              onPointerMove={onBoxCornerPointerMove}
-              onPointerUp={onBoxCornerPointerUp}
-              onPointerCancel={onBoxCornerPointerUp}
-              style={{
-                position: "absolute",
-                left: fx * figToCssX - HANDLE_PX / 2,
-                top: fy * figToCssY - HANDLE_PX / 2,
-                width: HANDLE_PX,
-                height: HANDLE_PX,
-                background: "#0066FF",
-                pointerEvents: "auto",
-                cursor,
-                zIndex: 4,
-              }}
-            />
-          ))}
-        </>
-      )}
+            ))}
+          </>
+        )}
 
       {/* Transient preview during arrow/box creation. */}
       {drag !== null && drag.kind === "create-box" && (

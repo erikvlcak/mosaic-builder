@@ -4,9 +4,15 @@ import { DEFAULT_TRANSFORM, findPanelAt } from "./panels";
 import type { FigureState } from "./figure-state";
 import { initialFigureState, newPanelId } from "./figure-state";
 import { resizePanels } from "./grid-resize";
-import { canMergeSelection, mergePanels, unmergePanel, type CellCoord } from "./merge";
+import {
+  canMergeSelection,
+  mergePanels,
+  unmergePanel,
+  type CellCoord,
+} from "./merge";
 import type { Annotation, AnnotationKind } from "./annotations";
 import type { GlobalAnnoStyle } from "./global-style";
+import { relocateImageBoundAnnotations } from "./relocate-anno";
 
 export type FigureAction =
   | { type: "ADD_TO_POOL"; item: ImagePoolItem }
@@ -28,12 +34,20 @@ export type FigureAction =
   | { type: "FLIP_PANEL_V"; panelId: string }
   | { type: "RESET_PANEL_TRANSFORM"; panelId: string }
   | { type: "ADD_ANNOTATION"; annotation: Annotation }
-  | { type: "UPDATE_ANNOTATION"; annotationId: string; patch: Partial<Annotation> }
+  | {
+      type: "UPDATE_ANNOTATION";
+      annotationId: string;
+      patch: Partial<Annotation>;
+    }
   | { type: "REMOVE_ANNOTATION"; annotationId: string }
   | { type: "SET_LETTER_OVERRIDE"; panelId: string; override: string | null }
   | { type: "SET_GLOBAL_STYLE"; style: GlobalAnnoStyle }
   | { type: "SET_LETTERS_ENABLED"; enabled: boolean }
-  | { type: "SET_IMAGE_CALIBRATION"; imageId: string; calibration: Calibration | null }
+  | {
+      type: "SET_IMAGE_CALIBRATION";
+      imageId: string;
+      calibration: Calibration | null;
+    }
   | { type: "SET_PANEL_HIDDEN"; panelId: string; hidden: boolean }
   | { type: "DELETE_PANEL"; panelId: string }
   | { type: "RESTORE_PANEL_AT"; row: number; col: number }
@@ -279,7 +293,23 @@ export function figureReducer(s: FigureState, a: FigureAction): FigureState {
         if (p.id === pb.id) return withImage(p, pa.imageId, pa.transform);
         return p;
       });
-      return { ...s, panels: next };
+      // Relocate annotations bound to either swapped image, against the
+      // post-swap state. Order matters only for chaining-readability; the
+      // two relocator calls touch disjoint annotation subsets.
+      let postSwap: FigureState = { ...s, panels: next };
+      if (pa.imageId !== undefined) {
+        postSwap = {
+          ...postSwap,
+          annotations: relocateImageBoundAnnotations(postSwap, pa.imageId),
+        };
+      }
+      if (pb.imageId !== undefined) {
+        postSwap = {
+          ...postSwap,
+          annotations: relocateImageBoundAnnotations(postSwap, pb.imageId),
+        };
+      }
+      return postSwap;
     }
 
     case "REPLACE_INTO_PANEL": {
@@ -294,20 +324,52 @@ export function figureReducer(s: FigureState, a: FigureAction): FigureState {
       );
       if (placedElsewhere) return s;
       // Fresh image, fresh framing — overwrite any prior transform.
-      return { ...s, panels: setPanelImage(s.panels, a.panelId, a.imageId) };
+      const ousted = target.imageId;
+      let next: FigureState = {
+        ...s,
+        panels: setPanelImage(s.panels, a.panelId, a.imageId),
+      };
+      // Annotations bound to the displaced image now have no host panel —
+      // relocate (which drops them when no panel holds the image).
+      if (ousted !== undefined) {
+        next = {
+          ...next,
+          annotations: relocateImageBoundAnnotations(next, ousted),
+        };
+      }
+      // Annotations bound to the new image (if previously orphaned and
+      // somehow lingering — defensive) re-attach to this panel.
+      next = {
+        ...next,
+        annotations: relocateImageBoundAnnotations(next, a.imageId),
+      };
+      return next;
     }
 
     case "UNPLACE_PANEL": {
       const target = findPanelById(s.panels, a.panelId);
       if (target === undefined) return s;
       if (target.imageId === undefined) return s;
-      const panels = s.panels.map((p) => (p.id === a.panelId ? omitImage(p) : p));
+      const ousted = target.imageId;
+      const panels = s.panels.map((p) =>
+        p.id === a.panelId ? omitImage(p) : p,
+      );
       // Drop scale bars anchored to the now-empty panel — same logic as
       // REMOVE_FROM_POOL applies to a single panel.
-      const annotations = s.annotations.filter(
+      const annotationsAfterScalebarDrop = s.annotations.filter(
         (an) => !(an.kind === "scalebar" && an.panelId === a.panelId),
       );
-      return { ...s, panels, annotations };
+      // Then relocate (drop) image-bound annos for the ousted image —
+      // since it's no longer placed anywhere, the relocator drops them.
+      const next: FigureState = {
+        ...s,
+        panels,
+        annotations: annotationsAfterScalebarDrop,
+      };
+      return {
+        ...next,
+        annotations: relocateImageBoundAnnotations(next, ousted),
+      };
     }
 
     case "REMOVE_FROM_POOL": {
@@ -320,13 +382,18 @@ export function figureReducer(s: FigureState, a: FigureAction): FigureState {
       const panels = s.panels.map((p) =>
         p.imageId === a.imageId ? omitImage(p) : p,
       );
-      const annotations =
+      const annotationsAfterScalebarDrop =
         affectedPanelIds.size === 0
           ? s.annotations
           : s.annotations.filter(
               (an) =>
                 !(an.kind === "scalebar" && affectedPanelIds.has(an.panelId)),
             );
+      // Drop every image-bound anno for the removed image. We can't call
+      // the relocator here (it reads pool[imageId]), so filter directly.
+      const annotations = annotationsAfterScalebarDrop.filter(
+        (an) => an.imageId !== a.imageId,
+      );
       return {
         ...s,
         pool: s.pool.filter((p) => p.id !== a.imageId),
@@ -453,7 +520,14 @@ export function figureReducer(s: FigureState, a: FigureAction): FigureState {
           },
         };
       });
-      return r.changed ? { ...s, panels: r.panels } : s;
+      if (!r.changed) return s;
+      const next: FigureState = { ...s, panels: r.panels };
+      const imgId = target.imageId;
+      if (imgId === undefined) return next;
+      return {
+        ...next,
+        annotations: relocateImageBoundAnnotations(next, imgId),
+      };
     }
 
     case "FLIP_PANEL_H": {
@@ -464,7 +538,14 @@ export function figureReducer(s: FigureState, a: FigureAction): FigureState {
           ? p
           : { ...p, transform: { ...p.transform, flipH: !p.transform.flipH } },
       );
-      return r.changed ? { ...s, panels: r.panels } : s;
+      if (!r.changed) return s;
+      const next: FigureState = { ...s, panels: r.panels };
+      const imgId = target.imageId;
+      if (imgId === undefined) return next;
+      return {
+        ...next,
+        annotations: relocateImageBoundAnnotations(next, imgId),
+      };
     }
 
     case "FLIP_PANEL_V": {
@@ -475,7 +556,14 @@ export function figureReducer(s: FigureState, a: FigureAction): FigureState {
           ? p
           : { ...p, transform: { ...p.transform, flipV: !p.transform.flipV } },
       );
-      return r.changed ? { ...s, panels: r.panels } : s;
+      if (!r.changed) return s;
+      const next: FigureState = { ...s, panels: r.panels };
+      const imgId = target.imageId;
+      if (imgId === undefined) return next;
+      return {
+        ...next,
+        annotations: relocateImageBoundAnnotations(next, imgId),
+      };
     }
 
     case "RESET_PANEL_TRANSFORM": {
@@ -513,7 +601,11 @@ export function figureReducer(s: FigureState, a: FigureAction): FigureState {
       if (idx < 0) return s;
       const existing = s.annotations[idx]!;
       // Strip id/kind from the patch — they're immutable for a given annotation.
-      const { id: _ignoredId, kind: _ignoredKind, ...rest } = a.patch as Partial<Annotation> & {
+      const {
+        id: _ignoredId,
+        kind: _ignoredKind,
+        ...rest
+      } = a.patch as Partial<Annotation> & {
         id?: string;
         kind?: AnnotationKind;
       };
@@ -545,7 +637,10 @@ export function figureReducer(s: FigureState, a: FigureAction): FigureState {
     case "SET_LETTER_OVERRIDE": {
       if (a.override === null) {
         if (!(a.panelId in s.letterOverrides)) return s;
-        return { ...s, letterOverrides: deleteOverride(s.letterOverrides, a.panelId) };
+        return {
+          ...s,
+          letterOverrides: deleteOverride(s.letterOverrides, a.panelId),
+        };
       }
       if (s.letterOverrides[a.panelId] === a.override) return s;
       return {
@@ -557,7 +652,8 @@ export function figureReducer(s: FigureState, a: FigureAction): FigureState {
     case "SET_GLOBAL_STYLE": {
       const st = a.style;
       if (!isHexColor(st.letters.color)) return s;
-      if (st.letters.bgColor !== undefined && !isHexColor(st.letters.bgColor)) return s;
+      if (st.letters.bgColor !== undefined && !isHexColor(st.letters.bgColor))
+        return s;
       if (!isHexColor(st.scalebar.color)) return s;
       if (!isHexColor(st.scalebar.barColor)) return s;
       // Clone sub-objects so we never store frozen references.
