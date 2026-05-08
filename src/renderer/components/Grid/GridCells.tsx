@@ -1,8 +1,8 @@
 import { useState } from "react";
 import type { FigureState } from "../../model/figure-state";
 import { cellKey } from "../../model/figure-state";
-import { computePanelRects } from "../../render/coords";
-import { DEFAULT_GLOBAL_STYLE } from "../../model/global-style";
+import { computeGridLayout, computeCellRect } from "../../render/coords";
+import { cellsWithoutPanel } from "../../model/panels";
 import {
   type PanelInteraction,
   selectedIdOf,
@@ -36,6 +36,8 @@ interface Props {
   panelInteraction: PanelInteraction;
   onPanelClick: (panelId: string) => void;
   onPanelDoubleClick: (panelId: string) => void;
+  /** Click on a hole cell — restores a 1x1 panel there. */
+  onHoleClick: (row: number, col: number) => void;
 }
 
 export function GridCells({
@@ -50,6 +52,7 @@ export function GridCells({
   panelInteraction,
   onPanelClick,
   onPanelDoubleClick,
+  onHoleClick,
 }: Props): JSX.Element {
   const [hoverPanelId, setHoverPanelId] = useState<string | null>(null);
   const [draggingPanelId, setDraggingPanelId] = useState<string | null>(null);
@@ -57,28 +60,21 @@ export function GridCells({
   const selectedId = selectedIdOf(panelInteraction);
   const editingId = editingIdOf(panelInteraction);
 
-  // Build a Figure-shaped object purely for layout. We map state.panels
-  // (which already carry rowSpan/colSpan) directly so rect computation
-  // matches the rendered figure exactly.
-  const rects = computePanelRects({
-    canvas: { widthPx: figurePxW, heightPx: figurePxH, background: "#000" },
-    grid: {
-      rows: state.rows,
-      cols: state.cols,
-      gutterPx: state.gutterPx,
-      gutterColor: state.gutterColor,
-    },
-    panels: state.panels.map((p) => ({
-      row: p.row,
-      col: p.col,
-      kind: "placeholder" as const,
-      label: "",
-      rowSpan: p.rowSpan,
-      colSpan: p.colSpan,
-    })),
-    annotations: [],
-    globalStyle: DEFAULT_GLOBAL_STYLE,
-  });
+  // Single source of layout truth. `computeGridLayout` matches the
+  // production renderer exactly (including the `outerGutter` toggle from
+  // spec 10) so panel chrome here lines up with what the canvas paints.
+  const layout = computeGridLayout(
+    figurePxW,
+    figurePxH,
+    state.rows,
+    state.cols,
+    state.gutterPx,
+    state.outerGutter,
+  );
+  const rects = state.panels.map((p) =>
+    computeCellRect(layout, p.row, p.col, p.rowSpan, p.colSpan),
+  );
+  const holes = cellsWithoutPanel(state.panels, state.rows, state.cols);
 
   const sx = cssW / figurePxW;
   const sy = cssH / figurePxH;
@@ -92,19 +88,13 @@ export function GridCells({
         pointerEvents: "none",
       }}
     >
-      {/* Selection layer (unchanged) */}
+      {/* Selection layer (per-cell, ignores merging — shift-click drives merge). */}
       {Array.from({ length: state.rows * state.cols }).map((_, idx) => {
         const row = Math.floor(idx / state.cols);
         const col = idx % state.cols;
         const k = cellKey(row, col);
         const sel = selection.has(k);
-
-        const availW = figurePxW - state.gutterPx * (state.cols + 1);
-        const availH = figurePxH - state.gutterPx * (state.rows + 1);
-        const cellW = Math.floor(availW / state.cols);
-        const cellH = Math.floor(availH / state.rows);
-        const x = state.gutterPx + col * (cellW + state.gutterPx);
-        const y = state.gutterPx + row * (cellH + state.gutterPx);
+        const r = computeCellRect(layout, row, col);
 
         return (
           <div
@@ -112,10 +102,10 @@ export function GridCells({
             data-testid={`cell-sel-${row}-${col}`}
             style={{
               position: "absolute",
-              left: x * sx,
-              top: y * sy,
-              width: cellW * sx,
-              height: cellH * sy,
+              left: r.x * sx,
+              top: r.y * sy,
+              width: r.w * sx,
+              height: r.h * sy,
               pointerEvents: "none",
               boxSizing: "border-box",
               outline: sel
@@ -129,10 +119,43 @@ export function GridCells({
         );
       })}
 
+      {/* Hole cells: dashed outline + click to restore. Painted *under* the
+          panel layer so a same-coord overlap (impossible by invariant, but
+          safe defense) leaves the panel's chrome on top. */}
+      {holes.map((hole) => {
+        const r = computeCellRect(layout, hole.row, hole.col);
+        return (
+          <div
+            key={`hole-${hole.row}-${hole.col}`}
+            className="grid-hole"
+            data-testid={`hole-${hole.row}-${hole.col}`}
+            onClick={() => {
+              onHoleClick(hole.row, hole.col);
+            }}
+            title="Click to restore this panel"
+            style={{
+              position: "absolute",
+              left: r.x * sx,
+              top: r.y * sy,
+              width: r.w * sx,
+              height: r.h * sy,
+              pointerEvents: "auto",
+              boxSizing: "border-box",
+              cursor: "pointer",
+            }}
+          >
+            <span className="grid-hole-glyph" aria-hidden>
+              +
+            </span>
+          </div>
+        );
+      })}
+
       {state.panels.map((panel, i) => {
         const r = rects[i];
         if (r === undefined) return null;
         const occupied = panel.imageId !== undefined;
+        const isHidden = panel.hidden === true;
 
         function onDragOver(e: React.DragEvent<HTMLDivElement>): void {
           if (!e.dataTransfer.types.includes(DRAG_MIME)) return;
@@ -200,9 +223,11 @@ export function GridCells({
             ? "3px solid var(--c-hover-stroke)"
             : isEditing
               ? "1px dashed transparent"
-              : isSelected && occupied
+              : isSelected && (occupied || isHidden)
                 ? "2px solid var(--c-focus-stroke)"
-                : "1px dashed transparent";
+                : isHidden
+                  ? "1px dashed var(--c-text-faint)"
+                  : "1px dashed transparent";
 
         // Cursor rules:
         //   editing → default (PanelInteractionLayer sits on top with its own)
@@ -224,6 +249,7 @@ export function GridCells({
             data-testid={`panel-${panel.row}-${panel.col}`}
             data-panel-id={panel.id}
             data-mode={isEditing ? "editing" : isSelected ? "selected" : undefined}
+            data-hidden={isHidden ? "true" : undefined}
             style={{
               position: "absolute",
               left: r.x * sx,
@@ -238,7 +264,9 @@ export function GridCells({
               transition: "outline-color 80ms ease, opacity 80ms ease",
               boxSizing: "border-box",
             }}
-          />
+          >
+            {isHidden && <span className="grid-panel-hidden-badge">hidden</span>}
+          </div>
         );
       })}
     </div>

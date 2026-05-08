@@ -498,6 +498,48 @@ body {
   letter-spacing: 0.02em;
 }
 
+/* Empty / hole cells (spec 02). */
+
+.grid-hole {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px dashed var(--c-text-faint);
+  background: transparent;
+  color: var(--c-text-faint);
+  opacity: 0.55;
+  transition: opacity var(--t-fast), background var(--t-fast),
+    border-color var(--t-fast);
+}
+.grid-hole:hover {
+  opacity: 1;
+  background: var(--c-surface-muted);
+  border-color: var(--c-text-muted);
+  color: var(--c-text-muted);
+}
+.grid-hole-glyph {
+  font-size: 24px;
+  line-height: 1;
+  font-weight: 300;
+  pointer-events: none;
+}
+
+.grid-panel-hidden-badge {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  padding: 1px 6px;
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  background: var(--c-surface-sunken);
+  color: var(--c-text-muted);
+  border-radius: var(--r-sm);
+  border: 1px solid var(--c-border);
+  pointer-events: none;
+  font-weight: 600;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 0.01ms !important;

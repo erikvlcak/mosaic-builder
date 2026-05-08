@@ -37,6 +37,9 @@ import {
   setLettersEnabled,
   setImageCalibration,
   setOuterGutter,
+  setPanelHidden,
+  deletePanel,
+  restorePanelAt,
 } from "../../src/renderer/model/figure-actions";
 import { findPanelAt, DEFAULT_TRANSFORM } from "../../src/renderer/model/panels";
 
@@ -1051,3 +1054,145 @@ describe("RESET_FIGURE", () => {
   });
 });
 
+describe("figureReducer (hide / delete / restore — spec 02)", () => {
+  beforeEach(() => {
+    __resetPanelIdsForTests();
+  });
+
+  it("SET_PANEL_HIDDEN sets the flag on an empty panel", () => {
+    const s0 = initialFigureState();
+    const pid = panelIdAt(s0, 0, 0);
+    const s1 = figureReducer(s0, setPanelHidden(pid, true));
+    expect(s1).not.toBe(s0);
+    const p = s1.panels.find((x) => x.id === pid);
+    expect(p?.hidden).toBe(true);
+  });
+
+  it("SET_PANEL_HIDDEN strips the flag rather than storing false", () => {
+    const s0 = initialFigureState();
+    const pid = panelIdAt(s0, 0, 0);
+    const s1 = figureReducer(s0, setPanelHidden(pid, true));
+    const s2 = figureReducer(s1, setPanelHidden(pid, false));
+    const p = s2.panels.find((x) => x.id === pid)!;
+    expect("hidden" in p).toBe(false);
+  });
+
+  it("SET_PANEL_HIDDEN is a no-op when value matches current", () => {
+    const s0 = initialFigureState();
+    const pid = panelIdAt(s0, 0, 0);
+    expect(figureReducer(s0, setPanelHidden(pid, false))).toBe(s0);
+  });
+
+  it("SET_PANEL_HIDDEN refuses to hide an image-bearing panel", () => {
+    let s = withPool(IMG_A);
+    const pid = panelIdAt(s, 0, 0);
+    s = figureReducer(s, placeIntoPanel("a", pid));
+    const before = s;
+    s = figureReducer(s, setPanelHidden(pid, true));
+    expect(s).toBe(before);
+  });
+
+  it("SET_PANEL_HIDDEN no-ops on unknown panel id", () => {
+    const s0 = initialFigureState();
+    expect(figureReducer(s0, setPanelHidden("nope", true))).toBe(s0);
+  });
+
+  it("DELETE_PANEL removes an empty panel and creates a hole", () => {
+    const s0 = initialFigureState();
+    const pid = panelIdAt(s0, 1, 1);
+    const s1 = figureReducer(s0, deletePanel(pid));
+    expect(s1.panels).toHaveLength(3);
+    expect(findPanelAt(s1.panels, 1, 1)).toBeNull();
+  });
+
+  it("DELETE_PANEL refuses to delete an image-bearing panel", () => {
+    let s = withPool(IMG_A);
+    const pid = panelIdAt(s, 0, 0);
+    s = figureReducer(s, placeIntoPanel("a", pid));
+    const before = s;
+    s = figureReducer(s, deletePanel(pid));
+    expect(s).toBe(before);
+  });
+
+  it("DELETE_PANEL drops the per-panel letter override", () => {
+    let s = initialFigureState();
+    const pid = panelIdAt(s, 0, 0);
+    s = figureReducer(s, setLetterOverride(pid, "Z1"));
+    expect(s.letterOverrides[pid]).toBe("Z1");
+    s = figureReducer(s, deletePanel(pid));
+    expect(s.letterOverrides[pid]).toBeUndefined();
+  });
+
+  it("DELETE_PANEL drops annotations anchored to the deleted panel", () => {
+    let s = initialFigureState();
+    const pid = panelIdAt(s, 0, 0);
+    const otherPid = panelIdAt(s, 1, 1);
+    const annoOnDeleted: TextAnnotation = {
+      id: "t-on-deleted",
+      kind: "text",
+      panelId: pid,
+      z: 1,
+      x: 10,
+      y: 10,
+      text: "hi",
+      font: "system-ui",
+      sizePt: 12,
+      bold: false,
+      italic: false,
+      color: "#000000",
+    };
+    const annoOnOther: TextAnnotation = {
+      ...annoOnDeleted,
+      id: "t-on-other",
+      panelId: otherPid,
+    };
+    s = figureReducer(s, addAnnotation(annoOnDeleted));
+    s = figureReducer(s, addAnnotation(annoOnOther));
+    s = figureReducer(s, deletePanel(pid));
+    expect(s.annotations.map((a) => a.id)).toEqual(["t-on-other"]);
+  });
+
+  it("DELETE_PANEL no-ops on unknown panel id", () => {
+    const s0 = initialFigureState();
+    expect(figureReducer(s0, deletePanel("nope"))).toBe(s0);
+  });
+
+  it("RESTORE_PANEL_AT mints a fresh 1x1 panel at a hole", () => {
+    const s0 = initialFigureState();
+    const pid = panelIdAt(s0, 1, 1);
+    const s1 = figureReducer(s0, deletePanel(pid));
+    const s2 = figureReducer(s1, restorePanelAt(1, 1));
+    expect(s2.panels).toHaveLength(4);
+    const restored = findPanelAt(s2.panels, 1, 1);
+    expect(restored).not.toBeNull();
+    expect(restored!.rowSpan).toBe(1);
+    expect(restored!.colSpan).toBe(1);
+    expect(restored!.id).not.toBe(pid);
+  });
+
+  it("RESTORE_PANEL_AT keeps panels sorted in row-major order", () => {
+    const s0 = initialFigureState();
+    const pid = panelIdAt(s0, 0, 1);
+    const s1 = figureReducer(s0, deletePanel(pid));
+    const s2 = figureReducer(s1, restorePanelAt(0, 1));
+    const coords = s2.panels.map((p) => [p.row, p.col]);
+    expect(coords).toEqual([
+      [0, 0],
+      [0, 1],
+      [1, 0],
+      [1, 1],
+    ]);
+  });
+
+  it("RESTORE_PANEL_AT no-ops on a covered cell", () => {
+    const s0 = initialFigureState();
+    expect(figureReducer(s0, restorePanelAt(0, 0))).toBe(s0);
+  });
+
+  it("RESTORE_PANEL_AT no-ops on out-of-bounds coords", () => {
+    const s0 = initialFigureState();
+    expect(figureReducer(s0, restorePanelAt(-1, 0))).toBe(s0);
+    expect(figureReducer(s0, restorePanelAt(0, 99))).toBe(s0);
+    expect(figureReducer(s0, restorePanelAt(2.5, 0))).toBe(s0);
+  });
+});

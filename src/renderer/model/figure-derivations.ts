@@ -23,7 +23,14 @@ export function deriveFigure(
   state: FigureState,
   opts: DeriveOptions,
 ): Figure {
-  const panels: HardCodedPanel[] = state.panels.map((p) => {
+  // Hidden panels are filtered out of the rendered figure: from the
+  // export's perspective they're identical to holes (no placeholder, no
+  // letter, no anchored annotation). They survive in `state.panels` so
+  // the editor can paint a "hidden" badge and so toggling Hide off is a
+  // simple flag-flip rather than a panel-recreate.
+  const visiblePanels = state.panels.filter((p) => p.hidden !== true);
+
+  const panels: HardCodedPanel[] = visiblePanels.map((p) => {
     if (p.imageId !== undefined) {
       return {
         panelId: p.id,
@@ -50,11 +57,11 @@ export function deriveFigure(
     };
   });
 
-  // Synthesise letter annotations (z=0) for each panel in row-major order.
-  // The annotation pass DOES NOT depend on globalStyle.letters.enabled here —
-  // drawAnnotations checks the flag at render time so toggling doesn't
-  // require a re-derive.
-  const letters: ResolvedAnnotation[] = state.panels.map((p) => {
+  // Synthesise letter annotations (z=0) for each visible panel in
+  // row-major order. The annotation pass DOES NOT depend on
+  // globalStyle.letters.enabled here — drawAnnotations checks the flag
+  // at render time so toggling doesn't require a re-derive.
+  const letters: ResolvedAnnotation[] = visiblePanels.map((p) => {
     const tlIndex = p.row * state.cols + p.col;
     const auto = cellLabel(tlIndex);
     const text = state.letterOverrides[p.id] ?? auto;
@@ -67,9 +74,11 @@ export function deriveFigure(
     };
   });
 
-  // User annotations: filter to those whose panelId (if set) still resolves.
-  // Scale bars get `resolvedPanelId` for renderer convenience.
-  const panelIds = new Set(state.panels.map((p) => p.id));
+  // User annotations: filter to those whose panelId (if set) still
+  // resolves to a *visible* panel. Annotations anchored to hidden panels
+  // disappear from the export alongside their host. Scale bars get
+  // `resolvedPanelId` for renderer convenience.
+  const panelIds = new Set(visiblePanels.map((p) => p.id));
   const userAnnos: ResolvedAnnotation[] = state.annotations
     .filter((a) => a.panelId === undefined || panelIds.has(a.panelId))
     .map((a) => {

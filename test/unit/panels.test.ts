@@ -3,6 +3,8 @@ import {
   panelCovers,
   findPanelAt,
   assertPanelsCoverGrid,
+  assertPanelsValid,
+  cellsWithoutPanel,
   type Panel,
 } from "../../src/renderer/model/panels";
 
@@ -70,5 +72,65 @@ describe("assertPanelsCoverGrid", () => {
   it("throws on gap", () => {
     const ps: Panel[] = [def("a", 0, 0)];
     expect(() => assertPanelsCoverGrid(ps, 1, 2)).toThrow(/gap|uncovered/i);
+  });
+});
+
+describe("assertPanelsValid (relaxed: holes allowed)", () => {
+  it("passes on a full partition", () => {
+    const ps: Panel[] = [
+      def("a", 0, 0),
+      def("b", 0, 1),
+      def("c", 1, 0),
+      def("d", 1, 1),
+    ];
+    expect(() => assertPanelsValid(ps, 2, 2)).not.toThrow();
+  });
+
+  it("passes when there's a hole", () => {
+    const ps: Panel[] = [def("a", 0, 0), def("b", 0, 1), def("c", 1, 0)];
+    // (1,1) is uncovered — that's fine here.
+    expect(() => assertPanelsValid(ps, 2, 2)).not.toThrow();
+  });
+
+  it("still rejects overlap", () => {
+    const ps: Panel[] = [def("a", 0, 0, 1, 2), def("b", 0, 1)];
+    expect(() => assertPanelsValid(ps, 1, 2)).toThrow(/overlap/i);
+  });
+
+  it("still rejects out-of-bounds spans", () => {
+    const ps: Panel[] = [def("a", 0, 0, 2, 1)];
+    expect(() => assertPanelsValid(ps, 1, 1)).toThrow(/out of bounds/i);
+  });
+});
+
+describe("cellsWithoutPanel", () => {
+  it("returns [] on a full partition", () => {
+    const ps: Panel[] = [
+      def("a", 0, 0),
+      def("b", 0, 1),
+      def("c", 1, 0),
+      def("d", 1, 1),
+    ];
+    expect(cellsWithoutPanel(ps, 2, 2)).toEqual([]);
+  });
+
+  it("returns hole cells in row-major order", () => {
+    const ps: Panel[] = [def("a", 0, 0), def("d", 1, 1)];
+    expect(cellsWithoutPanel(ps, 2, 2)).toEqual([
+      { row: 0, col: 1 },
+      { row: 1, col: 0 },
+    ]);
+  });
+
+  it("treats merged panels as covering their full rect", () => {
+    const ps: Panel[] = [def("hero", 0, 0, 2, 2)];
+    expect(cellsWithoutPanel(ps, 2, 2)).toEqual([]);
+  });
+
+  it("returns every cell when there are no panels", () => {
+    expect(cellsWithoutPanel([], 1, 2)).toEqual([
+      { row: 0, col: 0 },
+      { row: 0, col: 1 },
+    ]);
   });
 });

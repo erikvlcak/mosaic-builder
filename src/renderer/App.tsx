@@ -38,6 +38,7 @@ import {
   setLettersEnabled,
   resetFigureAction,
   unplacePanel,
+  restorePanelAt,
 } from "./model/figure-actions";
 import { useHistoryReducer } from "./state/use-history-reducer";
 import { applyLoadedProject } from "./state/load-project";
@@ -240,6 +241,16 @@ export function App(): JSX.Element {
       setPanelInteraction({ mode: "editing", panelId });
     },
     [],
+  );
+
+  const onHoleClick = useCallback(
+    (row: number, col: number) => {
+      dispatch(restorePanelAt(row, col));
+      // Drop merge selection — clicking a hole shouldn't leave behind
+      // ghost shift-click marks on neighboring cells.
+      selection.clear();
+    },
+    [dispatch, selection],
   );
 
   const onSetFit = useCallback(
@@ -587,6 +598,7 @@ export function App(): JSX.Element {
               panelInteraction={panelInteraction}
               onPanelClick={onPanelSingleClick}
               onPanelDoubleClick={onPanelDoubleClick}
+              onHoleClick={onHoleClick}
             />
             {editingIdOf(panelInteraction) !== null &&
               selectedImagePanel !== undefined &&

@@ -136,4 +136,66 @@ describe("deriveFigure", () => {
     );
     if (cLetter?.kind === "letter") expect(cLetter.text).toBe("C");
   });
+
+  it("filters hidden panels out of the derived figure", () => {
+    const s = initialFigureState();
+    s.panels = [
+      { id: "a", row: 0, col: 0, rowSpan: 1, colSpan: 1 },
+      { id: "b", row: 0, col: 1, rowSpan: 1, colSpan: 1, hidden: true },
+      { id: "c", row: 1, col: 0, rowSpan: 1, colSpan: 1 },
+      { id: "d", row: 1, col: 1, rowSpan: 1, colSpan: 1 },
+    ];
+    const f = deriveFigure(s, { canvas: CANVAS });
+    expect(f.panels.map((p) => p.panelId)).toEqual(["a", "c", "d"]);
+    const letters = f.annotations.filter((a) => a.kind === "letter");
+    expect(letters.map((l) => (l.kind === "letter" ? l.panelId : ""))).toEqual([
+      "a",
+      "c",
+      "d",
+    ]);
+  });
+
+  it("drops annotations anchored to hidden panels", () => {
+    const s = initialFigureState();
+    s.panels = [
+      { id: "a", row: 0, col: 0, rowSpan: 1, colSpan: 1 },
+      { id: "b", row: 0, col: 1, rowSpan: 1, colSpan: 1, hidden: true },
+    ];
+    s.annotations = [
+      {
+        id: "t1",
+        kind: "text",
+        panelId: "b",
+        z: 1,
+        x: 0,
+        y: 0,
+        text: "x",
+        font: "system-ui",
+        sizePt: 12,
+        bold: false,
+        italic: false,
+        color: "#000000",
+      },
+    ];
+    const f = deriveFigure(s, { canvas: CANVAS });
+    expect(f.annotations.filter((a) => a.kind !== "letter")).toEqual([]);
+  });
+
+  it("treats holes (uncovered cells) as absent — no panel, no letter", () => {
+    const s = initialFigureState();
+    // Drop the (1,1) panel — leave a hole.
+    s.panels = [
+      { id: "a", row: 0, col: 0, rowSpan: 1, colSpan: 1 },
+      { id: "b", row: 0, col: 1, rowSpan: 1, colSpan: 1 },
+      { id: "c", row: 1, col: 0, rowSpan: 1, colSpan: 1 },
+    ];
+    const f = deriveFigure(s, { canvas: CANVAS });
+    expect(f.panels).toHaveLength(3);
+    const letters = f.annotations.filter((a) => a.kind === "letter");
+    expect(letters.map((l) => (l.kind === "letter" ? l.text : ""))).toEqual([
+      "A",
+      "B",
+      "C",
+    ]);
+  });
 });

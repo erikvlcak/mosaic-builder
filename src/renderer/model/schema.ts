@@ -119,6 +119,9 @@ function validatePanels(x: unknown, path: string): Result<Panel[]> {
     if (!isInt(p.rowSpan) || p.rowSpan < 1) return err(`${path}[${i}].rowSpan`);
     if (!isInt(p.colSpan) || p.colSpan < 1) return err(`${path}[${i}].colSpan`);
     if (p.imageId !== undefined && !isStr(p.imageId)) return err(`${path}[${i}].imageId`);
+    if (p.hidden !== undefined && typeof p.hidden !== "boolean") {
+      return err(`${path}[${i}].hidden`);
+    }
     if (p.transform !== undefined) {
       const t = p.transform;
       if (!isObj(t)) return err(`${path}[${i}].transform: expected object`);

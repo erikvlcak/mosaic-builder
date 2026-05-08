@@ -68,6 +68,7 @@ function renderGrid(opts: {
       panelInteraction={opts.interaction}
       onPanelClick={onPanelClick}
       onPanelDoubleClick={onPanelDoubleClick}
+      onHoleClick={vi.fn()}
     />,
   );
   return { state, onPanelClick, onPanelDoubleClick };
@@ -111,6 +112,7 @@ describe("GridCells — selected vs editing modes", () => {
         panelInteraction={{ mode: "selected", panelId: p.id }}
         onPanelClick={vi.fn()}
         onPanelDoubleClick={vi.fn()}
+        onHoleClick={vi.fn()}
       />,
     );
     expect(
@@ -134,6 +136,7 @@ describe("GridCells — selected vs editing modes", () => {
         panelInteraction={{ mode: "editing", panelId: p.id }}
         onPanelClick={vi.fn()}
         onPanelDoubleClick={vi.fn()}
+        onHoleClick={vi.fn()}
       />,
     );
     expect(
@@ -157,6 +160,7 @@ describe("GridCells — selected vs editing modes", () => {
         panelInteraction={{ mode: "selected", panelId: p.id }}
         onPanelClick={vi.fn()}
         onPanelDoubleClick={vi.fn()}
+        onHoleClick={vi.fn()}
       />,
     );
     const el = screen.getByTestId(`panel-${p.row}-${p.col}`);
@@ -182,6 +186,7 @@ describe("GridCells — selected vs editing modes", () => {
         panelInteraction={{ mode: "editing", panelId: p.id }}
         onPanelClick={vi.fn()}
         onPanelDoubleClick={vi.fn()}
+        onHoleClick={vi.fn()}
       />,
     );
     const el = screen.getByTestId(`panel-${p.row}-${p.col}`);
@@ -208,6 +213,7 @@ describe("GridCells — selected vs editing modes", () => {
         panelInteraction={null}
         onPanelClick={onPanelClick}
         onPanelDoubleClick={onPanelDoubleClick}
+        onHoleClick={vi.fn()}
       />,
     );
     fireEvent.click(screen.getByTestId(`panel-${p.row}-${p.col}`), {
@@ -238,11 +244,90 @@ describe("GridCells — selected vs editing modes", () => {
         panelInteraction={{ mode: "selected", panelId: emptyPanel.id }}
         onPanelClick={vi.fn()}
         onPanelDoubleClick={vi.fn()}
+        onHoleClick={vi.fn()}
       />,
     );
     const el = screen.getByTestId(`panel-${emptyPanel.row}-${emptyPanel.col}`);
     // Falls through to the transparent dashed default — no green focus stroke.
     expect(el.style.outline).toContain("dashed transparent");
     expect(el.style.outline).not.toContain("var(--c-focus-stroke)");
+  });
+});
+
+describe("GridCells — hidden panels and holes (spec 02)", () => {
+  it("renders the 'hidden' badge for a hidden panel", () => {
+    const s = stateWithImage();
+    s.panels = s.panels.map((p, i) =>
+      i === 1 ? { ...p, hidden: true } : p,
+    );
+    const hiddenPanel = s.panels[1]!;
+    render(
+      <GridCells
+        state={s}
+        figurePxW={800}
+        figurePxH={600}
+        cssW={800}
+        cssH={600}
+        onDrop={vi.fn()}
+        selection={new Set()}
+        onCellShiftClick={vi.fn()}
+        panelInteraction={null}
+        onPanelClick={vi.fn()}
+        onPanelDoubleClick={vi.fn()}
+        onHoleClick={vi.fn()}
+      />,
+    );
+    const el = screen.getByTestId(
+      `panel-${hiddenPanel.row}-${hiddenPanel.col}`,
+    );
+    expect(el.getAttribute("data-hidden")).toBe("true");
+    expect(el.querySelector(".grid-panel-hidden-badge")).not.toBeNull();
+  });
+
+  it("renders a hole cell when a panel is missing for a coord", () => {
+    const s = stateWithImage();
+    // Drop the (1,1) panel.
+    s.panels = s.panels.filter((p) => !(p.row === 1 && p.col === 1));
+    render(
+      <GridCells
+        state={s}
+        figurePxW={800}
+        figurePxH={600}
+        cssW={800}
+        cssH={600}
+        onDrop={vi.fn()}
+        selection={new Set()}
+        onCellShiftClick={vi.fn()}
+        panelInteraction={null}
+        onPanelClick={vi.fn()}
+        onPanelDoubleClick={vi.fn()}
+        onHoleClick={vi.fn()}
+      />,
+    );
+    expect(screen.getByTestId("hole-1-1")).toBeTruthy();
+  });
+
+  it("clicking a hole calls onHoleClick with the cell coords", () => {
+    const s = stateWithImage();
+    s.panels = s.panels.filter((p) => !(p.row === 1 && p.col === 1));
+    const onHoleClick = vi.fn();
+    render(
+      <GridCells
+        state={s}
+        figurePxW={800}
+        figurePxH={600}
+        cssW={800}
+        cssH={600}
+        onDrop={vi.fn()}
+        selection={new Set()}
+        onCellShiftClick={vi.fn()}
+        panelInteraction={null}
+        onPanelClick={vi.fn()}
+        onPanelDoubleClick={vi.fn()}
+        onHoleClick={onHoleClick}
+      />,
+    );
+    fireEvent.click(screen.getByTestId("hole-1-1"));
+    expect(onHoleClick).toHaveBeenCalledWith(1, 1);
   });
 });

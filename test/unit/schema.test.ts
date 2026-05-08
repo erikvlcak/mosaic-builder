@@ -104,4 +104,38 @@ describe("validateMosaicFile", () => {
     expect(validateMosaicFile({ ...MIN_VALID, state: { ...MIN_VALID.state, rows: 0 } }).ok).toBe(false);
     expect(validateMosaicFile({ ...MIN_VALID, state: { ...MIN_VALID.state, rows: 11 } }).ok).toBe(false);
   });
+
+  it("accepts panels with optional `hidden: true`", () => {
+    const ok = {
+      ...MIN_VALID,
+      state: {
+        ...MIN_VALID.state,
+        panels: [
+          { id: "p1", row: 0, col: 0, rowSpan: 1, colSpan: 1, hidden: true },
+          { id: "p2", row: 0, col: 1, rowSpan: 1, colSpan: 1 },
+          { id: "p3", row: 1, col: 0, rowSpan: 1, colSpan: 1 },
+          { id: "p4", row: 1, col: 1, rowSpan: 1, colSpan: 1 },
+        ],
+      },
+    };
+    expect(validateMosaicFile(ok).ok).toBe(true);
+  });
+
+  it("rejects non-boolean `hidden` field", () => {
+    const bad = {
+      ...MIN_VALID,
+      state: {
+        ...MIN_VALID.state,
+        panels: [
+          { id: "p1", row: 0, col: 0, rowSpan: 1, colSpan: 1, hidden: "yes" },
+          { id: "p2", row: 0, col: 1, rowSpan: 1, colSpan: 1 },
+          { id: "p3", row: 1, col: 0, rowSpan: 1, colSpan: 1 },
+          { id: "p4", row: 1, col: 1, rowSpan: 1, colSpan: 1 },
+        ],
+      },
+    };
+    const r = validateMosaicFile(bad);
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error).toContain("hidden");
+  });
 });

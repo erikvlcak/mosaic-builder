@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { PropertiesPanel } from "../../src/renderer/components/Properties/PropertiesPanel";
 import { initialFigureState } from "../../src/renderer/model/figure-state";
 import type { Panel, PanelTransform } from "../../src/renderer/model/panels";
@@ -60,5 +60,53 @@ describe("PropertiesPanel routes by selection", () => {
       />,
     );
     expect(screen.getByLabelText("Subpanel letter")).toBeTruthy();
+  });
+
+  it("renders EmptyPanelForm with Hide + Delete for an empty focused panel", () => {
+    const focusedPanel: Panel = {
+      id: "p1", row: 0, col: 0, rowSpan: 1, colSpan: 1,
+    };
+    const dispatch = vi.fn();
+    render(
+      <PropertiesPanel
+        state={initialFigureState()}
+        focusedPanel={focusedPanel}
+        selectedAnno={undefined}
+        dispatch={dispatch}
+        commit={{ markDirty: vi.fn(), flush: vi.fn() }}
+        onCalibrate={() => {}}
+      />,
+    );
+    const hide = screen.getByRole("button", { name: /^Hide$/ });
+    const del = screen.getByRole("button", { name: /^Delete$/ });
+    fireEvent.click(hide);
+    expect(dispatch).toHaveBeenCalledWith({
+      type: "SET_PANEL_HIDDEN",
+      panelId: "p1",
+      hidden: true,
+    });
+    fireEvent.click(del);
+    expect(dispatch).toHaveBeenCalledWith({
+      type: "DELETE_PANEL",
+      panelId: "p1",
+    });
+  });
+
+  it("renders EmptyPanelForm with Show button for a hidden focused panel", () => {
+    const focusedPanel: Panel = {
+      id: "p1", row: 0, col: 0, rowSpan: 1, colSpan: 1, hidden: true,
+    };
+    render(
+      <PropertiesPanel
+        state={initialFigureState()}
+        focusedPanel={focusedPanel}
+        selectedAnno={undefined}
+        dispatch={vi.fn()}
+        commit={{ markDirty: vi.fn(), flush: vi.fn() }}
+        onCalibrate={() => {}}
+      />,
+    );
+    expect(screen.getByRole("button", { name: /^Show$/ })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /^Hide$/ })).toBeNull();
   });
 });

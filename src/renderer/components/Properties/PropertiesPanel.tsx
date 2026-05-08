@@ -1,12 +1,17 @@
 import type { Dispatch } from "react";
 import type { FigureState } from "../../model/figure-state";
 import type { FigureAction } from "../../model/figure-actions";
+import {
+  setPanelHidden,
+  deletePanel,
+} from "../../model/figure-actions";
 import type { Annotation } from "../../model/annotations";
 import type { Panel, PanelTransform } from "../../model/panels";
 import type { FieldCommit } from "../../hooks/useFieldCommit";
 import { CanvasAndGlobalStyleForm } from "./CanvasAndGlobalStyleForm";
 import { AnnotationPropertiesForm } from "./AnnotationPropertiesForm";
 import { PanelPropertiesForm } from "./PanelPropertiesForm";
+import { EmptyPanelForm } from "./EmptyPanelForm";
 
 interface Props {
   state: FigureState;
@@ -59,6 +64,26 @@ export function PropertiesPanel({
         dispatch={dispatch}
         commit={commit}
         onCalibrate={onCalibrate}
+      />
+    );
+  } else if (focusedPanel !== undefined) {
+    // Empty panel — no image, no transform. Hide / Delete live here.
+    const isHidden = focusedPanel.hidden === true;
+    title = "Selected panel";
+    subtitle = `Row ${focusedPanel.row + 1}, col ${focusedPanel.col + 1} — empty${
+      isHidden ? " (hidden)" : ""
+    }`;
+    body = (
+      <EmptyPanelForm
+        hidden={isHidden}
+        onToggleHidden={() => {
+          dispatch(setPanelHidden(focusedPanel.id, !isHidden));
+          commit.flush();
+        }}
+        onDelete={() => {
+          dispatch(deletePanel(focusedPanel.id));
+          commit.flush();
+        }}
       />
     );
   } else {

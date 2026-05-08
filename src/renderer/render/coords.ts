@@ -21,14 +21,31 @@ export interface PanelRect {
  * whose right edge sits on the grid's last column absorbs `wRemainder`,
  * so the right edge always lands on `widthPx - outerOffset`. Same for rows.
  */
-export function computePanelRects(figure: Figure): PanelRect[] {
-  const { widthPx, heightPx } = figure.canvas;
-  const { rows, cols, gutterPx } = figure.grid;
-  const outerGutter = figure.grid.outerGutter ?? true;
+export interface GridLayout {
+  rows: number;
+  cols: number;
+  gutterPx: number;
+  outerOffset: number;
+  cellW: number;
+  cellH: number;
+  wRemainder: number;
+  hRemainder: number;
+}
 
-  // Outer band: one gutter on each edge if enabled, else none.
+/**
+ * Pre-compute the per-cell metrics for a figure layout. Reused by
+ * `computePanelRects` and by the editor overlay (GridCells) when it
+ * needs to position holes/empty cells without re-deriving the math.
+ */
+export function computeGridLayout(
+  widthPx: number,
+  heightPx: number,
+  rows: number,
+  cols: number,
+  gutterPx: number,
+  outerGutter: boolean,
+): GridLayout {
   const outerOffset = outerGutter ? gutterPx : 0;
-  // Total gutter consumed along the axis: 2 outer (if any) + (n-1) interior.
   const totalGuttersW = (outerGutter ? 2 : 0) + (cols - 1);
   const totalGuttersH = (outerGutter ? 2 : 0) + (rows - 1);
   const availW = widthPx - gutterPx * totalGuttersW;
@@ -37,21 +54,56 @@ export function computePanelRects(figure: Figure): PanelRect[] {
   const cellH = Math.floor(availH / rows);
   const wRemainder = availW - cellW * cols;
   const hRemainder = availH - cellH * rows;
+  return { rows, cols, gutterPx, outerOffset, cellW, cellH, wRemainder, hRemainder };
+}
 
-  return figure.panels.map((p: HardCodedPanel): PanelRect => {
-    const rowSpan = p.rowSpan ?? 1;
-    const colSpan = p.colSpan ?? 1;
-    const lastColInPanel = p.col + colSpan - 1;
-    const lastRowInPanel = p.row + rowSpan - 1;
+/**
+ * Compute the rect for a region spanning `(row, col)` through
+ * `(row+rowSpan-1, col+colSpan-1)` against a cached `GridLayout`.
+ * Width remainders are absorbed when the right/bottom edge of the rect
+ * sits on the last column/row of the grid — same rule as `computePanelRects`.
+ */
+export function computeCellRect(
+  layout: GridLayout,
+  row: number,
+  col: number,
+  rowSpan = 1,
+  colSpan = 1,
+): PanelRect {
+  const { rows, cols, gutterPx, outerOffset, cellW, cellH, wRemainder, hRemainder } = layout;
+  const lastCol = col + colSpan - 1;
+  const lastRow = row + rowSpan - 1;
+  const baseW = colSpan * cellW + (colSpan - 1) * gutterPx;
+  const baseH = rowSpan * cellH + (rowSpan - 1) * gutterPx;
+  const w = baseW + (lastCol === cols - 1 ? wRemainder : 0);
+  const h = baseH + (lastRow === rows - 1 ? hRemainder : 0);
+  const x = outerOffset + col * (cellW + gutterPx);
+  const y = outerOffset + row * (cellH + gutterPx);
+  return { x, y, w, h };
+}
 
-    const baseW = colSpan * cellW + (colSpan - 1) * gutterPx;
-    const baseH = rowSpan * cellH + (rowSpan - 1) * gutterPx;
-    const w = baseW + (lastColInPanel === cols - 1 ? wRemainder : 0);
-    const h = baseH + (lastRowInPanel === rows - 1 ? hRemainder : 0);
-    const x = outerOffset + p.col * (cellW + gutterPx);
-    const y = outerOffset + p.row * (cellH + gutterPx);
-    return { x, y, w, h };
-  });
+export function computePanelRects(figure: Figure): PanelRect[] {
+  const { widthPx, heightPx } = figure.canvas;
+  const { rows, cols, gutterPx } = figure.grid;
+  const outerGutter = figure.grid.outerGutter ?? true;
+  const layout = computeGridLayout(
+    widthPx,
+    heightPx,
+    rows,
+    cols,
+    gutterPx,
+    outerGutter,
+  );
+  return figure.panels.map(
+    (p: HardCodedPanel): PanelRect =>
+      computeCellRect(
+        layout,
+        p.row,
+        p.col,
+        p.rowSpan ?? 1,
+        p.colSpan ?? 1,
+      ),
+  );
 }
 
 // ---------------------------------------------------------------------------

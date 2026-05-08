@@ -1,8 +1,8 @@
 import type { ImagePoolItem, Calibration } from "./pool";
 import type { Panel, PanelTransform, FitMode, Rotation } from "./panels";
-import { DEFAULT_TRANSFORM } from "./panels";
+import { DEFAULT_TRANSFORM, findPanelAt } from "./panels";
 import type { FigureState } from "./figure-state";
-import { initialFigureState } from "./figure-state";
+import { initialFigureState, newPanelId } from "./figure-state";
 import { resizePanels } from "./grid-resize";
 import { canMergeSelection, mergePanels, unmergePanel, type CellCoord } from "./merge";
 import type { Annotation, AnnotationKind } from "./annotations";
@@ -34,6 +34,9 @@ export type FigureAction =
   | { type: "SET_GLOBAL_STYLE"; style: GlobalAnnoStyle }
   | { type: "SET_LETTERS_ENABLED"; enabled: boolean }
   | { type: "SET_IMAGE_CALIBRATION"; imageId: string; calibration: Calibration | null }
+  | { type: "SET_PANEL_HIDDEN"; panelId: string; hidden: boolean }
+  | { type: "DELETE_PANEL"; panelId: string }
+  | { type: "RESTORE_PANEL_AT"; row: number; col: number }
   | { type: "RESET_TO_STATE"; state: FigureState }
   | { type: "RESET_FIGURE" };
 
@@ -139,6 +142,19 @@ export const setImageCalibration = (
   imageId: string,
   calibration: Calibration | null,
 ): FigureAction => ({ type: "SET_IMAGE_CALIBRATION", imageId, calibration });
+export const setPanelHidden = (
+  panelId: string,
+  hidden: boolean,
+): FigureAction => ({ type: "SET_PANEL_HIDDEN", panelId, hidden });
+export const deletePanel = (panelId: string): FigureAction => ({
+  type: "DELETE_PANEL",
+  panelId,
+});
+export const restorePanelAt = (row: number, col: number): FigureAction => ({
+  type: "RESTORE_PANEL_AT",
+  row,
+  col,
+});
 export const resetToState = (state: FigureState): FigureAction => ({
   type: "RESET_TO_STATE",
   state,
@@ -170,9 +186,24 @@ function setPanelImage(
     p.id === panelId
       ? imageId === undefined
         ? omitImage(p)
-        : { ...p, imageId, transform: DEFAULT_TRANSFORM }
+        : withFreshImage(p, imageId)
       : p,
   );
+}
+
+function withFreshImage(p: Panel, imageId: string): Panel {
+  // Placing an image must clear `hidden` — it's defined only for empty panels.
+  // The reducer rejects setting `hidden` on image-bearing panels, but we
+  // clear here too so any state-rebuild path can't smuggle the flag in.
+  return {
+    id: p.id,
+    row: p.row,
+    col: p.col,
+    rowSpan: p.rowSpan,
+    colSpan: p.colSpan,
+    imageId,
+    transform: DEFAULT_TRANSFORM,
+  };
 }
 
 function omitImage(p: Panel): Panel {
@@ -193,7 +224,17 @@ function withImage(
   if (imageId === undefined || transform === undefined) {
     return omitImage(p);
   }
-  return { ...p, imageId, transform };
+  // Same hidden-clearing reasoning as withFreshImage: an image-bearing
+  // panel cannot also be hidden.
+  return {
+    id: p.id,
+    row: p.row,
+    col: p.col,
+    rowSpan: p.rowSpan,
+    colSpan: p.colSpan,
+    imageId,
+    transform,
+  };
 }
 
 function mapPanel(
@@ -558,6 +599,68 @@ export function figureReducer(s: FigureState, a: FigureAction): FigureState {
       const pool = s.pool.slice();
       pool[idx] = next;
       return { ...s, pool };
+    }
+
+    case "SET_PANEL_HIDDEN": {
+      const target = findPanelById(s.panels, a.panelId);
+      if (target === undefined) return s;
+      // Hidden is exclusive with content: an image-bearing panel must
+      // be unplaced first (the UI hides the Hide control in that state).
+      if (target.imageId !== undefined) return s;
+      const current = target.hidden ?? false;
+      if (current === a.hidden) return s;
+      const r = mapPanel(s.panels, a.panelId, (p) => {
+        if (a.hidden) return { ...p, hidden: true };
+        // Strip the field rather than storing `hidden: false` so the
+        // serialized form stays clean (hidden is `?` ⇔ false).
+        const { hidden: _h, ...rest } = p;
+        return rest;
+      });
+      return r.changed ? { ...s, panels: r.panels } : s;
+    }
+
+    case "DELETE_PANEL": {
+      const target = findPanelById(s.panels, a.panelId);
+      if (target === undefined) return s;
+      // Same content-exclusion rule as Hide.
+      if (target.imageId !== undefined) return s;
+      const panels = s.panels.filter((p) => p.id !== a.panelId);
+      // Drop the per-panel letter override and any annotations anchored
+      // to this panel (text/arrow/box keyed by panelId, plus scale bars
+      // — though scale bars require an image and so won't appear here).
+      const letterOverrides = deleteOverride(s.letterOverrides, a.panelId);
+      const annotations = s.annotations.filter(
+        (an) => an.panelId !== a.panelId,
+      );
+      return { ...s, panels, letterOverrides, annotations };
+    }
+
+    case "RESTORE_PANEL_AT": {
+      if (
+        !Number.isInteger(a.row) ||
+        !Number.isInteger(a.col) ||
+        a.row < 0 ||
+        a.col < 0 ||
+        a.row >= s.rows ||
+        a.col >= s.cols
+      ) {
+        return s;
+      }
+      // No-op if the cell is already covered.
+      if (findPanelAt(s.panels, a.row, a.col) !== null) return s;
+      const fresh: Panel = {
+        id: newPanelId(),
+        row: a.row,
+        col: a.col,
+        rowSpan: 1,
+        colSpan: 1,
+      };
+      // Keep the array sorted in row-major order so iteration order is
+      // stable for letter-label derivation and rendering.
+      const panels = [...s.panels, fresh].sort(
+        (p, q) => p.row - q.row || p.col - q.col,
+      );
+      return { ...s, panels };
     }
 
     case "RESET_TO_STATE": {
