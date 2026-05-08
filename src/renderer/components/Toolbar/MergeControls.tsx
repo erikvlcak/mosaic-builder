@@ -12,12 +12,10 @@ export function MergeControls({
   onUnmerge,
 }: Props): JSX.Element {
   return (
-    <>
-      <span className="toolbar-divider" aria-hidden="true" />
-      <div
-        data-testid="merge-controls"
-        style={{ display: "flex", gap: 6, alignItems: "center" }}
-      >
+    <div
+      data-testid="merge-controls"
+      style={{ display: "flex", gap: 6, alignItems: "center" }}
+    >
         <button
           type="button"
           className="btn"
@@ -38,7 +36,6 @@ export function MergeControls({
         >
           Unmerge
         </button>
-      </div>
-    </>
+    </div>
   );
 }

@@ -27,12 +27,10 @@ export function AnnotationToolbar({
   onToggleLetters,
 }: Props): JSX.Element {
   return (
-    <>
-      <span className="toolbar-divider" aria-hidden="true" />
-      <div
-        data-testid="annotation-toolbar"
-        style={{ display: "flex", gap: 8, alignItems: "center" }}
-      >
+    <div
+      data-testid="annotation-toolbar"
+      style={{ display: "flex", gap: 8, alignItems: "center" }}
+    >
         <div className="seg" role="group" aria-label="Annotation tool">
           {TOOLS.map((t) => (
             <button
@@ -60,7 +58,6 @@ export function AnnotationToolbar({
           />
           Letters
         </label>
-      </div>
-    </>
+    </div>
   );
 }

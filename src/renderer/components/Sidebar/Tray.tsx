@@ -35,8 +35,28 @@ export function Tray({
         className="btn btn-primary"
         onClick={onAddImagesClick}
         data-testid="add-images"
-        style={{ width: "100%", padding: "7px 10px" }}
+        style={{
+          width: "100%",
+          padding: "7px 10px",
+          display: "inline-flex",
+          alignItems: "center",
+          justifyContent: "center",
+        }}
       >
+        <svg
+          className="tray-add-icon"
+          viewBox="0 0 16 16"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.6"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden="true"
+        >
+          <rect x="2" y="3" width="12" height="10" rx="1.5" />
+          <path d="M2 11l3.5-3.5 3 3 2-2L14 11" />
+          <circle cx="10.5" cy="6" r="1" fill="currentColor" stroke="none" />
+        </svg>
         Add images…
       </button>
 
@@ -89,21 +109,12 @@ function Section({
 }): JSX.Element {
   return (
     <div style={{ marginTop: 4 }}>
-      <div
-        style={{
-          display: "flex",
-          alignItems: "baseline",
-          justifyContent: "space-between",
-          gap: 8,
-        }}
-      >
+      <div className="tray-section-row">
         <h2 className="section-heading">{label}</h2>
-        <span style={{ fontSize: 11, color: "var(--c-text-faint)", fontVariantNumeric: "tabular-nums" }}>
-          {count}
-        </span>
+        <span className="tray-section-count">{count}</span>
       </div>
       {hint !== undefined && count > 0 && (
-        <div style={{ fontSize: 11, color: "var(--c-text-faint)", marginTop: 2 }}>
+        <div style={{ fontSize: 11, color: "var(--c-text-faint)", marginTop: 4 }}>
           {hint}
         </div>
       )}

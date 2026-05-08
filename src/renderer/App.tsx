@@ -418,81 +418,86 @@ export function App(): JSX.Element {
         flexDirection: "column",
       }}
     >
-      <header
-        className="app-header"
-        style={{
-          padding: "8px 12px",
-          display: "flex",
-          alignItems: "center",
-          gap: 10,
-          flexWrap: "wrap",
-        }}
-      >
-        <h1 className="app-title">Mosaic Builder</h1>
-        <span className="toolbar-divider" aria-hidden="true" />
-        <button
-          type="button"
-          className="btn"
-          onClick={() => {
-            void onOpenProject();
-          }}
-          data-testid="open-project"
-        >
-          Open…
-        </button>
-        <button
-          type="button"
-          className="btn"
-          onClick={() => {
-            void onSaveProject();
-          }}
-          data-testid="save-project"
-        >
-          Save
-        </button>
-        <ExportMenu
-          figure={figure}
-          images={bitmaps}
-          pool={imagesByIdMemo}
-          poolList={state.pool}
-          rows={state.rows}
-          cols={state.cols}
-          gutterPx={state.gutterPx}
-        />
-        <GridControls
-          rows={state.rows}
-          cols={state.cols}
-          gutterPx={state.gutterPx}
-          gutterColor={state.gutterColor}
-          onChangeRows={(rows) => dispatch(resizeGrid(rows, state.cols))}
-          onChangeCols={(cols) => dispatch(resizeGrid(state.rows, cols))}
-          onChangeGutterPx={(px) => dispatch(setGutterPx(px))}
-          onChangeGutterColor={(c) => dispatch(setGutterColor(c))}
-        />
-        <MergeControls
-          canMerge={canMerge}
-          canUnmerge={canUnmerge}
-          onMerge={onMerge}
-          onUnmerge={onUnmerge}
-        />
-        <PanelControls
-          transform={selectedImagePanel?.transform ?? null}
-          onSetFit={onSetFit}
-          onRotate90={onRotate90}
-          onFlipH={onFlipH}
-          onFlipV={onFlipV}
-          onReset={onResetTransform}
-          onCalibrate={onCalibrate}
-        />
-        <AnnotationToolbar
-          active={activeTool}
-          onChange={setActiveTool}
-          lettersEnabled={state.globalStyle.letters.enabled}
-          onToggleLetters={() =>
-            dispatch(setLettersEnabled(!state.globalStyle.letters.enabled))
-          }
-        />
-      </header>
+      <div className="app-bar">
+        <div className="app-bar-left">
+          <h1 className="app-title">Mosaic Builder</h1>
+          <span className="toolbar-divider" aria-hidden="true" />
+          <button
+            type="button"
+            className="btn"
+            onClick={() => {
+              void onOpenProject();
+            }}
+            data-testid="open-project"
+          >
+            Open…
+          </button>
+          <button
+            type="button"
+            className="btn"
+            onClick={() => {
+              void onSaveProject();
+            }}
+            data-testid="save-project"
+          >
+            Save
+          </button>
+        </div>
+        <div className="app-bar-right">
+          <ExportMenu
+            figure={figure}
+            images={bitmaps}
+            pool={imagesByIdMemo}
+            poolList={state.pool}
+            rows={state.rows}
+            cols={state.cols}
+            gutterPx={state.gutterPx}
+          />
+        </div>
+      </div>
+      <div className="tool-ribbon">
+        <ToolGroup label="Grid">
+          <GridControls
+            rows={state.rows}
+            cols={state.cols}
+            gutterPx={state.gutterPx}
+            gutterColor={state.gutterColor}
+            onChangeRows={(rows) => dispatch(resizeGrid(rows, state.cols))}
+            onChangeCols={(cols) => dispatch(resizeGrid(state.rows, cols))}
+            onChangeGutterPx={(px) => dispatch(setGutterPx(px))}
+            onChangeGutterColor={(c) => dispatch(setGutterColor(c))}
+          />
+        </ToolGroup>
+        <ToolGroup label="Selection">
+          <MergeControls
+            canMerge={canMerge}
+            canUnmerge={canUnmerge}
+            onMerge={onMerge}
+            onUnmerge={onUnmerge}
+          />
+        </ToolGroup>
+        <ToolGroup label="Panel">
+          <PanelControls
+            transform={selectedImagePanel?.transform ?? null}
+            onSetFit={onSetFit}
+            onRotate90={onRotate90}
+            onFlipH={onFlipH}
+            onFlipV={onFlipV}
+            onReset={onResetTransform}
+            onCalibrate={onCalibrate}
+          />
+        </ToolGroup>
+        <ToolGroup label="Annotate">
+          <AnnotationToolbar
+            active={activeTool}
+            onChange={setActiveTool}
+            lettersEnabled={state.globalStyle.letters.enabled}
+            onToggleLetters={() =>
+              dispatch(setLettersEnabled(!state.globalStyle.letters.enabled))
+            }
+          />
+        </ToolGroup>
+      </div>
       <div style={{ display: "flex", flex: 1, minHeight: 0 }}>
         <Tray
           pool={state.pool}
@@ -606,5 +611,20 @@ export function App(): JSX.Element {
       )}
       <ToastTray toasts={toasts.toasts} onDismiss={toasts.dismiss} />
     </main>
+  );
+}
+
+function ToolGroup({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}): JSX.Element {
+  return (
+    <div className="tool-group">
+      <span className="tool-group-label">{label}</span>
+      <div className="tool-group-body">{children}</div>
+    </div>
   );
 }

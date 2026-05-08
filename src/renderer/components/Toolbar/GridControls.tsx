@@ -20,12 +20,10 @@ export function GridControls({
   onChangeGutterColor,
 }: Props): JSX.Element {
   return (
-    <>
-      <span className="toolbar-divider" aria-hidden="true" />
-      <div
-        data-testid="grid-controls"
-        style={{ display: "flex", gap: 10, alignItems: "center" }}
-      >
+    <div
+      data-testid="grid-controls"
+      style={{ display: "flex", gap: 10, alignItems: "center" }}
+    >
         <Field label="Rows">
           <input
             type="number"
@@ -73,8 +71,7 @@ export function GridControls({
             aria-label="Gutter color"
           />
         </Field>
-      </div>
-    </>
+    </div>
   );
 }
 

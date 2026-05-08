@@ -84,14 +84,10 @@ export function PropertiesPanel({
         gap: 14,
       }}
     >
-      <div>
-        <h2 style={{ margin: 0, fontSize: 13, fontWeight: 600, color: "var(--c-text)" }}>
-          {title}
-        </h2>
+      <div className="props-title-block">
+        <h2 className="props-title">{title}</h2>
         {subtitle !== null && (
-          <div style={{ fontSize: 11, color: "var(--c-text-faint)", marginTop: 2 }}>
-            {subtitle}
-          </div>
+          <div className="props-subtitle">{subtitle}</div>
         )}
       </div>
       {body}

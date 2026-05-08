@@ -30,12 +30,10 @@ export function PanelControls({
   const disabled = transform === null;
   const fit: FitMode | null = transform?.fit ?? null;
   return (
-    <>
-      <span className="toolbar-divider" aria-hidden="true" />
-      <div
-        data-testid="panel-controls"
-        style={{ display: "flex", gap: 6, alignItems: "center" }}
-      >
+    <div
+      data-testid="panel-controls"
+      style={{ display: "flex", gap: 6, alignItems: "center" }}
+    >
         <div className="seg" role="group" aria-label="Panel fit">
           {(["contain", "cover", "stretch"] as const).map((m) => (
             <button
@@ -105,7 +103,6 @@ export function PanelControls({
         >
           Calibrate…
         </button>
-      </div>
-    </>
+    </div>
   );
 }
