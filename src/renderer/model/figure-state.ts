@@ -44,6 +44,12 @@ export interface FigureState {
   gutterPx: number;
   /** Hex color, "#RRGGBB" or "#RRGGBBAA". */
   gutterColor: string;
+  /**
+   * When true (default), the gutter color fills the canvas's outer band
+   * around the panel grid. When false, panels reach the canvas edge and
+   * only inter-panel gutters are visible.
+   */
+  outerGutter: boolean;
 
   // ---- M6 ----
   /** Append-only insertion order; rendered in z-then-array order. */
@@ -86,6 +92,7 @@ export function initialFigureState(): FigureState {
     cols: 2,
     gutterPx: 12,
     gutterColor: "#FFFFFF",
+    outerGutter: true,
     annotations: [],
     globalStyle: DEFAULT_GLOBAL_STYLE,
     letterOverrides: {},

@@ -20,6 +20,7 @@ import {
   swapPanels,
   replaceIntoPanel,
   removeFromPool,
+  unplacePanel,
   resetToState,
   resetFigureAction,
   setPanelTransform,
@@ -35,8 +36,7 @@ import {
   setGlobalStyle,
   setLettersEnabled,
   setImageCalibration,
-  setGutterPx,
-  resizeGrid,
+  setOuterGutter,
 } from "../../src/renderer/model/figure-actions";
 import { findPanelAt, DEFAULT_TRANSFORM } from "../../src/renderer/model/panels";
 
@@ -183,6 +183,33 @@ describe("figureReducer (panel-id actions)", () => {
     expect(s.panels.find((p) => p.id === p1)?.imageId).toBeUndefined();
   });
 
+  it("UNPLACE_PANEL clears imageId and transform, leaves the pool untouched", () => {
+    let s = withPool(IMG_A);
+    const pid = panelIdAt(s, 0, 0);
+    s = figureReducer(s, placeIntoPanel("a", pid));
+    expect(s.panels.find((p) => p.id === pid)?.imageId).toBe("a");
+
+    s = figureReducer(s, unplacePanel(pid));
+    const target = s.panels.find((p) => p.id === pid);
+    expect(target?.imageId).toBeUndefined();
+    expect(target?.transform).toBeUndefined();
+    // Pool order/contents unchanged.
+    expect(s.pool.map((i) => i.id)).toEqual(["a"]);
+  });
+
+  it("UNPLACE_PANEL on an empty panel is a no-op (===)", () => {
+    const s0 = initialFigureState();
+    const pid = panelIdAt(s0, 0, 0);
+    const s1 = figureReducer(s0, unplacePanel(pid));
+    expect(s1).toBe(s0);
+  });
+
+  it("UNPLACE_PANEL on an unknown panelId is a no-op (===)", () => {
+    const s0 = initialFigureState();
+    const s1 = figureReducer(s0, unplacePanel("does-not-exist"));
+    expect(s1).toBe(s0);
+  });
+
   it("RESIZE_GRID grows the grid and adds 1x1 panels", () => {
     const s0 = initialFigureState();
     const s1 = figureReducer(
@@ -236,6 +263,17 @@ describe("figureReducer (panel-id actions)", () => {
       { type: "SET_GUTTER_COLOR", gutterColor: "purple" } as const,
     );
     expect(s).toBe(before);
+  });
+
+  it("SET_OUTER_GUTTER toggles the field; identical-value calls are ===-no-ops", () => {
+    const s0 = initialFigureState();
+    expect(s0.outerGutter).toBe(true);
+    const s1 = figureReducer(s0, setOuterGutter(false));
+    expect(s1.outerGutter).toBe(false);
+    const s2 = figureReducer(s1, setOuterGutter(false));
+    expect(s2).toBe(s1);
+    const s3 = figureReducer(s2, setOuterGutter(true));
+    expect(s3.outerGutter).toBe(true);
   });
 
   it("MERGE_CELLS merges a contiguous rectangle of 1x1 panels", () => {
@@ -945,6 +983,21 @@ describe("figureReducer (M6 annotations)", () => {
     s = figureReducer(s, removeFromPool("cal"));
     const ids = s.annotations.map((a) => a.id).sort();
     expect(ids).toEqual(["a1", "b1", "t1"]);
+  });
+
+  it("UNPLACE_PANEL drops scale-bar annotations on the freed panel; keeps text/arrow/box", () => {
+    let s = withPool(IMG_CAL);
+    const pid = panelIdAt(s, 0, 0);
+    s = figureReducer(s, placeIntoPanel("cal", pid));
+    s = figureReducer(s, addAnnotation(scalebarAnno("sb1", pid)));
+    s = figureReducer(s, addAnnotation(textAnno("t1", pid)));
+    s = figureReducer(s, addAnnotation(arrowAnno("a1", pid)));
+    s = figureReducer(s, addAnnotation(boxAnno("b1", pid)));
+    s = figureReducer(s, unplacePanel(pid));
+    const ids = s.annotations.map((a) => a.id).sort();
+    expect(ids).toEqual(["a1", "b1", "t1"]);
+    // Image stays in pool.
+    expect(s.pool.map((i) => i.id)).toEqual(["cal"]);
   });
 });
 

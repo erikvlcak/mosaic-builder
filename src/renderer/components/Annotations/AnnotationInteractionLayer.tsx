@@ -807,32 +807,34 @@ export function AnnotationInteractionLayer({
         />
       )}
 
-      {/* Per-annotation hit-rects (select mode only). */}
-      {activeTool === "select" &&
-        userAnnos.map((a) => {
-          const b = annoBounds(a, panelRectsById);
-          if (b === null) return null;
-          return (
-            <div
-              key={`hit-${a.id}`}
-              data-testid={`anno-hit-${a.id}`}
-              onPointerDown={(e) => onHitPointerDown(e, a)}
-              onPointerMove={onHitPointerMove}
-              onPointerUp={onHitPointerUp}
-              onPointerCancel={onHitPointerUp}
-              style={{
-                position: "absolute",
-                left: b.x * figToCssX,
-                top: b.y * figToCssY,
-                width: Math.max(MIN_HIT_PX, b.w * figToCssX),
-                height: Math.max(MIN_HIT_PX, b.h * figToCssY),
-                pointerEvents: "auto",
-                cursor: "move",
-                background: "transparent",
-              }}
-            />
-          );
-        })}
+      {/* Per-annotation hit-rects. Rendered in every tool so that clicks on an
+          existing annotation always select (and never create a new one nearby).
+          The hit-rect's onPointerDown stops propagation, so the layer's
+          creation-tool pointerdown never fires for these clicks. */}
+      {userAnnos.map((a) => {
+        const b = annoBounds(a, panelRectsById);
+        if (b === null) return null;
+        return (
+          <div
+            key={`hit-${a.id}`}
+            data-testid={`anno-hit-${a.id}`}
+            onPointerDown={(e) => onHitPointerDown(e, a)}
+            onPointerMove={onHitPointerMove}
+            onPointerUp={onHitPointerUp}
+            onPointerCancel={onHitPointerUp}
+            style={{
+              position: "absolute",
+              left: b.x * figToCssX,
+              top: b.y * figToCssY,
+              width: Math.max(MIN_HIT_PX, b.w * figToCssX),
+              height: Math.max(MIN_HIT_PX, b.h * figToCssY),
+              pointerEvents: "auto",
+              cursor: "move",
+              background: "transparent",
+            }}
+          />
+        );
+      })}
 
       {/* Selection chrome — dashed outline around the selected annotation. */}
       {selectedBounds !== null && (

@@ -137,7 +137,12 @@ export function ExportMenu({
         <div
           className="menu"
           role="menu"
-          style={{ top: "calc(100% + 4px)", left: 0 }}
+          style={{
+            top: "calc(100% + 4px)",
+            right: 0,
+            maxHeight: "calc(100vh - 80px)",
+            overflowY: "auto",
+          }}
         >
           <button
             type="button"

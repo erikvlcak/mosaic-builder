@@ -61,6 +61,13 @@ export function renderFigureToOffscreen(
   if (ctx === null) {
     throw new Error("renderFigureToOffscreen: failed to get 2D context");
   }
+  // JPEG/TIFF/PDF have no alpha channel; encoders flatten transparent
+  // pixels to black. Paint an opaque white base in canvas-px (before scale)
+  // so any alpha in the figure background composites against white instead.
+  ctx.save();
+  ctx.fillStyle = "#FFFFFF";
+  ctx.fillRect(0, 0, w, h);
+  ctx.restore();
   if (exportScale !== 1) ctx.scale(exportScale, exportScale);
   drawFigure(ctx, figure, images, pool);
   return {

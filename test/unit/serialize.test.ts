@@ -5,7 +5,6 @@ import {
 } from "../../src/renderer/model/serialize";
 import { initialFigureState } from "../../src/renderer/model/figure-state";
 import type { ImagePoolItem } from "../../src/renderer/model/pool";
-import type { MosaicFileV1 } from "../../src/renderer/model/schema";
 
 const SAMPLE_IMG: ImagePoolItem = {
   id: "img1",

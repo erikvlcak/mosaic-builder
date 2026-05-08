@@ -10,19 +10,29 @@ export interface PanelRect {
 
 /**
  * Computes the integer pixel rectangle for each panel in figure.panels,
- * in the same order. Outer gutter is included on all four edges; internal
- * gutters between merged-panel cells are absorbed into the merged panel.
+ * in the same order. When `figure.grid.outerGutter` is true, the gutter
+ * is included on all four canvas edges; when false, panels reach the
+ * canvas edge and only inter-panel gutters consume space.
+ *
+ * Internal gutters between merged-panel cells are absorbed into the
+ * merged panel.
  *
  * Width remainder distribution: cells get floor(avail/cols); the panel
  * whose right edge sits on the grid's last column absorbs `wRemainder`,
- * so the right edge always lands on `widthPx - gutter`. Same for rows.
+ * so the right edge always lands on `widthPx - outerOffset`. Same for rows.
  */
 export function computePanelRects(figure: Figure): PanelRect[] {
   const { widthPx, heightPx } = figure.canvas;
   const { rows, cols, gutterPx } = figure.grid;
+  const outerGutter = figure.grid.outerGutter ?? true;
 
-  const availW = widthPx - gutterPx * (cols + 1);
-  const availH = heightPx - gutterPx * (rows + 1);
+  // Outer band: one gutter on each edge if enabled, else none.
+  const outerOffset = outerGutter ? gutterPx : 0;
+  // Total gutter consumed along the axis: 2 outer (if any) + (n-1) interior.
+  const totalGuttersW = (outerGutter ? 2 : 0) + (cols - 1);
+  const totalGuttersH = (outerGutter ? 2 : 0) + (rows - 1);
+  const availW = widthPx - gutterPx * totalGuttersW;
+  const availH = heightPx - gutterPx * totalGuttersH;
   const cellW = Math.floor(availW / cols);
   const cellH = Math.floor(availH / rows);
   const wRemainder = availW - cellW * cols;
@@ -38,8 +48,8 @@ export function computePanelRects(figure: Figure): PanelRect[] {
     const baseH = rowSpan * cellH + (rowSpan - 1) * gutterPx;
     const w = baseW + (lastColInPanel === cols - 1 ? wRemainder : 0);
     const h = baseH + (lastRowInPanel === rows - 1 ? hRemainder : 0);
-    const x = gutterPx + p.col * (cellW + gutterPx);
-    const y = gutterPx + p.row * (cellH + gutterPx);
+    const x = outerOffset + p.col * (cellW + gutterPx);
+    const y = outerOffset + p.row * (cellH + gutterPx);
     return { x, y, w, h };
   });
 }

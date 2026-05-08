@@ -202,6 +202,27 @@ body {
   background: var(--c-surface);
   border-right: 1px solid var(--c-divider);
 }
+.surface-sidebar[data-drop-active="true"] {
+  outline: 2px dashed var(--c-accent);
+  outline-offset: -6px;
+}
+
+.select-mode-chip {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  padding: 3px 8px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--c-accent);
+  background: var(--c-surface);
+  border: 1px solid var(--c-accent);
+  border-radius: var(--r-sm, 3px);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  pointer-events: none;
+  z-index: 10;
+}
 .surface-sidebar-end {
   background: var(--c-surface-muted);
   border-left: 1px solid var(--c-divider);

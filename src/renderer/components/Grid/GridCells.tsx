@@ -52,6 +52,7 @@ export function GridCells({
   onPanelDoubleClick,
 }: Props): JSX.Element {
   const [hoverPanelId, setHoverPanelId] = useState<string | null>(null);
+  const [draggingPanelId, setDraggingPanelId] = useState<string | null>(null);
 
   const selectedId = selectedIdOf(panelInteraction);
   const editingId = editingIdOf(panelInteraction);
@@ -160,6 +161,10 @@ export function GridCells({
             serializeDrag({ kind: "panel", panelId: panel.id }),
           );
           e.dataTransfer.effectAllowed = "move";
+          setDraggingPanelId(panel.id);
+        }
+        function onDragEnd(): void {
+          setDraggingPanelId(null);
         }
 
         function onClick(e: React.MouseEvent<HTMLDivElement>): void {
@@ -210,6 +215,7 @@ export function GridCells({
             key={panel.id}
             draggable={draggable}
             onDragStart={onDragStart}
+            onDragEnd={onDragEnd}
             onDragOver={onDragOver}
             onDragLeave={onDragLeave}
             onDrop={onDropEvt}
@@ -228,7 +234,8 @@ export function GridCells({
               cursor,
               outline,
               outlineOffset: -2,
-              transition: "outline-color 80ms ease",
+              opacity: draggingPanelId === panel.id ? 0.5 : 1,
+              transition: "outline-color 80ms ease, opacity 80ms ease",
               boxSizing: "border-box",
             }}
           />

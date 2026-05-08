@@ -3,10 +3,12 @@ interface Props {
   cols: number;
   gutterPx: number;
   gutterColor: string;
+  outerGutter: boolean;
   onChangeRows: (rows: number) => void;
   onChangeCols: (cols: number) => void;
   onChangeGutterPx: (px: number) => void;
   onChangeGutterColor: (color: string) => void;
+  onChangeOuterGutter: (outerGutter: boolean) => void;
 }
 
 export function GridControls({
@@ -14,10 +16,12 @@ export function GridControls({
   cols,
   gutterPx,
   gutterColor,
+  outerGutter,
   onChangeRows,
   onChangeCols,
   onChangeGutterPx,
   onChangeGutterColor,
+  onChangeOuterGutter,
 }: Props): JSX.Element {
   return (
     <div
@@ -71,6 +75,25 @@ export function GridControls({
             aria-label="Gutter color"
           />
         </Field>
+        <label
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 5,
+            fontSize: 11,
+            color: "var(--c-text-muted)",
+          }}
+          title="When off, panels reach the canvas edge and the gutter only appears between them."
+        >
+          <input
+            type="checkbox"
+            checked={outerGutter}
+            onChange={(e) => onChangeOuterGutter(e.target.checked)}
+            data-testid="outer-gutter-toggle"
+            aria-label="Outer gutter"
+          />
+          Outer gutter
+        </label>
     </div>
   );
 }
