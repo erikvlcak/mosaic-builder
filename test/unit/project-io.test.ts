@@ -31,7 +31,7 @@ describe("saveProjectToPath", () => {
     await saveProjectToPath(target, file);
     const text = await readFile(target, "utf8");
     const parsed = JSON.parse(text) as { schemaVersion: number };
-    expect(parsed.schemaVersion).toBe(3);
+    expect(parsed.schemaVersion).toBe(4);
 
     await expect(
       saveProjectToPath(path.join(dir, "fig.json"), file),
@@ -75,7 +75,7 @@ describe("loadProjectFromPath", () => {
     const r = await loadProjectFromPath(target);
     expect(r.ok).toBe(true);
     if (!r.ok) return;
-    expect(r.file.schemaVersion).toBe(3);
+    expect(r.file.schemaVersion).toBe(4);
     expect(r.images).toHaveLength(1);
     expect(r.images[0]!.imageId).toBe("img1");
     expect(r.images[0]!.bytes.byteLength).toBe(1);
