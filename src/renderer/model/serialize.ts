@@ -16,8 +16,9 @@
 import type { FigureState, LetterOverride } from "./figure-state";
 import type { ImagePoolItem } from "./pool";
 import type { Annotation } from "./annotations";
-import type { MosaicFile, MosaicFileV3 } from "./schema";
+import type { MosaicFile, MosaicFileV4 } from "./schema";
 import { migrateAnnotationsV1ToV2 } from "./migrate-v1-to-v2";
+import { uniformLayoutFor } from "./grid-layout";
 
 export interface RelinkHint {
   imageId: string;
@@ -38,13 +39,13 @@ export interface ToMosaicInput {
   shaByImageId?: Record<string, string>;
 }
 
-export function toMosaicFile(inp: ToMosaicInput): MosaicFileV3 {
+export function toMosaicFile(inp: ToMosaicInput): MosaicFileV4 {
   const now = inp.now ?? (() => new Date().toISOString());
   const baseDir = posixDirname(inp.mosaicPath);
   const stamp = now();
 
   const pool = inp.state.pool.map((item) => {
-    const out: MosaicFileV3["state"]["pool"][number] = { ...item };
+    const out: MosaicFileV4["state"]["pool"][number] = { ...item };
     const rel = posixRelative(baseDir, item.filePath);
     if (rel !== null) out.relPath = rel;
     const sha = inp.shaByImageId?.[item.id];
@@ -53,13 +54,13 @@ export function toMosaicFile(inp: ToMosaicInput): MosaicFileV3 {
   });
 
   return {
-    schemaVersion: 3,
+    schemaVersion: 4,
     app: "mosaic-builder",
     appVersion: inp.appVersion,
     createdAt: stamp,
     modifiedAt: stamp,
     canvas: inp.canvas,
-    state: { ...inp.state, pool } as MosaicFileV3["state"],
+    state: { ...inp.state, pool } as MosaicFileV4["state"],
   };
 }
 
@@ -98,13 +99,21 @@ export function fromMosaicFile(file: MosaicFile): FromMosaicResult {
   // is required because the validator accepts either shape on disk; the
   // discriminator here is `schemaVersion`, not the static type.
   const letterOverrides: Record<string, LetterOverride> =
-    file.schemaVersion === 3
+    file.schemaVersion === 3 || file.schemaVersion === 4
       ? file.state.letterOverrides
       : migrateLetterOverridesV2ToV3(
           file.state.letterOverrides as unknown as Record<string, string>,
         );
   const letterPattern: FigureState["letterPattern"] =
-    file.schemaVersion === 3 ? file.state.letterPattern : "uppercase";
+    file.schemaVersion === 3 || file.schemaVersion === 4
+      ? file.state.letterPattern
+      : "uppercase";
+  // Spec 11: v4 carries `state.layout`; older versions seed a uniform layout
+  // for the current rows/cols (matches pre-spec-11 behavior).
+  const layout =
+    file.schemaVersion === 4
+      ? file.state.layout
+      : uniformLayoutFor(file.state.rows, file.state.cols);
   // v1/v2 globalStyle.letters lacks `italic`; default to false at load. We
   // spread first then overlay the missing-field default — for v3 files the
   // spread already carries italic so the overlay is a no-op.
@@ -124,6 +133,7 @@ export function fromMosaicFile(file: MosaicFile): FromMosaicResult {
     globalStyle,
     // Pre-spec-10 files lack `outerGutter`; default to true (the prior behavior).
     outerGutter: file.state.outerGutter ?? true,
+    layout,
   };
   return { state, canvas, relinkHints };
 }

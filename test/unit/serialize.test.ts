@@ -21,7 +21,7 @@ const SAMPLE_IMG: ImagePoolItem = {
 };
 
 describe("toMosaicFile", () => {
-  it("emits schemaVersion=3, app=mosaic-builder, copies state through", () => {
+  it("emits schemaVersion=4, app=mosaic-builder, copies state through", () => {
     const f = toMosaicFile({
       state: initialFigureState(),
       canvas: { widthPx: 800, heightPx: 600, background: "#FFFFFF" },
@@ -29,7 +29,7 @@ describe("toMosaicFile", () => {
       appVersion: "0.1.0",
       now: () => "2026-05-02T10:00:00Z",
     });
-    expect(f.schemaVersion).toBe(3);
+    expect(f.schemaVersion).toBe(4);
     expect(f.app).toBe("mosaic-builder");
     expect(f.appVersion).toBe("0.1.0");
     expect(f.createdAt).toBe("2026-05-02T10:00:00Z");
@@ -189,7 +189,7 @@ describe("v1 → v2 migration on fromMosaicFile", () => {
     });
   });
 
-  it("toMosaicFile always writes schemaVersion=3", () => {
+  it("toMosaicFile always writes schemaVersion=4", () => {
     const f = toMosaicFile({
       state: initialFigureState(),
       canvas: { widthPx: 800, heightPx: 600, background: "#FFFFFF" },
@@ -197,7 +197,7 @@ describe("v1 → v2 migration on fromMosaicFile", () => {
       appVersion: "0.1.0",
       now: () => "2026-05-09T00:00:00Z",
     });
-    expect(f.schemaVersion).toBe(3);
+    expect(f.schemaVersion).toBe(4);
   });
 
   it("v1 file with string-shaped letterOverrides loads as v3 LetterOverride map", () => {
@@ -254,5 +254,106 @@ describe("v1 → v2 migration on fromMosaicFile", () => {
     expect(state.letterPattern).toBe("uppercase");
     // italic defaults to false on legacy files.
     expect(state.globalStyle.letters.italic).toBe(false);
+  });
+});
+
+describe("serialize — layout v4 (spec 11)", () => {
+  it("toMosaicFile writes schemaVersion 4 with state.layout", () => {
+    const state = initialFigureState();
+    const file = toMosaicFile({
+      state,
+      canvas: { widthPx: 800, heightPx: 600, background: "#FFFFFF" },
+      mosaicPath: "/tmp/x.mosaic",
+      appVersion: "0.1.0",
+      now: () => "2026-05-09T00:00:00.000Z",
+    });
+    expect(file.schemaVersion).toBe(4);
+    expect(file.state.layout).toEqual({
+      kind: "uniform",
+      colWeights: [0.5, 0.5],
+      rowWeights: [0.5, 0.5],
+    });
+  });
+
+  it("round-trips a free-form layout through v4", () => {
+    const state = initialFigureState();
+    const free: typeof state = {
+      ...state,
+      layout: {
+        kind: "free",
+        rects: {
+          "panel-1": { x: 0, y: 0, w: 100, h: 100 },
+          "panel-2": { x: 100, y: 0, w: 100, h: 100 },
+          "panel-3": { x: 0, y: 100, w: 100, h: 100 },
+          "panel-4": { x: 100, y: 100, w: 100, h: 100 },
+        },
+      },
+    };
+    const file = toMosaicFile({
+      state: free,
+      canvas: { widthPx: 800, heightPx: 600, background: "#FFFFFF" },
+      mosaicPath: "/tmp/x.mosaic",
+      appVersion: "0.1.0",
+    });
+    const back = fromMosaicFile(file);
+    expect(back.state.layout).toEqual(free.layout);
+  });
+
+  it("fromMosaicFile on a v3 file seeds uniform layout", () => {
+    // Hand-build a minimal v3 file to verify migration.
+    const v3 = {
+      schemaVersion: 3 as const,
+      app: "mosaic-builder" as const,
+      appVersion: "0.1.0",
+      createdAt: "2026-05-02T00:00:00Z",
+      modifiedAt: "2026-05-02T00:00:00Z",
+      canvas: { widthPx: 800, heightPx: 600, background: "#FFFFFF" },
+      state: {
+        rows: 3,
+        cols: 2,
+        gutterPx: 12,
+        gutterColor: "#FFFFFF",
+        outerGutter: true,
+        pool: [],
+        panels: [
+          { id: "p1", row: 0, col: 0, rowSpan: 1, colSpan: 1 },
+          { id: "p2", row: 0, col: 1, rowSpan: 1, colSpan: 1 },
+          { id: "p3", row: 1, col: 0, rowSpan: 1, colSpan: 1 },
+          { id: "p4", row: 1, col: 1, rowSpan: 1, colSpan: 1 },
+          { id: "p5", row: 2, col: 0, rowSpan: 1, colSpan: 1 },
+          { id: "p6", row: 2, col: 1, rowSpan: 1, colSpan: 1 },
+        ],
+        annotations: [],
+        globalStyle: {
+          letters: {
+            enabled: true,
+            font: "Arial",
+            sizePt: 12,
+            color: "#000000",
+            corner: "tl" as const,
+            paddingPx: 6,
+            bold: true,
+            italic: false,
+          },
+          scalebar: {
+            font: "Arial",
+            sizePt: 10,
+            color: "#FFFFFF",
+            barColor: "#FFFFFF",
+            thicknessPx: 4,
+            corner: "br" as const,
+            paddingPx: 8,
+            showLabel: true,
+          },
+        },
+        letterOverrides: {},
+        letterPattern: "uppercase" as const,
+      },
+    };
+    const r = fromMosaicFile(v3);
+    expect(r.state.layout.kind).toBe("uniform");
+    if (r.state.layout.kind !== "uniform") throw new Error("unreachable");
+    expect(r.state.layout.colWeights.length).toBe(2);
+    expect(r.state.layout.rowWeights.length).toBe(3);
   });
 });
