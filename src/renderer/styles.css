@@ -547,3 +547,38 @@ body {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* Symbol gallery (properties panel) */
+.symbol-gallery { display: flex; flex-direction: column; gap: 8px; }
+.symbol-gallery-group { display: flex; flex-direction: column; gap: 4px; }
+.symbol-gallery-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--c-text-muted);
+}
+.symbol-gallery-row {
+  display: flex;
+  gap: 4px;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+.symbol-gallery-cell {
+  flex: 0 0 auto;
+  width: 36px;
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-sm, 4px);
+  color: var(--c-text);
+  cursor: pointer;
+  padding: 0;
+}
+.symbol-gallery-cell:hover { background: var(--c-surface-muted); }
+.symbol-gallery-cell.is-active {
+  border-color: var(--c-accent);
+  box-shadow: 0 0 0 1px var(--c-accent) inset;
+}

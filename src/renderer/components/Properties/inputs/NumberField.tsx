@@ -6,14 +6,18 @@ interface Props {
   min?: number;
   max?: number;
   step?: number;
+  disabled?: boolean;
+  "data-testid"?: string;
   onChange: (n: number) => void;
   onBlur?: () => void;
 }
 
 export function NumberField({
-  label, value, min, max, step = 1, onChange, onBlur,
+  label, value, min, max, step = 1, disabled, onChange, onBlur,
+  ...rest
 }: Props): JSX.Element {
   const id = useId();
+  const testId = rest["data-testid"];
   return (
     <label htmlFor={id} className="field">
       <span className="field-label">{label}</span>
@@ -28,6 +32,8 @@ export function NumberField({
         // passing min={undefined} is a type error even though the DOM accepts it.
         {...(min !== undefined ? { min } : {})}
         {...(max !== undefined ? { max } : {})}
+        {...(disabled !== undefined ? { disabled } : {})}
+        {...(testId !== undefined ? { "data-testid": testId } : {})}
         onChange={(e) => {
           const raw = e.currentTarget.value;
           if (raw === "") return;

@@ -3,6 +3,7 @@ import type { Annotation } from "../../model/annotations";
 import type { FigureAction } from "../../model/figure-actions";
 import type { FieldCommit } from "../../hooks/useFieldCommit";
 import { TextAnnoForm } from "./TextAnnoForm";
+import { SymbolAnnoForm } from "./SymbolAnnoForm";
 import { BoxAnnoForm } from "./BoxAnnoForm";
 import { ScalebarAnnoForm } from "./ScalebarAnnoForm";
 
@@ -21,8 +22,7 @@ export function AnnotationPropertiesForm({
     case "text":
       return <TextAnnoForm anno={anno} dispatch={dispatch} commit={commit} />;
     case "symbol":
-      // TODO(Task 10): SymbolAnnoForm — gallery + color/size/rotation/stroke.
-      return <>(symbol form coming in Task 10)</>;
+      return <SymbolAnnoForm anno={anno} dispatch={dispatch} commit={commit} />;
     case "box":
       return <BoxAnnoForm anno={anno} dispatch={dispatch} commit={commit} />;
     case "scalebar":
