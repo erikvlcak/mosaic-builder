@@ -21,3 +21,13 @@ describe("initialFigureState — M6 shape", () => {
   });
 
 });
+
+describe("initialFigureState — layout (spec 11)", () => {
+  it("seeds a uniform 2x2 layout with equal weights", () => {
+    const s = initialFigureState();
+    expect(s.layout.kind).toBe("uniform");
+    if (s.layout.kind !== "uniform") throw new Error("unreachable");
+    expect(s.layout.colWeights).toEqual([0.5, 0.5]);
+    expect(s.layout.rowWeights).toEqual([0.5, 0.5]);
+  });
+});

@@ -2,6 +2,7 @@ import type { ImagePoolItem } from "./pool";
 import type { Panel } from "./panels";
 import type { Annotation } from "./annotations";
 import { type GlobalAnnoStyle, DEFAULT_GLOBAL_STYLE } from "./global-style";
+import { type GridLayout, uniformLayoutFor } from "./grid-layout";
 
 /**
  * Per-letter override shape (spec 08). `text` overrides the derived label
@@ -97,6 +98,13 @@ export interface FigureState {
   letterOverrides: Record<string, LetterOverride>;
   /** Active label pattern. Default `"uppercase"` (A, B, C…). */
   letterPattern: LetterPattern;
+
+  /**
+   * Layout regime. Default: uniform with equal weights for the current
+   * grid dims (matches pre-spec-11 behavior). User actions transition this
+   * to `free` (single-panel corner resize) or back via RESET_TO_UNIFORM_GRID.
+   */
+  layout: GridLayout;
 }
 
 let __panelIdCounter = 0;
@@ -136,8 +144,11 @@ export function initialFigureState(): FigureState {
     globalStyle: DEFAULT_GLOBAL_STYLE,
     letterOverrides: {},
     letterPattern: "uppercase",
+    layout: uniformLayoutFor(2, 2),
   };
 }
+
+export type { GridLayout } from "./grid-layout";
 
 export { newPanelId };
 
