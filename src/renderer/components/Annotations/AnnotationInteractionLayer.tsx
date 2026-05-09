@@ -112,8 +112,6 @@ interface DragState {
   startAnno?: UserAnno;
   /** Which box corner is being dragged ("box-corner" only). */
   corner?: "tl" | "tr" | "bl" | "br";
-  /** Which corner is being dragged ("symbol-corner" only). */
-  symbolCorner?: "tl" | "tr" | "bl" | "br";
   /** For "symbol-rotate" only: the angle (degrees) the symbol had at drag start. */
   startRotationDeg?: number;
   /**
@@ -893,7 +891,7 @@ export function AnnotationInteractionLayer({
   function onSymbolCornerPointerDown(
     e: React.PointerEvent<HTMLDivElement>,
     a: SymbolAnnotation,
-    corner: "tl" | "tr" | "bl" | "br",
+    _corner: "tl" | "tr" | "bl" | "br",
   ): void {
     if (e.button !== 0) return;
     e.stopPropagation();
@@ -910,7 +908,6 @@ export function AnnotationInteractionLayer({
       curFy: c.fy,
       movingId: a.id,
       startAnno: a,
-      symbolCorner: corner,
     });
   }
 

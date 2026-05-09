@@ -439,7 +439,7 @@ describe("AnnotationInteractionLayer: symbol creation + handles", () => {
     expect(action.patch.rotationDeg).toBeCloseTo(90, 0);
   });
 
-  it("rotation handle does NOT snap on grab (no UPDATE_ANNOTATION between down and up)", () => {
+  it("rotation handle preserves the start rotation across a small move (no snap)", () => {
     const sym: SymbolAnnotation = {
       id: "sym-1",
       kind: "symbol",
@@ -454,14 +454,27 @@ describe("AnnotationInteractionLayer: symbol creation + handles", () => {
     };
     const { dispatch } = setupSelectedSymbol(sym);
     const handle = screen.getByTestId("anno-symbol-handle-rotate");
+    // Grab the rotation handle at its center: (selected.x, selected.y - sizePx/2 - 16).
+    // For sym at (100, 100) with sizePx=60 that's (100, 54). Because cssW===figurePxW,
+    // 1 css-px == 1 figure-px so we can pass these numbers straight to clientX/Y.
     fireEvent.pointerDown(handle, { button: 0, clientX: 100, clientY: 54 });
-    fireEvent.pointerUp(handle, { clientX: 100, clientY: 54 });
-    // No UPDATE_ANNOTATION should fire on a clean grab/release: the
-    // startGripAngleRad baseline cancels out and pointermove is what drives
-    // rotation, not pointerdown.
-    const updates = dispatch.mock.calls.filter(
+    // Tiny move (~0.1 figure-px) so onSymbolRotatePointerMove actually runs and
+    // exercises startGripAngleRad. If the no-snap math is broken (e.g. someone
+    // drops the baseline and writes `rotationDeg = atan2(...) * 180/PI`), the
+    // dispatched value would be ~-90° instead of ~45°.
+    fireEvent.pointerMove(handle, { clientX: 100.1, clientY: 54 });
+    const update = dispatch.mock.calls.find(
       ([a]) => (a as { type: string }).type === "UPDATE_ANNOTATION",
     );
-    expect(updates).toHaveLength(0);
+    expect(update).toBeDefined();
+    const action = update![0] as {
+      type: "UPDATE_ANNOTATION";
+      annotationId: string;
+      patch: Partial<SymbolAnnotation>;
+    };
+    // toBeCloseTo(45, 0) → |actual - 45| < 0.5. The 0.1-px move yields a delta
+    // of ~0.12°, so the dispatched rotationDeg lands at ~45.12 — well within
+    // tolerance. The broken impl would land near -90° and fail loudly.
+    expect(action.patch.rotationDeg).toBeCloseTo(45, 0);
   });
 });
