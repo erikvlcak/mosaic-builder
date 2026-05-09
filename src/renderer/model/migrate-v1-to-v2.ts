@@ -13,26 +13,8 @@
  *   anchor = midpoint of (anchor1, anchor2) when image-bound
  */
 
-import type { Annotation, ImageAnchor, SymbolAnnotation } from "./annotations";
-
-interface V1ArrowAnnotation {
-  id: string;
-  kind: "arrow";
-  z: number;
-  panelId?: string;
-  imageId?: string;
-  x1: number;
-  y1: number;
-  x2: number;
-  y2: number;
-  anchor1?: ImageAnchor;
-  anchor2?: ImageAnchor;
-  color: string;
-  thicknessPx: number;
-  head: "none" | "open" | "filled";
-}
-
-type V1Annotation = Annotation | V1ArrowAnnotation;
+import type { Annotation, SymbolAnnotation } from "./annotations";
+import type { V1Annotation, V1ArrowAnnotation } from "./schema";
 
 const HEAD_TO_SYMBOL: Record<V1ArrowAnnotation["head"], string> = {
   filled: "arrow-filled-right",

@@ -5,6 +5,10 @@ import {
 } from "../../src/renderer/model/serialize";
 import { initialFigureState } from "../../src/renderer/model/figure-state";
 import type { ImagePoolItem } from "../../src/renderer/model/pool";
+import type {
+  MosaicFileV1,
+  V1ArrowAnnotation,
+} from "../../src/renderer/model/schema";
 
 const SAMPLE_IMG: ImagePoolItem = {
   id: "img1",
@@ -109,10 +113,9 @@ describe("fromMosaicFile", () => {
 
 describe("v1 → v2 migration on fromMosaicFile", () => {
   it("converts a v1 file with arrow annotations to a v2 state with symbol annotations", () => {
-    // The validator-rejected v1 file is hand-built: the runtime types only
-    // know v2, so we cast through `unknown` to feed the migrator a legacy
-    // shape (the loader does the same in main).
-    const v1Annotations = [
+    // Build a v1 file directly as a MosaicFileV1 literal — the schema
+    // explicitly admits the legacy arrow shape via V1Annotation.
+    const v1Annotations: V1ArrowAnnotation[] = [
       {
         id: "a1",
         kind: "arrow",
@@ -126,9 +129,9 @@ describe("v1 → v2 migration on fromMosaicFile", () => {
         head: "filled",
       },
     ];
-    const v1 = {
-      schemaVersion: 1 as const,
-      app: "mosaic-builder" as const,
+    const v1: MosaicFileV1 = {
+      schemaVersion: 1,
+      app: "mosaic-builder",
       appVersion: "0.1.0",
       createdAt: "2025-12-01T00:00:00Z",
       modifiedAt: "2025-12-01T00:00:00Z",
@@ -138,8 +141,17 @@ describe("v1 → v2 migration on fromMosaicFile", () => {
         cols: 1,
         gutterPx: 4,
         gutterColor: "#FFFFFF",
+        outerGutter: true,
         pool: [],
-        panels: [{ id: "p1", row: 0, col: 0, rowSpan: 1, colSpan: 1 }],
+        panels: [
+          {
+            id: "p1",
+            row: 0,
+            col: 0,
+            rowSpan: 1,
+            colSpan: 1,
+          },
+        ],
         annotations: v1Annotations,
         globalStyle: {
           letters: {
@@ -164,7 +176,7 @@ describe("v1 → v2 migration on fromMosaicFile", () => {
         },
         letterOverrides: {},
       },
-    } as unknown as Parameters<typeof fromMosaicFile>[0];
+    };
     const { state } = fromMosaicFile(v1);
     expect(state.annotations).toHaveLength(1);
     expect(state.annotations[0]).toMatchObject({

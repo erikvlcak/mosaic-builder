@@ -130,15 +130,10 @@ const DEFAULT_TEXT_SIZE_PT = 12;
 const DEFAULT_TEXT_COLOR = "#000000";
 const DEFAULT_BOX_STROKE = "#FF0000";
 const DEFAULT_BOX_STROKE_PX = 2;
-// Constants kept for Task 9 (symbol defaults will inherit these for the
-// initial arrow-* symbol roll). Prefixed with `_` to satisfy lint until then.
-const _DEFAULT_ARROW_COLOR = "#FF0000";
-const _DEFAULT_ARROW_THICKNESS = 2;
 
 // Default z-values for new annotations: scalebar always on top so it can't be hidden;
 // text mid-stack so it overlays boxes/arrows; boxes/arrows at bottom as backdrop.
 const Z_TEXT = 5;
-const _Z_ARROW = 1;
 const Z_BOX = 1;
 const Z_SCALEBAR = 10;
 

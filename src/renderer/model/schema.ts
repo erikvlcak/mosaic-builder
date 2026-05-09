@@ -13,10 +13,39 @@
 import type { FigureState } from "./figure-state";
 import type { ImagePoolItem } from "./pool";
 import type { Panel } from "./panels";
+import type { Annotation, ImageAnchor } from "./annotations";
 
 export const CURRENT_SCHEMA_VERSION = 2;
 
 export type Result<T> = { ok: true; value: T } | { ok: false; error: string };
+
+/**
+ * V1-only annotation shape: the schema-1 arrow annotation. Kept here as a
+ * data-only mirror of the runtime ArrowAnnotation we used to have (now
+ * deleted — see migrate-v1-to-v2.ts for the runtime migration).
+ */
+export interface V1ArrowAnnotation {
+  id: string;
+  kind: "arrow";
+  z: number;
+  panelId?: string;
+  imageId?: string;
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+  anchor1?: ImageAnchor;
+  anchor2?: ImageAnchor;
+  color: string;
+  thicknessPx: number;
+  head: "none" | "open" | "filled";
+}
+
+/**
+ * What an annotation may legally be inside a v1 .mosaic file. Equivalent to
+ * the post-Task-2 `Annotation` union plus the deleted ArrowAnnotation.
+ */
+export type V1Annotation = Annotation | V1ArrowAnnotation;
 
 export interface MosaicFileV1 {
   schemaVersion: 1;
@@ -32,18 +61,23 @@ export interface MosaicFileV1 {
   /**
    * Mirrors `FigureState` 1:1, EXCEPT pool entries may carry `relPath`
    * and `sha256` which the runtime store ignores (they're only used by
-   * the loader). v1 carries legacy `arrow` annotations; the validator
-   * accepts those, but `fromMosaicFile` migrates them to `symbol` shape
-   * before constructing runtime state.
+   * the loader), and `annotations` may include legacy `arrow` shapes.
+   * `fromMosaicFile` migrates arrows to `symbol` shape before constructing
+   * runtime state.
    */
-  state: FigureState & {
+  state: Omit<FigureState, "annotations" | "pool"> & {
+    annotations: V1Annotation[];
     pool: (ImagePoolItem & { relPath?: string; sha256?: string })[];
   };
 }
 
 /** v2: identical to v1 but `arrow` annotations are replaced by `symbol`. */
-export interface MosaicFileV2 extends Omit<MosaicFileV1, "schemaVersion"> {
+export interface MosaicFileV2
+  extends Omit<MosaicFileV1, "schemaVersion" | "state"> {
   schemaVersion: 2;
+  state: Omit<MosaicFileV1["state"], "annotations"> & {
+    annotations: Annotation[];
+  };
 }
 
 /** Type alias used by callers that don't care about version. */
