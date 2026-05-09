@@ -39,6 +39,7 @@ import type {
   TextAnnotation,
   BoxAnnotation,
   ScaleBarAnnotation,
+  SymbolAnnotation,
 } from "../../model/annotations";
 import type { FigureAction } from "../../model/figure-actions";
 import {
@@ -49,6 +50,7 @@ import {
 import { figureToSource, type PanelRect } from "../../render/coords";
 import type { ImagePoolItem } from "../../model/pool";
 import type { Tool } from "../Toolbar/AnnotationToolbar";
+import { DEFAULT_SYMBOL_ID } from "../../symbols/library";
 
 /**
  * User-facing annotation kinds in their RESOLVED shape (as carried by
@@ -85,26 +87,42 @@ interface Props {
 interface DragState {
   pointerId: number;
   /**
-   * "create-box" | "move" | "box-corner"
-   *
+   * - "create-box": rubber-band drag to create a new box.
    * - "move": translate whole annotation (body hit-rect drag).
    * - "box-corner": drag one corner of a box (resize from that corner).
-   *
-   * TODO(Task 9): symbol create + symbol resize/rotate kinds land here.
+   * - "symbol-corner": drag one corner of a selected symbol (center-anchored
+   *   resize — see onSymbolCornerPointerMove).
+   * - "symbol-rotate": drag the rotation grip above a selected symbol.
    */
-  kind: "create-box" | "move" | "box-corner";
+  kind:
+    | "create-box"
+    | "move"
+    | "box-corner"
+    | "symbol-corner"
+    | "symbol-rotate";
   /** Origin in figure-px. */
   startFx: number;
   startFy: number;
   /** Current pointer in figure-px (updated as we move). */
   curFx: number;
   curFy: number;
-  /** Annotation being moved/resized (for "move", "box-corner"). */
+  /** Annotation being moved/resized (for "move", "box-corner", "symbol-*"). */
   movingId?: string;
-  /** Original annotation snapshot (for "move", "box-corner"). */
+  /** Original annotation snapshot (for "move", "box-corner", "symbol-*"). */
   startAnno?: UserAnno;
   /** Which box corner is being dragged ("box-corner" only). */
   corner?: "tl" | "tr" | "bl" | "br";
+  /** Which corner is being dragged ("symbol-corner" only). */
+  symbolCorner?: "tl" | "tr" | "bl" | "br";
+  /** For "symbol-rotate" only: the angle (degrees) the symbol had at drag start. */
+  startRotationDeg?: number;
+  /**
+   * For "symbol-rotate" only: the angle (radians) from the symbol center to
+   * the initial pointer position. We subtract this baseline from atan2
+   * readings while the rotation handle is dragged so the symbol doesn't snap
+   * on grab.
+   */
+  startGripAngleRad?: number;
 }
 
 interface PendingScalebar {
@@ -130,11 +148,15 @@ const DEFAULT_TEXT_SIZE_PT = 12;
 const DEFAULT_TEXT_COLOR = "#000000";
 const DEFAULT_BOX_STROKE = "#FF0000";
 const DEFAULT_BOX_STROKE_PX = 2;
+const DEFAULT_SYMBOL_SIZE = 60;
+const DEFAULT_SYMBOL_COLOR = "#FF0000";
+const DEFAULT_SYMBOL_STROKE = 2;
 
 // Default z-values for new annotations: scalebar always on top so it can't be hidden;
-// text mid-stack so it overlays boxes/arrows; boxes/arrows at bottom as backdrop.
+// text mid-stack so it overlays boxes/symbols; boxes/symbols at bottom as backdrop.
 const Z_TEXT = 5;
 const Z_BOX = 1;
+const Z_SYMBOL = 1;
 const Z_SCALEBAR = 10;
 
 // Minimum hit-rect dimension in CSS px so very small annotations remain selectable.
@@ -143,6 +165,11 @@ const MIN_HIT_PX = 8;
 // Minimum box width/height (in figure-px) when resizing via corner handles.
 // Prevents the box from collapsing to zero and becoming unselectable.
 const MIN_BOX_DIM = 4;
+
+// Minimum symbol side length (figure-px) when resizing via corner handles.
+// Larger than MIN_BOX_DIM since symbols are center-anchored — half-extents
+// any smaller render visually as a single pixel.
+const MIN_SYMBOL_DIM = 8;
 
 // Endpoint/corner handle size in CSS px (square hit-rect).
 const HANDLE_PX = 8;
@@ -253,7 +280,6 @@ function annoBounds(
     case "box":
       return { x: a.x, y: a.y, w: a.w, h: a.h };
     case "symbol": {
-      // TODO(Task 9): hit-rect for symbols (square sizePx-by-sizePx around center).
       const half = a.sizePx / 2;
       return { x: a.x - half, y: a.y - half, w: a.sizePx, h: a.sizePx };
     }
@@ -293,6 +319,13 @@ export function AnnotationInteractionLayer({
 }: Props): JSX.Element {
   const ref = useRef<HTMLDivElement | null>(null);
   const textInputRef = useRef<HTMLInputElement | null>(null);
+  /**
+   * Persisted across clicks: whichever symbol the user last picked from the
+   * properties-form gallery is the one a fresh Symbol-tool click drops next.
+   * Initialised to the library default so the first click after load works
+   * without ever opening the gallery.
+   */
+  const lastSymbolIdRef = useRef<string>(DEFAULT_SYMBOL_ID);
   const [drag, setDrag] = useState<DragState | null>(null);
   const [pendingScalebar, setPendingScalebar] =
     useState<PendingScalebar | null>(null);
@@ -360,6 +393,17 @@ export function AnnotationInteractionLayer({
     setPendingScalebar(null);
     setPendingText(null);
   }, [activeTool]);
+
+  // Sync the persisted symbol-id with whatever the user has selected in the
+  // properties form. Without this the gallery choice would only stick for the
+  // currently-selected annotation; the next click would revert to the default.
+  useEffect(() => {
+    if (selectedAnnotationId === null) return;
+    const a = figure.annotations.find((x) => x.id === selectedAnnotationId);
+    if (a !== undefined && a.kind === "symbol") {
+      lastSymbolIdRef.current = a.symbolId;
+    }
+  }, [selectedAnnotationId, figure.annotations]);
 
   // Imperatively focus the inline text input AFTER it mounts. `autoFocus`
   // races the synthetic pointerdown that opened it — when the layer is the
@@ -442,7 +486,42 @@ export function AnnotationInteractionLayer({
       return;
     }
 
-    // box: begin a drag. (TODO(Task 9): "symbol" tool routes here.)
+    if (activeTool === "symbol") {
+      // Click-to-place: drop a symbol at this point. No drag-to-size — the
+      // four corner handles + rotation handle take over after selection.
+      const ann: SymbolAnnotation = {
+        id: newAnnoId(),
+        kind: "symbol",
+        z: Z_SYMBOL,
+        symbolId: lastSymbolIdRef.current,
+        x: c.fx,
+        y: c.fy,
+        sizePx: DEFAULT_SYMBOL_SIZE,
+        rotationDeg: 0,
+        color: DEFAULT_SYMBOL_COLOR,
+        strokeWidthPx: DEFAULT_SYMBOL_STROKE,
+      };
+      const imgCtx = imageContextAt(
+        c.fx,
+        c.fy,
+        figure,
+        panelRectsById,
+        imagesById,
+      );
+      if (imgCtx !== null && imgCtx.panel.panelId !== undefined) {
+        const anchor = anchorFromFigure(c.fx, c.fy, imgCtx);
+        if (anchor !== null) {
+          ann.imageId = imgCtx.imageId;
+          ann.panelId = imgCtx.panel.panelId;
+          ann.anchor = anchor;
+        }
+      }
+      dispatch(addAnnotation(ann));
+      onSelectAnnotation(ann.id);
+      return;
+    }
+
+    // box: begin a rubber-band drag.
     if (activeTool !== "box") return;
     e.currentTarget.setPointerCapture(e.pointerId);
     setDrag({
@@ -473,9 +552,6 @@ export function AnnotationInteractionLayer({
     const endFx = c?.fx ?? drag.curFx;
     const endFy = c?.fy ?? drag.curFy;
 
-    // TODO(Task 9): symbol creation gesture (click-to-place + handles). The
-    // legacy create-arrow drag-to-draw branch was removed when the
-    // ArrowAnnotation model was retired.
     if (drag.kind === "create-box") {
       const x = Math.min(drag.startFx, endFx);
       const y = Math.min(drag.startFy, endFy);
@@ -622,11 +698,25 @@ export function AnnotationInteractionLayer({
         break;
       }
       case "symbol": {
-        // TODO(Task 9): drag-to-move a symbol. Anchor center re-derives just
-        // like text does; for now, stub by translating x/y without re-anchor.
         const nx = start.x + dx;
         const ny = start.y + dy;
-        patch = { x: nx, y: ny };
+        const movePatch: Partial<SymbolAnnotation> = { x: nx, y: ny };
+        // Re-anchor on every move so a future image-swap teleport doesn't
+        // undo the user's drag (mirrors the text/box pattern).
+        if (start.imageId !== undefined) {
+          const ctx = imageContextAt(
+            nx,
+            ny,
+            figure,
+            panelRectsById,
+            imagesById,
+          );
+          if (ctx !== null && ctx.imageId === start.imageId) {
+            const anchor = anchorFromFigure(nx, ny, ctx);
+            if (anchor !== null) movePatch.anchor = anchor;
+          }
+        }
+        patch = movePatch;
         break;
       }
       case "scalebar":
@@ -656,11 +746,6 @@ export function AnnotationInteractionLayer({
   // on a handle take precedence over body drag (stopPropagation also
   // prevents the body's pointerdown from firing).
   // -------------------------------------------------------------------
-
-  // TODO(Task 9): symbol resize/rotate handles. The legacy arrow endpoint
-  // handlers (drag the start/end of an arrow) were removed when arrows
-  // collapsed into the symbol model. Symbols use 4 corner-resize handles +
-  // 1 rotation handle around the square sizePx-by-sizePx hit-rect.
 
   function onBoxCornerPointerDown(
     e: React.PointerEvent<HTMLDivElement>,
@@ -786,6 +871,160 @@ export function AnnotationInteractionLayer({
     if (
       drag === null ||
       drag.kind !== "box-corner" ||
+      drag.pointerId !== e.pointerId
+    ) {
+      return;
+    }
+    if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    }
+    setDrag(null);
+  }
+
+  // -------------------------------------------------------------------
+  // SELECT MODE — symbol corner + rotation handles.
+  //
+  // Symbols are center-anchored: dragging any corner grows/shrinks the
+  // square symmetrically about (x, y). The rotation handle floats above
+  // the top edge; we capture the initial grip angle on pointerdown so the
+  // symbol doesn't jump on grab.
+  // -------------------------------------------------------------------
+
+  function onSymbolCornerPointerDown(
+    e: React.PointerEvent<HTMLDivElement>,
+    a: SymbolAnnotation,
+    corner: "tl" | "tr" | "bl" | "br",
+  ): void {
+    if (e.button !== 0) return;
+    e.stopPropagation();
+    onSelectAnnotation(a.id);
+    const c = clientToFigure(e);
+    if (c === null) return;
+    e.currentTarget.setPointerCapture(e.pointerId);
+    setDrag({
+      pointerId: e.pointerId,
+      kind: "symbol-corner",
+      startFx: c.fx,
+      startFy: c.fy,
+      curFx: c.fx,
+      curFy: c.fy,
+      movingId: a.id,
+      startAnno: a,
+      symbolCorner: corner,
+    });
+  }
+
+  function onSymbolCornerPointerMove(
+    e: React.PointerEvent<HTMLDivElement>,
+  ): void {
+    if (
+      drag === null ||
+      drag.kind !== "symbol-corner" ||
+      drag.pointerId !== e.pointerId
+    ) {
+      return;
+    }
+    const c = clientToFigure(e);
+    if (c === null) return;
+    const start = drag.startAnno;
+    if (
+      start === undefined ||
+      start.kind !== "symbol" ||
+      drag.movingId === undefined
+    ) {
+      return;
+    }
+    // Center-anchored resize: the new half-extent is the larger of the two
+    // pointer-to-center distances. Symmetric grow from the center matches the
+    // model's per-symbol center anchor (unlike box, which anchors at a corner).
+    const half = Math.max(
+      MIN_SYMBOL_DIM / 2,
+      Math.max(Math.abs(c.fx - start.x), Math.abs(c.fy - start.y)),
+    );
+    const patch: Partial<SymbolAnnotation> = { sizePx: half * 2 };
+    dispatch(updateAnnotation(drag.movingId, patch));
+  }
+
+  function onSymbolCornerPointerUp(e: React.PointerEvent<HTMLDivElement>): void {
+    if (
+      drag === null ||
+      drag.kind !== "symbol-corner" ||
+      drag.pointerId !== e.pointerId
+    ) {
+      return;
+    }
+    if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    }
+    setDrag(null);
+  }
+
+  function onSymbolRotatePointerDown(
+    e: React.PointerEvent<HTMLDivElement>,
+    a: SymbolAnnotation,
+  ): void {
+    if (e.button !== 0) return;
+    e.stopPropagation();
+    onSelectAnnotation(a.id);
+    const c = clientToFigure(e);
+    if (c === null) return;
+    e.currentTarget.setPointerCapture(e.pointerId);
+    // The handle sits above the top edge, so the initial pointer-to-center
+    // angle is roughly -90°. Capture that baseline so the symbol's existing
+    // rotationDeg is preserved on grab — only pointer movement after the
+    // grab feeds rotation deltas.
+    const startGripAngleRad = Math.atan2(c.fy - a.y, c.fx - a.x);
+    setDrag({
+      pointerId: e.pointerId,
+      kind: "symbol-rotate",
+      startFx: c.fx,
+      startFy: c.fy,
+      curFx: c.fx,
+      curFy: c.fy,
+      movingId: a.id,
+      startAnno: a,
+      startRotationDeg: a.rotationDeg,
+      startGripAngleRad,
+    });
+  }
+
+  function onSymbolRotatePointerMove(
+    e: React.PointerEvent<HTMLDivElement>,
+  ): void {
+    if (
+      drag === null ||
+      drag.kind !== "symbol-rotate" ||
+      drag.pointerId !== e.pointerId
+    ) {
+      return;
+    }
+    const c = clientToFigure(e);
+    if (c === null) return;
+    const start = drag.startAnno;
+    if (
+      start === undefined ||
+      start.kind !== "symbol" ||
+      drag.movingId === undefined
+    ) {
+      return;
+    }
+    if (
+      drag.startRotationDeg === undefined ||
+      drag.startGripAngleRad === undefined
+    ) {
+      return;
+    }
+    const currentAngleRad = Math.atan2(c.fy - start.y, c.fx - start.x);
+    const deltaRad = currentAngleRad - drag.startGripAngleRad;
+    const rotationDeg = drag.startRotationDeg + (deltaRad * 180) / Math.PI;
+    const patch: Partial<SymbolAnnotation> = { rotationDeg };
+    dispatch(updateAnnotation(drag.movingId, patch));
+  }
+
+  function onSymbolRotatePointerUp(e: React.PointerEvent<HTMLDivElement>): void {
+    if (
+      drag === null ||
+      drag.kind !== "symbol-rotate" ||
       drag.pointerId !== e.pointerId
     ) {
       return;
@@ -994,8 +1233,85 @@ export function AnnotationInteractionLayer({
         />
       )}
 
-      {/* TODO(Task 9): selection chrome for symbols (4 corner-resize +
-          1 rotation handle around the square sizePx-by-sizePx hit-rect). */}
+      {/* Symbol corner + rotation handles (only when a selected symbol exists). */}
+      {activeTool === "select" &&
+        selected !== undefined &&
+        selected.kind === "symbol" && (
+          <>
+            {(
+              [
+                [
+                  "tl",
+                  selected.x - selected.sizePx / 2,
+                  selected.y - selected.sizePx / 2,
+                  "nwse-resize",
+                ],
+                [
+                  "tr",
+                  selected.x + selected.sizePx / 2,
+                  selected.y - selected.sizePx / 2,
+                  "nesw-resize",
+                ],
+                [
+                  "bl",
+                  selected.x - selected.sizePx / 2,
+                  selected.y + selected.sizePx / 2,
+                  "nesw-resize",
+                ],
+                [
+                  "br",
+                  selected.x + selected.sizePx / 2,
+                  selected.y + selected.sizePx / 2,
+                  "nwse-resize",
+                ],
+              ] as const
+            ).map(([corner, fx, fy, cur]) => (
+              <div
+                key={`symbol-handle-${corner}`}
+                data-testid={`anno-symbol-handle-${corner}`}
+                onPointerDown={(e) =>
+                  onSymbolCornerPointerDown(e, selected, corner)
+                }
+                onPointerMove={onSymbolCornerPointerMove}
+                onPointerUp={onSymbolCornerPointerUp}
+                onPointerCancel={onSymbolCornerPointerUp}
+                style={{
+                  position: "absolute",
+                  left: fx * figToCssX - HANDLE_PX / 2,
+                  top: fy * figToCssY - HANDLE_PX / 2,
+                  width: HANDLE_PX,
+                  height: HANDLE_PX,
+                  background: "#0066FF",
+                  pointerEvents: "auto",
+                  cursor: cur,
+                  zIndex: 4,
+                }}
+              />
+            ))}
+            {/* Rotation handle: small disc 16 figure-px above the top edge. */}
+            <div
+              data-testid="anno-symbol-handle-rotate"
+              onPointerDown={(e) => onSymbolRotatePointerDown(e, selected)}
+              onPointerMove={onSymbolRotatePointerMove}
+              onPointerUp={onSymbolRotatePointerUp}
+              onPointerCancel={onSymbolRotatePointerUp}
+              style={{
+                position: "absolute",
+                left: selected.x * figToCssX - HANDLE_PX / 2,
+                top:
+                  (selected.y - selected.sizePx / 2 - 16) * figToCssY -
+                  HANDLE_PX / 2,
+                width: HANDLE_PX,
+                height: HANDLE_PX,
+                borderRadius: HANDLE_PX,
+                background: "#0066FF",
+                pointerEvents: "auto",
+                cursor: "grab",
+                zIndex: 4,
+              }}
+            />
+          </>
+        )}
 
       {/* Box corner handles (only when a selected box exists). */}
       {activeTool === "select" &&
@@ -1056,9 +1372,6 @@ export function AnnotationInteractionLayer({
           }}
         />
       )}
-      {/* TODO(Task 9): symbol creation preview (ghost symbol following
-          the cursor while in click-to-place mode). */}
-
       {/* Inline text-input for the "text" tool. The pointerdown handlers
           stop propagation so a click inside the input (to focus it, place
           the cursor, or select text) doesn't bubble up to onLayerPointerDown

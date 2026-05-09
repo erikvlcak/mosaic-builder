@@ -14,6 +14,9 @@ import { render, screen, fireEvent, act } from "@testing-library/react";
 import { AnnotationInteractionLayer } from "../../src/renderer/components/Annotations/AnnotationInteractionLayer";
 import type { Figure } from "../../src/renderer/model/types";
 import { DEFAULT_GLOBAL_STYLE } from "../../src/renderer/model/global-style";
+import type { SymbolAnnotation } from "../../src/renderer/model/annotations";
+import type { PanelRect } from "../../src/renderer/render/coords";
+import type { ImagePoolItem } from "../../src/renderer/model/pool";
 
 // jsdom doesn't ship a PointerEvent constructor. Without one, testing-library's
 // fireEvent.pointerDown dispatches a MouseEvent with type "pointerdown" — which
@@ -212,5 +215,253 @@ describe("AnnotationInteractionLayer: click-on-anno-selects in creation mode", (
         ([a]) => (a as { type: string }).type === "ADD_ANNOTATION",
       ),
     ).toBe(false);
+  });
+});
+
+describe("AnnotationInteractionLayer: symbol creation + handles", () => {
+  function setupSymbolTool(opts?: {
+    panelRectsById?: Map<string, PanelRect>;
+    imagesById?: Map<string, ImagePoolItem>;
+    figureOverride?: Figure;
+  }): { dispatch: ReturnType<typeof vi.fn>; onSelect: ReturnType<typeof vi.fn> } {
+    const dispatch = vi.fn();
+    const onSelect = vi.fn();
+    render(
+      <AnnotationInteractionLayer
+        activeTool="symbol"
+        figure={opts?.figureOverride ?? FIG}
+        panelRectsById={opts?.panelRectsById ?? new Map()}
+        imagesById={opts?.imagesById ?? new Map()}
+        cssW={200}
+        cssH={200}
+        figurePxW={200}
+        figurePxH={200}
+        selectedAnnotationId={null}
+        onSelectAnnotation={onSelect}
+        onEditingChange={() => {}}
+        dispatch={dispatch}
+      />,
+    );
+    return { dispatch, onSelect };
+  }
+
+  function setupSelectedSymbol(symbol: SymbolAnnotation): {
+    dispatch: ReturnType<typeof vi.fn>;
+    onSelect: ReturnType<typeof vi.fn>;
+  } {
+    const dispatch = vi.fn();
+    const onSelect = vi.fn();
+    const figureWithSymbol: Figure = {
+      ...FIG,
+      annotations: [symbol],
+    };
+    render(
+      <AnnotationInteractionLayer
+        activeTool="select"
+        figure={figureWithSymbol}
+        panelRectsById={new Map()}
+        imagesById={new Map()}
+        cssW={200}
+        cssH={200}
+        figurePxW={200}
+        figurePxH={200}
+        selectedAnnotationId={symbol.id}
+        onSelectAnnotation={onSelect}
+        onEditingChange={() => {}}
+        dispatch={dispatch}
+      />,
+    );
+    return { dispatch, onSelect };
+  }
+
+  it("clicking the layer in symbol mode dispatches ADD_ANNOTATION with default symbol", () => {
+    const { dispatch, onSelect } = setupSymbolTool();
+    const layer = screen.getByTestId("annotation-layer");
+    fireEvent.pointerDown(layer, { button: 0, clientX: 80, clientY: 60 });
+    const call = dispatch.mock.calls.find(
+      ([action]) => (action as { type: string }).type === "ADD_ANNOTATION",
+    );
+    expect(call).toBeDefined();
+    const action = call![0] as {
+      type: "ADD_ANNOTATION";
+      annotation: SymbolAnnotation;
+    };
+    expect(action.annotation.kind).toBe("symbol");
+    expect(action.annotation.symbolId).toBe("arrow-filled-right");
+    expect(action.annotation.x).toBe(80);
+    expect(action.annotation.y).toBe(60);
+    expect(action.annotation.sizePx).toBe(60);
+    expect(action.annotation.rotationDeg).toBe(0);
+    expect(onSelect).toHaveBeenCalledWith(action.annotation.id);
+  });
+
+  it("clicking on an image-bearing panel binds the new symbol to the image", () => {
+    const panelRectsById = new Map<string, PanelRect>([
+      ["p-1", { x: 0, y: 0, w: 200, h: 200 }],
+    ]);
+    const imagesById = new Map<string, ImagePoolItem>([
+      [
+        "img-1",
+        {
+          id: "img-1",
+          filename: "x.png",
+          filePath: "/tmp/x.png",
+          mime: "image/png",
+          width: 100,
+          height: 100,
+          bitDepth: 8,
+        },
+      ],
+    ]);
+    const figure: Figure = {
+      ...FIG,
+      panels: [
+        {
+          panelId: "p-1",
+          row: 0,
+          col: 0,
+          kind: "image",
+          imageId: "img-1",
+          transform: {
+            fit: "cover",
+            zoom: 1,
+            panX: 0,
+            panY: 0,
+            rotation: 0,
+            flipH: false,
+            flipV: false,
+          },
+        },
+      ],
+    };
+    const { dispatch } = setupSymbolTool({
+      panelRectsById,
+      imagesById,
+      figureOverride: figure,
+    });
+    const layer = screen.getByTestId("annotation-layer");
+    fireEvent.pointerDown(layer, { button: 0, clientX: 100, clientY: 100 });
+    const call = dispatch.mock.calls.find(
+      ([action]) => (action as { type: string }).type === "ADD_ANNOTATION",
+    );
+    expect(call).toBeDefined();
+    const action = call![0] as {
+      type: "ADD_ANNOTATION";
+      annotation: SymbolAnnotation;
+    };
+    expect(action.annotation.imageId).toBe("img-1");
+    expect(action.annotation.panelId).toBe("p-1");
+    expect(action.annotation.anchor).toBeDefined();
+  });
+
+  it("renders 4 corner handles + 1 rotation handle for a selected symbol", () => {
+    const sym: SymbolAnnotation = {
+      id: "sym-1",
+      kind: "symbol",
+      z: 1,
+      symbolId: "arrow-filled-right",
+      x: 100,
+      y: 100,
+      sizePx: 60,
+      rotationDeg: 0,
+      color: "#FF0000",
+      strokeWidthPx: 2,
+    };
+    setupSelectedSymbol(sym);
+    expect(screen.getByTestId("anno-symbol-handle-tl")).toBeDefined();
+    expect(screen.getByTestId("anno-symbol-handle-tr")).toBeDefined();
+    expect(screen.getByTestId("anno-symbol-handle-bl")).toBeDefined();
+    expect(screen.getByTestId("anno-symbol-handle-br")).toBeDefined();
+    expect(screen.getByTestId("anno-symbol-handle-rotate")).toBeDefined();
+  });
+
+  it("dragging the BR corner dispatches UPDATE_ANNOTATION with new sizePx", () => {
+    const sym: SymbolAnnotation = {
+      id: "sym-1",
+      kind: "symbol",
+      z: 1,
+      symbolId: "arrow-filled-right",
+      x: 100,
+      y: 100,
+      sizePx: 60,
+      rotationDeg: 0,
+      color: "#FF0000",
+      strokeWidthPx: 2,
+    };
+    const { dispatch } = setupSelectedSymbol(sym);
+    const handle = screen.getByTestId("anno-symbol-handle-br");
+    fireEvent.pointerDown(handle, { button: 0, clientX: 130, clientY: 130 });
+    fireEvent.pointerMove(handle, { clientX: 150, clientY: 140 });
+    const call = dispatch.mock.calls.find(
+      ([action]) => (action as { type: string }).type === "UPDATE_ANNOTATION",
+    );
+    expect(call).toBeDefined();
+    const action = call![0] as {
+      type: "UPDATE_ANNOTATION";
+      annotationId: string;
+      patch: Partial<SymbolAnnotation>;
+    };
+    expect(action.annotationId).toBe("sym-1");
+    // Center is (100, 100); pointer is at (150, 140) → max(|50|, |40|) = 50, sizePx = 100.
+    expect(action.patch.sizePx).toBe(100);
+  });
+
+  it("dragging the rotation handle dispatches UPDATE_ANNOTATION with a new rotationDeg", () => {
+    const sym: SymbolAnnotation = {
+      id: "sym-1",
+      kind: "symbol",
+      z: 1,
+      symbolId: "arrow-filled-right",
+      x: 100,
+      y: 100,
+      sizePx: 60,
+      rotationDeg: 0,
+      color: "#FF0000",
+      strokeWidthPx: 2,
+    };
+    const { dispatch } = setupSelectedSymbol(sym);
+    const handle = screen.getByTestId("anno-symbol-handle-rotate");
+    // Handle CSS position is (selected.x - HANDLE_PX/2, (selected.y - sizePx/2 - 16) - HANDLE_PX/2)
+    // With cssW=figurePxW=200 the conversion is identity.
+    fireEvent.pointerDown(handle, { button: 0, clientX: 100, clientY: 54 });
+    // Rotate the pointer 90° around the symbol center: from (100, 54) at -90°
+    // to (146, 100) at 0° → expected delta ≈ +90°.
+    fireEvent.pointerMove(handle, { clientX: 146, clientY: 100 });
+    const call = dispatch.mock.calls.find(
+      ([action]) => (action as { type: string }).type === "UPDATE_ANNOTATION",
+    );
+    expect(call).toBeDefined();
+    const action = call![0] as {
+      type: "UPDATE_ANNOTATION";
+      annotationId: string;
+      patch: Partial<SymbolAnnotation>;
+    };
+    expect(action.patch.rotationDeg).toBeCloseTo(90, 0);
+  });
+
+  it("rotation handle does NOT snap on grab (no UPDATE_ANNOTATION between down and up)", () => {
+    const sym: SymbolAnnotation = {
+      id: "sym-1",
+      kind: "symbol",
+      z: 1,
+      symbolId: "arrow-filled-right",
+      x: 100,
+      y: 100,
+      sizePx: 60,
+      rotationDeg: 45,
+      color: "#FF0000",
+      strokeWidthPx: 2,
+    };
+    const { dispatch } = setupSelectedSymbol(sym);
+    const handle = screen.getByTestId("anno-symbol-handle-rotate");
+    fireEvent.pointerDown(handle, { button: 0, clientX: 100, clientY: 54 });
+    fireEvent.pointerUp(handle, { clientX: 100, clientY: 54 });
+    // No UPDATE_ANNOTATION should fire on a clean grab/release: the
+    // startGripAngleRad baseline cancels out and pointermove is what drives
+    // rotation, not pointerdown.
+    const updates = dispatch.mock.calls.filter(
+      ([a]) => (a as { type: string }).type === "UPDATE_ANNOTATION",
+    );
+    expect(updates).toHaveLength(0);
   });
 });
