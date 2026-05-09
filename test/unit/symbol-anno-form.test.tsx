@@ -3,6 +3,7 @@ import { describe, it, expect, vi } from "vitest";
 import { render, fireEvent } from "@testing-library/react";
 import { SymbolAnnoForm } from "../../src/renderer/components/Properties/SymbolAnnoForm";
 import type { SymbolAnnotation } from "../../src/renderer/model/annotations";
+import type { FieldCommit } from "../../src/renderer/hooks/useFieldCommit";
 
 const makeAnno = (
   overrides: Partial<SymbolAnnotation> = {},
@@ -20,7 +21,7 @@ const makeAnno = (
   ...overrides,
 });
 
-const noopCommit = { markDirty: () => {}, flush: () => {} };
+const noopCommit: FieldCommit = { markDirty: () => {}, flush: () => {} };
 
 describe("SymbolAnnoForm", () => {
   it("renders gallery groups for each category", () => {

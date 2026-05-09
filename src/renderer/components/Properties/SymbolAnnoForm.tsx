@@ -33,7 +33,7 @@ export function SymbolAnnoForm({ anno, dispatch, commit }: Props): JSX.Element {
     <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
       <div>
         <div style={{ fontSize: 11, fontWeight: 600, marginBottom: 4 }}>Symbol</div>
-        <div className="symbol-gallery">
+        <div className="symbol-gallery" role="group" aria-label="Symbol">
           {SYMBOL_CATEGORIES.map((cat) => (
             <div
               key={cat}
@@ -47,6 +47,7 @@ export function SymbolAnnoForm({ anno, dispatch, commit }: Props): JSX.Element {
                     key={s.id}
                     type="button"
                     title={s.label}
+                    aria-label={s.label}
                     data-testid={`symbol-gallery-cell-${s.id}`}
                     aria-pressed={s.id === anno.symbolId}
                     className={
@@ -59,10 +60,14 @@ export function SymbolAnnoForm({ anno, dispatch, commit }: Props): JSX.Element {
                       <path
                         d={s.pathD}
                         fill={s.fill ? "currentColor" : "none"}
-                        stroke={s.fill ? "none" : "currentColor"}
-                        strokeWidth={s.fill ? 0 : 6}
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
+                        {...(s.fill
+                          ? ({ stroke: "none" } as const)
+                          : ({
+                              stroke: "currentColor",
+                              strokeWidth: 6,
+                              strokeLinecap: "round",
+                              strokeLinejoin: "round",
+                            } as const))}
                       />
                     </svg>
                   </button>
