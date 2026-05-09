@@ -92,11 +92,11 @@ function makeRecorder(): DrawCtx & { calls: Call[] } {
     lineTo(...args) {
       calls.push(snapshot("lineTo", args));
     },
-    stroke() {
-      calls.push(snapshot("stroke", []));
+    stroke(path?: Path2D) {
+      calls.push(snapshot("stroke", path === undefined ? [] : [path]));
     },
-    fill() {
-      calls.push(snapshot("fill", []));
+    fill(path?: Path2D) {
+      calls.push(snapshot("fill", path === undefined ? [] : [path]));
     },
   };
   function snapshot(op: string, args: unknown[]): Call {

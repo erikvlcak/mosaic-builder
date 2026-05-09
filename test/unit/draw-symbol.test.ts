@@ -242,6 +242,30 @@ describe("drawSymbol", () => {
     expect(ctx.calls.some((c) => c.op === "restore")).toBe(false);
   });
 
+  it("sizePx = 0 emits no save/restore/fill/stroke (avoids Infinity lineWidth)", () => {
+    const ctx = makeRecorder();
+    const fig = figWithSymbol([
+      {
+        id: "s1",
+        kind: "symbol",
+        z: 0,
+        symbolId: "arrow-open-right",
+        x: 100,
+        y: 100,
+        sizePx: 0,
+        rotationDeg: 0,
+        color: "#000",
+        strokeWidthPx: 2,
+      },
+    ]);
+    drawAnnotations(ctx, fig, EMPTY_DEPS);
+
+    expect(ctx.calls.some((c) => c.op === "fill")).toBe(false);
+    expect(ctx.calls.some((c) => c.op === "stroke")).toBe(false);
+    expect(ctx.calls.some((c) => c.op === "save")).toBe(false);
+    expect(ctx.calls.some((c) => c.op === "restore")).toBe(false);
+  });
+
   it("rotationDeg is converted to radians (90° → π/2)", () => {
     const ctx = makeRecorder();
     const fig = figWithSymbol([

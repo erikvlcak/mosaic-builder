@@ -1,6 +1,6 @@
 /**
  * M6 annotation render pass. Called by `drawFigure` after the panel pass.
- * Implements `letter`, `text`, and `box` in Task 5; `arrow` and `scalebar`
+ * Implements `letter`, `text`, and `box` in Task 5; `symbol` and `scalebar`
  * land in Task 6.
  *
  * Conventions:
@@ -74,7 +74,7 @@ export function drawAnnotations(
         break;
       default: {
         // Exhaustiveness check: adding a new annotation kind to
-        // `ResolvedAnnotation` (or removing the arrow/scalebar cases
+        // `ResolvedAnnotation` (or removing the symbol/scalebar cases
         // above) will trigger a compile error here.
         const _exhaustive: never = a;
         void _exhaustive;
@@ -233,6 +233,8 @@ function drawBox(
 function drawSymbol(ctx: DrawCtx, a: SymbolAnnotation): void {
   const def = SYMBOL_LIBRARY_BY_ID.get(a.symbolId);
   if (def === undefined) return;
+  // Degenerate; would produce Infinity lineWidth for stroked symbols.
+  if (a.sizePx <= 0) return;
   ctx.save();
   ctx.translate(a.x, a.y);
   ctx.rotate((a.rotationDeg * Math.PI) / 180);
