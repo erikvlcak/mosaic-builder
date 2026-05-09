@@ -234,3 +234,30 @@ describe("deriveFigure", () => {
     ]);
   });
 });
+
+describe("deriveFigure — layout passthrough (spec 11)", () => {
+  it("copies state.layout onto figure.grid.layout", () => {
+    const s = initialFigureState();
+    const f = deriveFigure(s, { canvas: CANVAS });
+    expect(f.grid.layout).toEqual({
+      kind: "uniform",
+      colWeights: [0.5, 0.5],
+      rowWeights: [0.5, 0.5],
+    });
+  });
+
+  it("propagates a free-form layout unchanged", () => {
+    const s0 = initialFigureState();
+    const free = {
+      ...s0,
+      layout: {
+        kind: "free" as const,
+        rects: {
+          "panel-1": { x: 10, y: 10, w: 100, h: 100 },
+        },
+      },
+    };
+    const f = deriveFigure(free, { canvas: CANVAS });
+    expect(f.grid.layout).toEqual(free.layout);
+  });
+});

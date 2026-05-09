@@ -14,6 +14,7 @@ import type {
 } from "./annotations";
 import type { GlobalAnnoStyle } from "./global-style";
 import type { LetterOverride } from "./figure-state";
+import type { GridLayout } from "./grid-layout";
 
 export type Hex = string; // "#RRGGBB" or "#RRGGBBAA"
 
@@ -36,6 +37,13 @@ export interface FigureGrid {
    * behavior). Production figures always populate this via `deriveFigure`.
    */
   outerGutter?: boolean;
+  /**
+   * Layout regime. Optional so hand-built test fixtures (pre-spec-11)
+   * still compile; `computePanelRects` defaults a missing value to a
+   * uniform layout with equal weights for the current grid dims.
+   * Production figures always carry the full layout via `deriveFigure`.
+   */
+  layout?: GridLayout;
 }
 
 export type HardCodedPanel =
