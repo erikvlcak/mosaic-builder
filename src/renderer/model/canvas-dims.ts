@@ -37,13 +37,13 @@ export function computeCanvasDims(
  * when the canvas pixel dims change so on-screen positions stay anchored.
  *
  * - text: x, y
- * - arrow: x1, y1, x2, y2
+ * - symbol: x, y
  * - box: x, y, w, h
  * - scalebar: nothing (corner-anchored, lengthValue is in real-world units)
  *
- * sizePt, thicknessPx, strokeWidthPx are intentionally left alone — they
- * are visual sizes, not figure coordinates. Returns the same reference
- * when sx === 1 && sy === 1 to avoid no-op state churn.
+ * sizePt, sizePx, rotationDeg, strokeWidthPx are intentionally left alone
+ * — they are visual sizes, not figure coordinates. Returns the same
+ * reference when sx === 1 && sy === 1 to avoid no-op state churn.
  */
 export function scaleAnnotations(
   annotations: readonly Annotation[],
@@ -55,14 +55,8 @@ export function scaleAnnotations(
     if (a.kind === "text") {
       return { ...a, x: a.x * sx, y: a.y * sy };
     }
-    if (a.kind === "arrow") {
-      return {
-        ...a,
-        x1: a.x1 * sx,
-        y1: a.y1 * sy,
-        x2: a.x2 * sx,
-        y2: a.y2 * sy,
-      };
+    if (a.kind === "symbol") {
+      return { ...a, x: a.x * sx, y: a.y * sy };
     }
     if (a.kind === "box") {
       return {

@@ -15,7 +15,9 @@
 
 import type { FigureState } from "./figure-state";
 import type { ImagePoolItem } from "./pool";
-import type { MosaicFileV1 } from "./schema";
+import type { Annotation } from "./annotations";
+import type { MosaicFile, MosaicFileV2 } from "./schema";
+import { migrateAnnotationsV1ToV2 } from "./migrate-v1-to-v2";
 
 export interface RelinkHint {
   imageId: string;
@@ -36,13 +38,13 @@ export interface ToMosaicInput {
   shaByImageId?: Record<string, string>;
 }
 
-export function toMosaicFile(inp: ToMosaicInput): MosaicFileV1 {
+export function toMosaicFile(inp: ToMosaicInput): MosaicFileV2 {
   const now = inp.now ?? (() => new Date().toISOString());
   const baseDir = posixDirname(inp.mosaicPath);
   const stamp = now();
 
   const pool = inp.state.pool.map((item) => {
-    const out: MosaicFileV1["state"]["pool"][number] = { ...item };
+    const out: MosaicFileV2["state"]["pool"][number] = { ...item };
     const rel = posixRelative(baseDir, item.filePath);
     if (rel !== null) out.relPath = rel;
     const sha = inp.shaByImageId?.[item.id];
@@ -51,13 +53,13 @@ export function toMosaicFile(inp: ToMosaicInput): MosaicFileV1 {
   });
 
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     app: "mosaic-builder",
     appVersion: inp.appVersion,
     createdAt: stamp,
     modifiedAt: stamp,
     canvas: inp.canvas,
-    state: { ...inp.state, pool } as MosaicFileV1["state"],
+    state: { ...inp.state, pool } as MosaicFileV2["state"],
   };
 }
 
@@ -67,10 +69,13 @@ export interface FromMosaicResult {
   relinkHints: RelinkHint[];
 }
 
-export function fromMosaicFile(file: MosaicFileV1): FromMosaicResult {
+export function fromMosaicFile(file: MosaicFile): FromMosaicResult {
   const relinkHints: RelinkHint[] = [];
   const runtimePool = file.state.pool.map((item) => {
-    const { relPath, sha256, ...rest } = item as unknown as ImagePoolItem & { relPath?: string; sha256?: string };
+    const { relPath, sha256, ...rest } = item as unknown as ImagePoolItem & {
+      relPath?: string;
+      sha256?: string;
+    };
     const hint: RelinkHint = { imageId: rest.id, filePath: rest.filePath };
     if (relPath !== undefined) hint.relPath = relPath;
     if (sha256 !== undefined) hint.sha256 = sha256;
@@ -82,9 +87,16 @@ export function fromMosaicFile(file: MosaicFileV1): FromMosaicResult {
     heightPx: file.canvas.heightPx,
     background: file.canvas.background,
   };
+  // v1 files carry legacy `arrow` annotations; migrate to v2 `symbol` shape
+  // before constructing runtime state. The runtime model only knows v2.
+  const annotations: Annotation[] =
+    file.schemaVersion === 1
+      ? migrateAnnotationsV1ToV2(file.state.annotations)
+      : file.state.annotations;
   const state: FigureState = {
     ...file.state,
     pool: runtimePool,
+    annotations,
     // Pre-spec-10 files lack `outerGutter`; default to true (the prior behavior).
     outerGutter: file.state.outerGutter ?? true,
   };
@@ -112,7 +124,12 @@ function posixRelative(fromDir: string, toFile: string): string | null {
   const fromParts = fromDir.split("/").filter((s) => s.length > 0);
   const toParts = toFile.split("/").filter((s) => s.length > 0);
   let i = 0;
-  while (i < fromParts.length && i < toParts.length && fromParts[i] === toParts[i]) i++;
+  while (
+    i < fromParts.length &&
+    i < toParts.length &&
+    fromParts[i] === toParts[i]
+  )
+    i++;
   const ups = fromParts.slice(i).map(() => "..");
   const downs = toParts.slice(i);
   const segs = [...ups, ...downs];

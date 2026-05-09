@@ -3,11 +3,14 @@ import type { ImagePoolItem, Calibration } from "../../src/renderer/model/pool";
 import type {
   Annotation,
   TextAnnotation,
-  ArrowAnnotation,
+  SymbolAnnotation,
   BoxAnnotation,
   ScaleBarAnnotation,
 } from "../../src/renderer/model/annotations";
-import { DEFAULT_GLOBAL_STYLE, type GlobalAnnoStyle } from "../../src/renderer/model/global-style";
+import {
+  DEFAULT_GLOBAL_STYLE,
+  type GlobalAnnoStyle,
+} from "../../src/renderer/model/global-style";
 import {
   initialFigureState,
   figureReducer,
@@ -41,7 +44,10 @@ import {
   deletePanel,
   restorePanelAt,
 } from "../../src/renderer/model/figure-actions";
-import { findPanelAt, DEFAULT_TRANSFORM } from "../../src/renderer/model/panels";
+import {
+  findPanelAt,
+  DEFAULT_TRANSFORM,
+} from "../../src/renderer/model/panels";
 
 const IMG_A: ImagePoolItem = {
   id: "a",
@@ -171,7 +177,9 @@ describe("figureReducer (panel-id actions)", () => {
     s = figureReducer(s, replaceIntoPanel("b", p1));
     expect(s.panels.find((p) => p.id === p1)?.imageId).toBe("b");
     const placedIds = new Set(
-      s.panels.map((p) => p.imageId).filter((x): x is string => x !== undefined),
+      s.panels
+        .map((p) => p.imageId)
+        .filter((x): x is string => x !== undefined),
     );
     expect(placedIds.has("a")).toBe(false);
     expect(s.pool.map((i) => i.id)).toContain("a");
@@ -215,10 +223,11 @@ describe("figureReducer (panel-id actions)", () => {
 
   it("RESIZE_GRID grows the grid and adds 1x1 panels", () => {
     const s0 = initialFigureState();
-    const s1 = figureReducer(
-      s0,
-      { type: "RESIZE_GRID", rows: 3, cols: 3 } as const,
-    );
+    const s1 = figureReducer(s0, {
+      type: "RESIZE_GRID",
+      rows: 3,
+      cols: 3,
+    } as const);
     expect(s1.rows).toBe(3);
     expect(s1.cols).toBe(3);
     expect(s1.panels).toHaveLength(9);
@@ -226,20 +235,22 @@ describe("figureReducer (panel-id actions)", () => {
 
   it("RESIZE_GRID clamps to 1..10", () => {
     const s0 = initialFigureState();
-    const s1 = figureReducer(
-      s0,
-      { type: "RESIZE_GRID", rows: 99, cols: 0 } as const,
-    );
+    const s1 = figureReducer(s0, {
+      type: "RESIZE_GRID",
+      rows: 99,
+      cols: 0,
+    } as const);
     expect(s1.rows).toBe(10);
     expect(s1.cols).toBe(1);
   });
 
   it("RESIZE_GRID is no-op when the shape is unchanged", () => {
     const s0 = initialFigureState();
-    const s1 = figureReducer(
-      s0,
-      { type: "RESIZE_GRID", rows: 2, cols: 2 } as const,
-    );
+    const s1 = figureReducer(s0, {
+      type: "RESIZE_GRID",
+      rows: 2,
+      cols: 2,
+    } as const);
     expect(s1).toBe(s0);
   });
 
@@ -255,16 +266,16 @@ describe("figureReducer (panel-id actions)", () => {
 
   it("SET_GUTTER_COLOR accepts hex and rejects junk", () => {
     let s = initialFigureState();
-    s = figureReducer(
-      s,
-      { type: "SET_GUTTER_COLOR", gutterColor: "#000000" } as const,
-    );
+    s = figureReducer(s, {
+      type: "SET_GUTTER_COLOR",
+      gutterColor: "#000000",
+    } as const);
     expect(s.gutterColor).toBe("#000000");
     const before = s;
-    s = figureReducer(
-      s,
-      { type: "SET_GUTTER_COLOR", gutterColor: "purple" } as const,
-    );
+    s = figureReducer(s, {
+      type: "SET_GUTTER_COLOR",
+      gutterColor: "purple",
+    } as const);
     expect(s).toBe(before);
   });
 
@@ -324,7 +335,9 @@ describe("figureReducer (panel-id actions)", () => {
       panelId: merged.id,
     } as const);
     expect(s.panels).toHaveLength(4);
-    expect(s.panels.every((p) => p.rowSpan === 1 && p.colSpan === 1)).toBe(true);
+    expect(s.panels.every((p) => p.rowSpan === 1 && p.colSpan === 1)).toBe(
+      true,
+    );
   });
 
   it("UNMERGE_PANEL is a no-op on an unknown panelId", () => {
@@ -439,14 +452,17 @@ describe("figureReducer (transform actions)", () => {
     let s = withPool(IMG_A);
     const p1 = panelIdAt(s, 0, 0);
     s = figureReducer(s, placeIntoPanel("a", p1));
-    s = figureReducer(s, setPanelTransform(p1, {
-      ...DEFAULT_TRANSFORM,
-      panX: 10,
-      panY: 20,
-      zoom: 3,
-      rotation: 90,
-      flipH: true,
-    }));
+    s = figureReducer(
+      s,
+      setPanelTransform(p1, {
+        ...DEFAULT_TRANSFORM,
+        panX: 10,
+        panY: 20,
+        zoom: 3,
+        rotation: 90,
+        flipH: true,
+      }),
+    );
     s = figureReducer(s, setPanelFit(p1, "cover"));
     const t = s.panels.find((p) => p.id === p1)?.transform;
     expect(t?.fit).toBe("cover");
@@ -480,13 +496,16 @@ describe("figureReducer (transform actions)", () => {
     let s = withPool(IMG_A);
     const p1 = panelIdAt(s, 0, 0);
     s = figureReducer(s, placeIntoPanel("a", p1));
-    s = figureReducer(s, setPanelTransform(p1, {
-      ...DEFAULT_TRANSFORM,
-      panX: 50,
-      panY: 50,
-      zoom: 2,
-      flipV: true,
-    }));
+    s = figureReducer(
+      s,
+      setPanelTransform(p1, {
+        ...DEFAULT_TRANSFORM,
+        panX: 50,
+        panY: 50,
+        zoom: 2,
+        flipV: true,
+      }),
+    );
     s = figureReducer(s, rotatePanel90(p1));
     const t = s.panels.find((p) => p.id === p1)?.transform;
     expect(t?.panX).toBe(0);
@@ -527,14 +546,17 @@ describe("figureReducer (transform actions)", () => {
     let s = withPool(IMG_A);
     const p1 = panelIdAt(s, 0, 0);
     s = figureReducer(s, placeIntoPanel("a", p1));
-    s = figureReducer(s, setPanelTransform(p1, {
-      ...DEFAULT_TRANSFORM,
-      fit: "cover",
-      panX: 10,
-      zoom: 2,
-      rotation: 270,
-      flipH: true,
-    }));
+    s = figureReducer(
+      s,
+      setPanelTransform(p1, {
+        ...DEFAULT_TRANSFORM,
+        fit: "cover",
+        panX: 10,
+        zoom: 2,
+        rotation: 270,
+        flipH: true,
+      }),
+    );
     s = figureReducer(s, resetPanelTransform(p1));
     expect(s.panels.find((p) => p.id === p1)?.transform).toEqual(
       DEFAULT_TRANSFORM,
@@ -594,19 +616,19 @@ function textAnno(id: string, panelId?: string): TextAnnotation {
     color: "#000000",
   };
 }
-function arrowAnno(id: string, panelId?: string): ArrowAnnotation {
+function arrowAnno(id: string, panelId?: string): SymbolAnnotation {
   return {
     id,
-    kind: "arrow",
+    kind: "symbol",
     z: 0,
     panelId,
-    x1: 0,
-    y1: 0,
-    x2: 50,
-    y2: 50,
+    symbolId: "arrow-filled-right",
+    x: 25,
+    y: 25,
+    sizePx: 60,
+    rotationDeg: 0,
     color: "#FF0000",
-    thicknessPx: 2,
-    head: "filled",
+    strokeWidthPx: 2,
   };
 }
 function boxAnno(id: string, panelId?: string): BoxAnnotation {
@@ -713,7 +735,10 @@ describe("figureReducer (M6 annotations)", () => {
     s = figureReducer(s, addAnnotation(textAnno("t1")));
     s = figureReducer(
       s,
-      updateAnnotation("t1", { x: 99, color: "#112233" } as Partial<Annotation>),
+      updateAnnotation("t1", {
+        x: 99,
+        color: "#112233",
+      } as Partial<Annotation>),
     );
     const t = s.annotations[0] as TextAnnotation;
     expect(t.x).toBe(99);
@@ -729,7 +754,7 @@ describe("figureReducer (M6 annotations)", () => {
     s = figureReducer(s, addAnnotation(textAnno("t1")));
     s = figureReducer(
       s,
-      updateAnnotation("t1", { kind: "arrow" } as Partial<Annotation>),
+      updateAnnotation("t1", { kind: "symbol" } as Partial<Annotation>),
     );
     expect(s.annotations[0]?.kind).toBe("text");
   });
@@ -971,7 +996,10 @@ describe("figureReducer (M6 annotations)", () => {
     if (merged === undefined) throw new Error("expected merged");
     s = figureReducer(s, setLetterOverride(merged.id, "MM"));
     expect(s.letterOverrides[merged.id]).toBe("MM");
-    s = figureReducer(s, { type: "UNMERGE_PANEL", panelId: merged.id } as const);
+    s = figureReducer(s, {
+      type: "UNMERGE_PANEL",
+      panelId: merged.id,
+    } as const);
     expect(s.letterOverrides[merged.id]).toBeUndefined();
   });
 

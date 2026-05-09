@@ -1,9 +1,9 @@
 /**
  * M6 annotation model. All coordinates are in figure-canvas px (top-left
- * origin). The user-facing `Annotation` discriminated union has 4 kinds;
- * `LetterAnnotation` is a derived (resolved) shape produced by
- * `figure-derivations` from `letterOverrides` + grid position, and is not
- * directly editable.
+ * origin). The user-facing `Annotation` discriminated union has 4
+ * user-creatable kinds — text/symbol/box/scalebar; `LetterAnnotation` is a
+ * derived (resolved) shape produced by `figure-derivations` from
+ * `letterOverrides` + grid position, and is not directly editable.
  *
  * `AnnotationKind` includes `"letter"` so derived letters share the same
  * `BaseAnnotation` shape; the user-creatable `Annotation` union below
@@ -12,13 +12,13 @@
 
 import type { Corner } from "./global-style";
 
-export type AnnotationKind = "text" | "arrow" | "box" | "scalebar" | "letter"; // "letter" is derived-only — not in user-facing Annotation union
+export type AnnotationKind = "text" | "symbol" | "box" | "scalebar" | "letter"; // "letter" is derived-only — not in user-facing Annotation union
 
 export interface BaseAnnotation {
   /** crypto.randomUUID() */
   id: string;
   /**
-   * Omit for figure-global text/arrows/boxes. Scale bars REQUIRE panelId
+   * Omit for figure-global text/symbols/boxes. Scale bars REQUIRE panelId
    * (calibration is per-image-on-panel); letters are always per-panel.
    */
   panelId?: string;
@@ -26,7 +26,7 @@ export interface BaseAnnotation {
    * When set, this annotation is bound to the image with this id and
    * follows it to whatever panel currently holds it. The relocator
    * (`relocateImageBoundAnnotations`) keeps `panelId` and the kind-specific
-   * geometry (`x/y/w/h`/endpoints) in sync with the bound image's current
+   * geometry (`x/y/w/h`/center) in sync with the bound image's current
    * panel + transform on each move/rotate/flip. If the image is unplaced
    * or removed, image-bound annotations are dropped. Letters never carry
    * an `imageId`; scale bars optionally do (their meaningful binding is
@@ -74,19 +74,26 @@ export interface TextAnnotation extends BaseAnnotation {
   bgColor?: string;
 }
 
-export interface ArrowAnnotation extends BaseAnnotation {
-  kind: "arrow";
-  /** figure-canvas px endpoints. */
-  x1: number;
-  y1: number;
-  x2: number;
-  y2: number;
-  /** Image-anchors for the two endpoints. Present iff `imageId` is set. */
-  anchor1?: ImageAnchor;
-  anchor2?: ImageAnchor;
+export interface SymbolAnnotation extends BaseAnnotation {
+  kind: "symbol";
+  /** Id into SYMBOL_LIBRARY (see src/renderer/symbols/library.ts). */
+  symbolId: string;
+  /** Anchor (center of the symbol) in figure-canvas px. */
+  x: number;
+  y: number;
+  /**
+   * Image-anchor for the symbol's center, in 0..1 source-image space.
+   * Present iff `imageId` is set; the relocator uses it to reproject `x/y`
+   * when the image moves to a new panel.
+   */
+  anchor?: ImageAnchor;
+  /** The larger of width/height in figure-canvas px. Square hit-rect side. */
+  sizePx: number;
+  /** Degrees clockwise. 0 = library default orientation. */
+  rotationDeg: number;
   color: string;
-  thicknessPx: number;
-  head: "none" | "open" | "filled";
+  /** Stroke width for stroke-only symbols. Ignored at draw time for filled symbols. */
+  strokeWidthPx: number;
 }
 
 export interface BoxAnnotation extends BaseAnnotation {
@@ -134,6 +141,6 @@ export interface LetterAnnotation extends BaseAnnotation {
 /** User-creatable annotations. `LetterAnnotation` is derived, not in this union. */
 export type Annotation =
   | TextAnnotation
-  | ArrowAnnotation
+  | SymbolAnnotation
   | BoxAnnotation
   | ScaleBarAnnotation;

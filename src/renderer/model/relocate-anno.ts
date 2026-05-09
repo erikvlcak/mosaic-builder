@@ -101,27 +101,14 @@ function reprojectAnno(
       if (a.x === p.fx && a.y === p.fy && a.panelId === panelId) return a;
       return { ...a, x: p.fx, y: p.fy, panelId };
     }
-    case "arrow": {
-      if (a.anchor1 === undefined || a.anchor2 === undefined) return a;
-      const p1 = projectAnchor(a.anchor1, panelRect, transform, imgW, imgH);
-      const p2 = projectAnchor(a.anchor2, panelRect, transform, imgW, imgH);
-      if (
-        a.x1 === p1.fx &&
-        a.y1 === p1.fy &&
-        a.x2 === p2.fx &&
-        a.y2 === p2.fy &&
-        a.panelId === panelId
-      ) {
-        return a;
-      }
-      return {
-        ...a,
-        x1: p1.fx,
-        y1: p1.fy,
-        x2: p2.fx,
-        y2: p2.fy,
-        panelId,
-      };
+    case "symbol": {
+      // Symbols re-anchor by center; we deliberately do NOT re-project the
+      // visual rotation/sizePx on flip/rotate (accepted simplification —
+      // rotation in figure space is decoupled from panel transform).
+      if (a.anchor === undefined) return a;
+      const p = projectAnchor(a.anchor, panelRect, transform, imgW, imgH);
+      if (a.x === p.fx && a.y === p.fy && a.panelId === panelId) return a;
+      return { ...a, x: p.fx, y: p.fy, panelId };
     }
     case "box": {
       if (a.anchor1 === undefined || a.anchor2 === undefined) return a;

@@ -1,9 +1,6 @@
 import { writeFile, readFile, stat } from "node:fs/promises";
 import path from "node:path";
-import {
-  validateMosaicFile,
-  type MosaicFileV1,
-} from "../renderer/model/schema";
+import { validateMosaicFile, type MosaicFile } from "../renderer/model/schema";
 import { mimeFromExt, type ImageMime } from "./mime";
 import { sha256OfBytes } from "./sha256";
 
@@ -26,7 +23,7 @@ export type LoadProjectResult =
   | { ok: false; error: string }
   | {
       ok: true;
-      file: MosaicFileV1;
+      file: MosaicFile;
       images: ResolvedImage[];
       missing: MissingImage[];
     };
@@ -35,7 +32,7 @@ const ALLOWED_EXT = [".mosaic"];
 
 export async function saveProjectToPath(
   target: string,
-  file: MosaicFileV1,
+  file: MosaicFile,
 ): Promise<void> {
   const ext = path.extname(target).toLowerCase();
   if (!ALLOWED_EXT.includes(ext)) {
@@ -60,7 +57,10 @@ export async function loadProjectFromPath(
   try {
     parsed = JSON.parse(raw);
   } catch (e) {
-    return { ok: false, error: `JSON parse: ${e instanceof Error ? e.message : String(e)}` };
+    return {
+      ok: false,
+      error: `JSON parse: ${e instanceof Error ? e.message : String(e)}`,
+    };
   }
   const v = validateMosaicFile(parsed);
   if (!v.ok) return { ok: false, error: v.error };
@@ -70,7 +70,7 @@ export async function loadProjectFromPath(
   const images: ResolvedImage[] = [];
   const missing: MissingImage[] = [];
 
-  type DiskPoolItem = MosaicFileV1["state"]["pool"][number];
+  type DiskPoolItem = MosaicFile["state"]["pool"][number];
 
   for (const item of file.state.pool as unknown as DiskPoolItem[]) {
     const tries: string[] = [];
@@ -90,7 +90,11 @@ export async function loadProjectFromPath(
         const s = await stat(p);
         if (!s.isFile()) continue;
         const buf = await readFile(p);
-        resolvedBytes = new Uint8Array(buf.buffer, buf.byteOffset, buf.byteLength);
+        resolvedBytes = new Uint8Array(
+          buf.buffer,
+          buf.byteOffset,
+          buf.byteLength,
+        );
         resolvedPath = p;
         break;
       } catch {

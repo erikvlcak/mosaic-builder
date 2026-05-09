@@ -7,7 +7,7 @@
 import type { PanelTransform } from "./panels";
 import type {
   TextAnnotation,
-  ArrowAnnotation,
+  SymbolAnnotation,
   BoxAnnotation,
   ScaleBarAnnotation,
   LetterAnnotation,
@@ -71,7 +71,7 @@ export type HardCodedPanel =
  */
 export type ResolvedAnnotation =
   | (TextAnnotation & { kind: "text" })
-  | (ArrowAnnotation & { kind: "arrow" })
+  | (SymbolAnnotation & { kind: "symbol" })
   | (BoxAnnotation & { kind: "box" })
   | (ScaleBarAnnotation & { kind: "scalebar"; resolvedPanelId: string })
   | (LetterAnnotation & { kind: "letter" });

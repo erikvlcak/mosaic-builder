@@ -3,7 +3,7 @@
  * Imported as a type by the renderer (no runtime code crosses the boundary).
  */
 
-import type { MosaicFileV1 } from "../renderer/model/schema";
+import type { MosaicFile } from "../renderer/model/schema";
 
 export const API_CHANNELS = {
   ping: "mosaic:ping",
@@ -58,11 +58,13 @@ export type OpenImagesResult =
 
 export interface SaveProjectInput {
   /**
-   * Already-built MosaicFileV1 from the renderer. Main process writes it
-   * to disk after picking a path; main does NOT mutate the file other
-   * than possibly re-stamping `modifiedAt` (caller passes a fresh value).
+   * Already-built MosaicFile from the renderer (currently always v2; v1 is
+   * read-only — produced only by validating legacy on-disk files). Main
+   * process writes it to disk after picking a path; main does NOT mutate
+   * the file other than possibly re-stamping `modifiedAt` (caller passes a
+   * fresh value).
    */
-  file: MosaicFileV1;
+  file: MosaicFile;
   /** Suggested filename for the save dialog (e.g. "untitled.mosaic"). */
   defaultName: string;
 }
@@ -86,11 +88,15 @@ export interface ResolvedImageDto {
 }
 
 export type LoadProjectResult =
-  | { ok: false; reason: "canceled" | "validation-failed" | "read-failed"; message?: string }
+  | {
+      ok: false;
+      reason: "canceled" | "validation-failed" | "read-failed";
+      message?: string;
+    }
   | {
       ok: true;
       filePath: string;
-      file: MosaicFileV1;
+      file: MosaicFile;
       images: ResolvedImageDto[];
       missing: MissingImageDto[];
     };

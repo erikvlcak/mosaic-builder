@@ -1,10 +1,7 @@
 import type { Dispatch } from "react";
 import type { FigureState } from "../../model/figure-state";
 import type { FigureAction } from "../../model/figure-actions";
-import {
-  setPanelHidden,
-  deletePanel,
-} from "../../model/figure-actions";
+import { setPanelHidden, deletePanel } from "../../model/figure-actions";
 import type { Annotation } from "../../model/annotations";
 import type { Panel, PanelTransform } from "../../model/panels";
 import type { FieldCommit } from "../../hooks/useFieldCommit";
@@ -24,13 +21,18 @@ interface Props {
 
 const ANNO_TITLES: Record<Annotation["kind"], string> = {
   text: "Text annotation",
-  arrow: "Arrow annotation",
+  symbol: "Symbol annotation",
   box: "Box annotation",
   scalebar: "Scale bar",
 };
 
 export function PropertiesPanel({
-  state, focusedPanel, selectedAnno, dispatch, commit, onCalibrate,
+  state,
+  focusedPanel,
+  selectedAnno,
+  dispatch,
+  commit,
+  onCalibrate,
 }: Props): JSX.Element {
   let title: string;
   let subtitle: string | null = null;
@@ -40,7 +42,9 @@ export function PropertiesPanel({
     title = ANNO_TITLES[selectedAnno.kind];
     body = (
       <AnnotationPropertiesForm
-        anno={selectedAnno} dispatch={dispatch} commit={commit}
+        anno={selectedAnno}
+        dispatch={dispatch}
+        commit={commit}
       />
     );
   } else if (
@@ -54,9 +58,10 @@ export function PropertiesPanel({
     };
     title = "Selected panel";
     const letterOverride = state.letterOverrides[focusedPanel.id];
-    subtitle = letterOverride !== undefined
-      ? `Subpanel ${letterOverride}`
-      : `Row ${focusedPanel.row + 1}, col ${focusedPanel.col + 1}`;
+    subtitle =
+      letterOverride !== undefined
+        ? `Subpanel ${letterOverride}`
+        : `Row ${focusedPanel.row + 1}, col ${focusedPanel.col + 1}`;
     body = (
       <PanelPropertiesForm
         panel={panelWithTransform}
@@ -91,7 +96,9 @@ export function PropertiesPanel({
     subtitle = "No selection — editing global style";
     body = (
       <CanvasAndGlobalStyleForm
-        globalStyle={state.globalStyle} dispatch={dispatch} commit={commit}
+        globalStyle={state.globalStyle}
+        dispatch={dispatch}
+        commit={commit}
       />
     );
   }
@@ -111,9 +118,7 @@ export function PropertiesPanel({
     >
       <div className="props-title-block">
         <h2 className="props-title">{title}</h2>
-        {subtitle !== null && (
-          <div className="props-subtitle">{subtitle}</div>
-        )}
+        {subtitle !== null && <div className="props-subtitle">{subtitle}</div>}
       </div>
       {body}
     </aside>

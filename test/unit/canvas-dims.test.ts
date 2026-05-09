@@ -1,10 +1,13 @@
 import { describe, it, expect } from "vitest";
 import type { ImagePoolItem } from "../../src/renderer/model/pool";
-import { computeCanvasDims, scaleAnnotations } from "../../src/renderer/model/canvas-dims";
+import {
+  computeCanvasDims,
+  scaleAnnotations,
+} from "../../src/renderer/model/canvas-dims";
 import type {
   Annotation,
   TextAnnotation,
-  ArrowAnnotation,
+  SymbolAnnotation,
   BoxAnnotation,
   ScaleBarAnnotation,
 } from "../../src/renderer/model/annotations";
@@ -90,17 +93,17 @@ const TEXT: TextAnnotation = {
   color: "#000000",
 };
 
-const ARROW: ArrowAnnotation = {
+const SYMBOL: SymbolAnnotation = {
   id: "a1",
-  kind: "arrow",
+  kind: "symbol",
   z: 1,
-  x1: 10,
-  y1: 20,
-  x2: 30,
-  y2: 40,
+  symbolId: "arrow-filled-right",
+  x: 20,
+  y: 30,
+  sizePx: 60,
+  rotationDeg: 0,
   color: "#000000",
-  thicknessPx: 2,
-  head: "filled",
+  strokeWidthPx: 2,
 };
 
 const BOX: BoxAnnotation = {
@@ -126,7 +129,7 @@ const SCALE: ScaleBarAnnotation = {
 
 describe("scaleAnnotations", () => {
   it("returns the same array reference when sx and sy are both 1", () => {
-    const arr: Annotation[] = [TEXT, ARROW, BOX, SCALE];
+    const arr: Annotation[] = [TEXT, SYMBOL, BOX, SCALE];
     const out = scaleAnnotations(arr, 1, 1);
     expect(out).toBe(arr);
   });
@@ -139,14 +142,14 @@ describe("scaleAnnotations", () => {
     expect(t.sizePt).toBe(12); // unchanged — points are not figure-px
   });
 
-  it("scales arrow endpoints", () => {
-    const out = scaleAnnotations([ARROW], 2, 3);
-    const a = out[0] as ArrowAnnotation;
-    expect(a.x1).toBe(20);
-    expect(a.y1).toBe(60);
-    expect(a.x2).toBe(60);
-    expect(a.y2).toBe(120);
-    expect(a.thicknessPx).toBe(2); // unchanged
+  it("scales symbol x/y but leaves sizePx/rotationDeg/strokeWidthPx alone", () => {
+    const out = scaleAnnotations([SYMBOL], 2, 3);
+    const a = out[0] as SymbolAnnotation;
+    expect(a.x).toBe(40);
+    expect(a.y).toBe(90);
+    expect(a.sizePx).toBe(60); // unchanged — visual size, not figure coordinate
+    expect(a.rotationDeg).toBe(0); // unchanged
+    expect(a.strokeWidthPx).toBe(2); // unchanged
   });
 
   it("scales box position and size", () => {

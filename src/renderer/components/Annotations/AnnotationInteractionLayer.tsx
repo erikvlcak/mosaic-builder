@@ -38,7 +38,6 @@ import type {
   ImageAnchor,
   TextAnnotation,
   BoxAnnotation,
-  ArrowAnnotation,
   ScaleBarAnnotation,
 } from "../../model/annotations";
 import type { FigureAction } from "../../model/figure-actions";
@@ -86,30 +85,24 @@ interface Props {
 interface DragState {
   pointerId: number;
   /**
-   * "create-arrow" | "create-box" | "move" | "arrow-endpoint" | "box-corner"
+   * "create-box" | "move" | "box-corner"
    *
    * - "move": translate whole annotation (body hit-rect drag).
-   * - "arrow-endpoint": drag one endpoint of an arrow (other endpoint stays put).
    * - "box-corner": drag one corner of a box (resize from that corner).
+   *
+   * TODO(Task 9): symbol create + symbol resize/rotate kinds land here.
    */
-  kind:
-    | "create-arrow"
-    | "create-box"
-    | "move"
-    | "arrow-endpoint"
-    | "box-corner";
+  kind: "create-box" | "move" | "box-corner";
   /** Origin in figure-px. */
   startFx: number;
   startFy: number;
   /** Current pointer in figure-px (updated as we move). */
   curFx: number;
   curFy: number;
-  /** Annotation being moved/resized (for "move", "arrow-endpoint", "box-corner"). */
+  /** Annotation being moved/resized (for "move", "box-corner"). */
   movingId?: string;
-  /** Original annotation snapshot (for "move", "arrow-endpoint", "box-corner"). */
+  /** Original annotation snapshot (for "move", "box-corner"). */
   startAnno?: UserAnno;
-  /** Which arrow endpoint is being dragged ("arrow-endpoint" only). */
-  endpoint?: "start" | "end";
   /** Which box corner is being dragged ("box-corner" only). */
   corner?: "tl" | "tr" | "bl" | "br";
 }
@@ -137,13 +130,15 @@ const DEFAULT_TEXT_SIZE_PT = 12;
 const DEFAULT_TEXT_COLOR = "#000000";
 const DEFAULT_BOX_STROKE = "#FF0000";
 const DEFAULT_BOX_STROKE_PX = 2;
-const DEFAULT_ARROW_COLOR = "#FF0000";
-const DEFAULT_ARROW_THICKNESS = 2;
+// Constants kept for Task 9 (symbol defaults will inherit these for the
+// initial arrow-* symbol roll). Prefixed with `_` to satisfy lint until then.
+const _DEFAULT_ARROW_COLOR = "#FF0000";
+const _DEFAULT_ARROW_THICKNESS = 2;
 
 // Default z-values for new annotations: scalebar always on top so it can't be hidden;
 // text mid-stack so it overlays boxes/arrows; boxes/arrows at bottom as backdrop.
 const Z_TEXT = 5;
-const Z_ARROW = 1;
+const _Z_ARROW = 1;
 const Z_BOX = 1;
 const Z_SCALEBAR = 10;
 
@@ -262,12 +257,10 @@ function annoBounds(
     }
     case "box":
       return { x: a.x, y: a.y, w: a.w, h: a.h };
-    case "arrow": {
-      const x = Math.min(a.x1, a.x2) - a.thicknessPx;
-      const y = Math.min(a.y1, a.y2) - a.thicknessPx;
-      const w = Math.abs(a.x2 - a.x1) + a.thicknessPx * 2;
-      const h = Math.abs(a.y2 - a.y1) + a.thicknessPx * 2;
-      return { x, y, w, h };
+    case "symbol": {
+      // TODO(Task 9): hit-rect for symbols (square sizePx-by-sizePx around center).
+      const half = a.sizePx / 2;
+      return { x: a.x - half, y: a.y - half, w: a.sizePx, h: a.sizePx };
     }
     case "scalebar": {
       const r = panelRectsById.get(a.panelId);
@@ -454,11 +447,12 @@ export function AnnotationInteractionLayer({
       return;
     }
 
-    // arrow, box: begin a drag.
+    // box: begin a drag. (TODO(Task 9): "arrow"/"symbol" tool routes here.)
+    if (activeTool !== "box") return;
     e.currentTarget.setPointerCapture(e.pointerId);
     setDrag({
       pointerId: e.pointerId,
-      kind: activeTool === "arrow" ? "create-arrow" : "create-box",
+      kind: "create-box",
       startFx: c.fx,
       startFy: c.fy,
       curFx: c.fx,
@@ -484,58 +478,10 @@ export function AnnotationInteractionLayer({
     const endFx = c?.fx ?? drag.curFx;
     const endFy = c?.fy ?? drag.curFy;
 
-    if (drag.kind === "create-arrow") {
-      // Reject zero-length arrows.
-      if (endFx === drag.startFx && endFy === drag.startFy) {
-        setDrag(null);
-        return;
-      }
-      const ann: ArrowAnnotation = {
-        id: newAnnoId(),
-        kind: "arrow",
-        z: Z_ARROW,
-        x1: drag.startFx,
-        y1: drag.startFy,
-        x2: endFx,
-        y2: endFy,
-        color: DEFAULT_ARROW_COLOR,
-        thicknessPx: DEFAULT_ARROW_THICKNESS,
-        head: "filled",
-      };
-      // Bind to the image if BOTH endpoints land in the same image-bearing
-      // panel. A cross-panel arrow stays unbound (panel-anchored at most).
-      const startCtx = imageContextAt(
-        drag.startFx,
-        drag.startFy,
-        figure,
-        panelRectsById,
-        imagesById,
-      );
-      const endCtx = imageContextAt(
-        endFx,
-        endFy,
-        figure,
-        panelRectsById,
-        imagesById,
-      );
-      if (
-        startCtx !== null &&
-        endCtx !== null &&
-        startCtx.imageId === endCtx.imageId &&
-        startCtx.panel.panelId !== undefined
-      ) {
-        const a1 = anchorFromFigure(drag.startFx, drag.startFy, startCtx);
-        const a2 = anchorFromFigure(endFx, endFy, startCtx);
-        if (a1 !== null && a2 !== null) {
-          ann.imageId = startCtx.imageId;
-          ann.panelId = startCtx.panel.panelId;
-          ann.anchor1 = a1;
-          ann.anchor2 = a2;
-        }
-      }
-      dispatch(addAnnotation(ann));
-      onSelectAnnotation(ann.id);
-    } else if (drag.kind === "create-box") {
+    // TODO(Task 9): symbol creation gesture (click-to-place + handles). The
+    // legacy create-arrow drag-to-draw branch was removed when the
+    // ArrowAnnotation model was retired.
+    if (drag.kind === "create-box") {
       const x = Math.min(drag.startFx, endFx);
       const y = Math.min(drag.startFy, endFy);
       const w = Math.abs(endFx - drag.startFx);
@@ -680,41 +626,12 @@ export function AnnotationInteractionLayer({
         }
         break;
       }
-      case "arrow": {
-        const nx1 = start.x1 + dx;
-        const ny1 = start.y1 + dy;
-        const nx2 = start.x2 + dx;
-        const ny2 = start.y2 + dy;
-        patch = { x1: nx1, y1: ny1, x2: nx2, y2: ny2 };
-        if (start.imageId !== undefined) {
-          const c1 = imageContextAt(
-            nx1,
-            ny1,
-            figure,
-            panelRectsById,
-            imagesById,
-          );
-          const c2 = imageContextAt(
-            nx2,
-            ny2,
-            figure,
-            panelRectsById,
-            imagesById,
-          );
-          if (
-            c1 !== null &&
-            c2 !== null &&
-            c1.imageId === start.imageId &&
-            c2.imageId === start.imageId
-          ) {
-            const a1 = anchorFromFigure(nx1, ny1, c1);
-            const a2 = anchorFromFigure(nx2, ny2, c1);
-            if (a1 !== null && a2 !== null) {
-              (patch as Partial<ArrowAnnotation>).anchor1 = a1;
-              (patch as Partial<ArrowAnnotation>).anchor2 = a2;
-            }
-          }
-        }
+      case "symbol": {
+        // TODO(Task 9): drag-to-move a symbol. Anchor center re-derives just
+        // like text does; for now, stub by translating x/y without re-anchor.
+        const nx = start.x + dx;
+        const ny = start.y + dy;
+        patch = { x: nx, y: ny };
         break;
       }
       case "scalebar":
@@ -745,82 +662,10 @@ export function AnnotationInteractionLayer({
   // prevents the body's pointerdown from firing).
   // -------------------------------------------------------------------
 
-  function onArrowEndpointPointerDown(
-    e: React.PointerEvent<HTMLDivElement>,
-    a: ArrowAnnotation,
-    endpoint: "start" | "end",
-  ): void {
-    if (e.button !== 0) return;
-    e.stopPropagation();
-    onSelectAnnotation(a.id);
-    const c = clientToFigure(e);
-    if (c === null) return;
-    e.currentTarget.setPointerCapture(e.pointerId);
-    setDrag({
-      pointerId: e.pointerId,
-      kind: "arrow-endpoint",
-      startFx: c.fx,
-      startFy: c.fy,
-      curFx: c.fx,
-      curFy: c.fy,
-      movingId: a.id,
-      startAnno: a,
-      endpoint,
-    });
-  }
-
-  function onArrowEndpointPointerMove(
-    e: React.PointerEvent<HTMLDivElement>,
-  ): void {
-    if (
-      drag === null ||
-      drag.kind !== "arrow-endpoint" ||
-      drag.pointerId !== e.pointerId
-    ) {
-      return;
-    }
-    const c = clientToFigure(e);
-    if (c === null) return;
-    if (drag.movingId === undefined || drag.endpoint === undefined) return;
-    const start = drag.startAnno;
-    if (start === undefined || start.kind !== "arrow") return;
-    const dx = c.fx - drag.startFx;
-    const dy = c.fy - drag.startFy;
-    const patch: Partial<ArrowAnnotation> =
-      drag.endpoint === "start"
-        ? { x1: start.x1 + dx, y1: start.y1 + dy }
-        : { x2: start.x2 + dx, y2: start.y2 + dy };
-    // Re-anchor the dragged endpoint when the arrow is image-bound.
-    if (start.imageId !== undefined) {
-      const fx = drag.endpoint === "start" ? start.x1 + dx : start.x2 + dx;
-      const fy = drag.endpoint === "start" ? start.y1 + dy : start.y2 + dy;
-      const ctx = imageContextAt(fx, fy, figure, panelRectsById, imagesById);
-      if (ctx !== null && ctx.imageId === start.imageId) {
-        const a = anchorFromFigure(fx, fy, ctx);
-        if (a !== null) {
-          if (drag.endpoint === "start") patch.anchor1 = a;
-          else patch.anchor2 = a;
-        }
-      }
-    }
-    dispatch(updateAnnotation(drag.movingId, patch));
-  }
-
-  function onArrowEndpointPointerUp(
-    e: React.PointerEvent<HTMLDivElement>,
-  ): void {
-    if (
-      drag === null ||
-      drag.kind !== "arrow-endpoint" ||
-      drag.pointerId !== e.pointerId
-    ) {
-      return;
-    }
-    if (e.currentTarget.hasPointerCapture(e.pointerId)) {
-      e.currentTarget.releasePointerCapture(e.pointerId);
-    }
-    setDrag(null);
-  }
+  // TODO(Task 9): symbol resize/rotate handles. The legacy arrow endpoint
+  // handlers (drag the start/end of an arrow) were removed when arrows
+  // collapsed into the symbol model. Symbols use 4 corner-resize handles +
+  // 1 rotation handle around the square sizePx-by-sizePx hit-rect.
 
   function onBoxCornerPointerDown(
     e: React.PointerEvent<HTMLDivElement>,
@@ -1154,40 +999,8 @@ export function AnnotationInteractionLayer({
         />
       )}
 
-      {/* Arrow endpoint handles (only when a selected arrow exists). */}
-      {activeTool === "select" &&
-        selected !== undefined &&
-        selected.kind === "arrow" && (
-          <>
-            {(["start", "end"] as const).map((endpoint) => {
-              const fx = endpoint === "start" ? selected.x1 : selected.x2;
-              const fy = endpoint === "start" ? selected.y1 : selected.y2;
-              return (
-                <div
-                  key={`arrow-handle-${endpoint}`}
-                  data-testid={`anno-arrow-handle-${endpoint}`}
-                  onPointerDown={(e) =>
-                    onArrowEndpointPointerDown(e, selected, endpoint)
-                  }
-                  onPointerMove={onArrowEndpointPointerMove}
-                  onPointerUp={onArrowEndpointPointerUp}
-                  onPointerCancel={onArrowEndpointPointerUp}
-                  style={{
-                    position: "absolute",
-                    left: fx * figToCssX - HANDLE_PX / 2,
-                    top: fy * figToCssY - HANDLE_PX / 2,
-                    width: HANDLE_PX,
-                    height: HANDLE_PX,
-                    background: "#0066FF",
-                    pointerEvents: "auto",
-                    cursor: "crosshair",
-                    zIndex: 4,
-                  }}
-                />
-              );
-            })}
-          </>
-        )}
+      {/* TODO(Task 9): selection chrome for symbols (4 corner-resize +
+          1 rotation handle around the square sizePx-by-sizePx hit-rect). */}
 
       {/* Box corner handles (only when a selected box exists). */}
       {activeTool === "select" &&
@@ -1248,28 +1061,8 @@ export function AnnotationInteractionLayer({
           }}
         />
       )}
-      {drag !== null && drag.kind === "create-arrow" && (
-        <svg
-          data-testid="anno-preview-arrow"
-          width={cssW}
-          height={cssH}
-          style={{
-            position: "absolute",
-            inset: 0,
-            pointerEvents: "none",
-          }}
-        >
-          <line
-            x1={drag.startFx * figToCssX}
-            y1={drag.startFy * figToCssY}
-            x2={drag.curFx * figToCssX}
-            y2={drag.curFy * figToCssY}
-            stroke={DEFAULT_ARROW_COLOR}
-            strokeWidth={DEFAULT_ARROW_THICKNESS}
-            strokeLinecap="round"
-          />
-        </svg>
-      )}
+      {/* TODO(Task 9): symbol creation preview (ghost symbol following
+          the cursor while in click-to-place mode). */}
 
       {/* Inline text-input for the "text" tool. The pointerdown handlers
           stop propagation so a click inside the input (to focus it, place

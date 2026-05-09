@@ -14,7 +14,7 @@ import type { FigureState } from "./figure-state";
 import type { ImagePoolItem } from "./pool";
 import type { Panel } from "./panels";
 
-export const CURRENT_SCHEMA_VERSION = 1;
+export const CURRENT_SCHEMA_VERSION = 2;
 
 export type Result<T> = { ok: true; value: T } | { ok: false; error: string };
 
@@ -32,12 +32,22 @@ export interface MosaicFileV1 {
   /**
    * Mirrors `FigureState` 1:1, EXCEPT pool entries may carry `relPath`
    * and `sha256` which the runtime store ignores (they're only used by
-   * the loader).
+   * the loader). v1 carries legacy `arrow` annotations; the validator
+   * accepts those, but `fromMosaicFile` migrates them to `symbol` shape
+   * before constructing runtime state.
    */
   state: FigureState & {
     pool: (ImagePoolItem & { relPath?: string; sha256?: string })[];
   };
 }
+
+/** v2: identical to v1 but `arrow` annotations are replaced by `symbol`. */
+export interface MosaicFileV2 extends Omit<MosaicFileV1, "schemaVersion"> {
+  schemaVersion: 2;
+}
+
+/** Type alias used by callers that don't care about version. */
+export type MosaicFile = MosaicFileV1 | MosaicFileV2;
 
 function isObj(x: unknown): x is Record<string, unknown> {
   return typeof x === "object" && x !== null && !Array.isArray(x);
@@ -164,6 +174,7 @@ function validatePanels(x: unknown, path: string): Result<Panel[]> {
 function validateAnnotations(
   x: unknown,
   path: string,
+  schemaVersion: 1 | 2,
 ): Result<FigureState["annotations"]> {
   if (!Array.isArray(x)) return err(`${path}: expected array`);
   const arr = x as unknown[];
@@ -194,6 +205,12 @@ function validateAnnotations(
         return err(`${path}[${i}].anchor`);
       }
     } else if (k === "arrow") {
+      // arrow annotations only exist in v1 files; v2 files use `symbol`.
+      if (schemaVersion !== 1) {
+        return err(
+          `${path}[${i}].kind: arrow not allowed in v${schemaVersion}`,
+        );
+      }
       if (
         !isNum(a.x1) ||
         !isNum(a.y1) ||
@@ -210,6 +227,29 @@ function validateAnnotations(
       }
       if (a.anchor2 !== undefined && !isImageAnchor(a.anchor2)) {
         return err(`${path}[${i}].anchor2`);
+      }
+    } else if (k === "symbol") {
+      // symbol annotations only exist in v2 files; v1 files use `arrow`.
+      if (schemaVersion !== 2) {
+        return err(
+          `${path}[${i}].kind: symbol not allowed in v${schemaVersion}`,
+        );
+      }
+      if (
+        !isStr(a.symbolId) ||
+        !isNum(a.x) ||
+        !isNum(a.y) ||
+        !isNum(a.sizePx) ||
+        a.sizePx <= 0 ||
+        !isNum(a.rotationDeg) ||
+        !isStr(a.color) ||
+        !isNum(a.strokeWidthPx) ||
+        a.strokeWidthPx < 0
+      ) {
+        return err(`${path}[${i}]: malformed symbol annotation`);
+      }
+      if (a.anchor !== undefined && !isImageAnchor(a.anchor)) {
+        return err(`${path}[${i}].anchor`);
       }
     } else if (k === "box") {
       if (
@@ -239,7 +279,9 @@ function validateAnnotations(
         return err(`${path}[${i}]: malformed scalebar annotation`);
       }
     } else {
-      return err(`${path}[${i}].kind: must be text|arrow|box|scalebar`);
+      return err(
+        `${path}[${i}].kind: must be text|symbol|box|scalebar (or arrow in v1)`,
+      );
     }
   }
   return { ok: true, value: x as FigureState["annotations"] };
@@ -300,11 +342,13 @@ function validateGlobalStyle(
   return { ok: true, value: x as unknown as FigureState["globalStyle"] };
 }
 
-export function validateMosaicFile(x: unknown): Result<MosaicFileV1> {
+export function validateMosaicFile(x: unknown): Result<MosaicFile> {
   if (!isObj(x)) return err("root: expected object");
   if (x.schemaVersion === undefined) return err("schemaVersion: required");
-  if (x.schemaVersion !== 1)
+  if (x.schemaVersion !== 1 && x.schemaVersion !== 2) {
     return err(`schemaVersion: unsupported (${String(x.schemaVersion)})`);
+  }
+  const sv: 1 | 2 = x.schemaVersion;
   if (x.app !== "mosaic-builder") return err("app: must be 'mosaic-builder'");
   if (!isStr(x.appVersion)) return err("appVersion: expected string");
   if (!isStr(x.createdAt)) return err("createdAt: expected ISO string");
@@ -336,7 +380,7 @@ export function validateMosaicFile(x: unknown): Result<MosaicFileV1> {
   if (!pool.ok) return pool;
   const panels = validatePanels(st.panels, "state.panels");
   if (!panels.ok) return panels;
-  const ann = validateAnnotations(st.annotations, "state.annotations");
+  const ann = validateAnnotations(st.annotations, "state.annotations", sv);
   if (!ann.ok) return ann;
   const gs = validateGlobalStyle(st.globalStyle, "state.globalStyle");
   if (!gs.ok) return gs;
@@ -349,5 +393,5 @@ export function validateMosaicFile(x: unknown): Result<MosaicFileV1> {
     }
   }
 
-  return { ok: true, value: x as unknown as MosaicFileV1 };
+  return { ok: true, value: x as unknown as MosaicFile };
 }

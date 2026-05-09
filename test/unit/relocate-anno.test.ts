@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from "vitest";
 import type { ImagePoolItem } from "../../src/renderer/model/pool";
 import type {
   TextAnnotation,
-  ArrowAnnotation,
+  SymbolAnnotation,
   BoxAnnotation,
 } from "../../src/renderer/model/annotations";
 import {
@@ -115,46 +115,46 @@ describe("figureReducer image-bound annotation behavior", () => {
     __resetPanelIdsForTests();
   });
 
-  it("SWAP_PANELS: arrow follows the image to the new panel, preserving its on-image anchor", () => {
+  it("SWAP_PANELS: symbol follows the image to the new panel, preserving its on-image anchor", () => {
     let s = setupTwoImagesPlaced();
     const pidA = panelIdAt(s, 0, 0);
     const pidB = panelIdAt(s, 1, 1);
-    const arrow: ArrowAnnotation = {
+    const symbol: SymbolAnnotation = {
       id: "ar1",
-      kind: "arrow",
+      kind: "symbol",
       z: 1,
-      x1: 0,
-      y1: 0,
-      x2: 0,
-      y2: 0,
+      symbolId: "arrow-filled-right",
+      x: 0,
+      y: 0,
+      sizePx: 60,
+      rotationDeg: 0,
       color: "#FF0000",
-      thicknessPx: 2,
-      head: "filled",
+      strokeWidthPx: 2,
       imageId: "a",
       panelId: pidA,
-      anchor1: { imgU: 0.25, imgV: 0.25 },
-      anchor2: { imgU: 0.75, imgV: 0.75 },
+      anchor: { imgU: 0.5, imgV: 0.5 },
     };
-    s = figureReducer(s, addAnnotation(arrow));
-    const before = s.annotations.find((a) => a.id === "ar1") as ArrowAnnotation;
+    s = figureReducer(s, addAnnotation(symbol));
+    const before = s.annotations.find(
+      (a) => a.id === "ar1",
+    ) as SymbolAnnotation;
     expect(before.panelId).toBe(pidA);
 
     s = figureReducer(s, swapPanels(pidA, pidB));
 
-    const after = s.annotations.find((a) => a.id === "ar1") as ArrowAnnotation;
-    // Arrow's panelId now points at the panel where image "a" lives.
+    const after = s.annotations.find((a) => a.id === "ar1") as SymbolAnnotation;
+    // Symbol's panelId now points at the panel where image "a" lives.
     expect(after.panelId).toBe(pidB);
-    // Anchor fields preserved (they are the "source of truth" for relocation).
-    expect(after.anchor1).toEqual({ imgU: 0.25, imgV: 0.25 });
-    expect(after.anchor2).toEqual({ imgU: 0.75, imgV: 0.75 });
+    // Anchor preserved (it's the "source of truth" for relocation).
+    expect(after.anchor).toEqual({ imgU: 0.5, imgV: 0.5 });
     // Image-bound metadata stays.
     expect(after.imageId).toBe("a");
-    // Coords were re-projected: the new x1/y1/x2/y2 differ from the (0,0,0,0)
-    // we stored, since they're now derived from the new panel's rect.
-    expect(after.x1).not.toBe(before.x1);
+    // Coords were re-projected: the new x/y differ from the (0,0) we stored,
+    // since they're now derived from the new panel's rect.
+    expect(after.x).not.toBe(before.x);
   });
 
-  it("REPLACE_INTO_PANEL: an arrow on the panel does NOT stay there if a third image takes that panel — it follows its bound image (now unplaced) and is therefore dropped", () => {
+  it("REPLACE_INTO_PANEL: a symbol on the panel does NOT stay there if a third image takes that panel — it follows its bound image (now unplaced) and is therefore dropped", () => {
     let s = setupTwoImagesPlaced();
     // Add a third image not yet placed.
     const IMG_C: ImagePoolItem = {
@@ -167,56 +167,54 @@ describe("figureReducer image-bound annotation behavior", () => {
     };
     s = figureReducer(s, addToPool(IMG_C));
     const pidA = panelIdAt(s, 0, 0);
-    // Anchor an arrow to image "a" on panel pidA.
-    const arrow: ArrowAnnotation = {
+    // Anchor a symbol to image "a" on panel pidA.
+    const symbol: SymbolAnnotation = {
       id: "ar1",
-      kind: "arrow",
+      kind: "symbol",
       z: 1,
-      x1: 0,
-      y1: 0,
-      x2: 0,
-      y2: 0,
+      symbolId: "arrow-filled-right",
+      x: 0,
+      y: 0,
+      sizePx: 60,
+      rotationDeg: 0,
       color: "#FF0000",
-      thicknessPx: 2,
-      head: "filled",
+      strokeWidthPx: 2,
       imageId: "a",
       panelId: pidA,
-      anchor1: { imgU: 0.5, imgV: 0.5 },
-      anchor2: { imgU: 0.6, imgV: 0.6 },
+      anchor: { imgU: 0.55, imgV: 0.55 },
     };
-    s = figureReducer(s, addAnnotation(arrow));
+    s = figureReducer(s, addAnnotation(symbol));
     // Replace image "a" with image "c" on pidA. Image "a" gets ousted.
     s = figureReducer(s, replaceIntoPanel("c", pidA));
-    // The arrow followed image "a" — but image "a" is now unplaced, so
-    // the relocator dropped the arrow.
+    // The symbol followed image "a" — but image "a" is now unplaced, so
+    // the relocator dropped the symbol.
     expect(s.annotations.find((a) => a.id === "ar1")).toBeUndefined();
   });
 
-  it("REPLACE_INTO_PANEL: arrow follows its image to its new home when ousted image is moved (not unplaced)", () => {
-    // Setup: image "a" on pidA, image "b" on pidB. Arrow bound to "a".
+  it("REPLACE_INTO_PANEL: symbol follows its image to its new home when ousted image is moved (not unplaced)", () => {
+    // Setup: image "a" on pidA, image "b" on pidB. Symbol bound to "a".
     let s = setupTwoImagesPlaced();
     const pidA = panelIdAt(s, 0, 0);
     const pidB = panelIdAt(s, 1, 1);
-    const arrow: ArrowAnnotation = {
+    const symbol: SymbolAnnotation = {
       id: "ar1",
-      kind: "arrow",
+      kind: "symbol",
       z: 1,
-      x1: 0,
-      y1: 0,
-      x2: 0,
-      y2: 0,
+      symbolId: "arrow-filled-right",
+      x: 0,
+      y: 0,
+      sizePx: 60,
+      rotationDeg: 0,
       color: "#FF0000",
-      thicknessPx: 2,
-      head: "filled",
+      strokeWidthPx: 2,
       imageId: "a",
       panelId: pidA,
-      anchor1: { imgU: 0.25, imgV: 0.25 },
-      anchor2: { imgU: 0.75, imgV: 0.75 },
+      anchor: { imgU: 0.5, imgV: 0.5 },
     };
-    s = figureReducer(s, addAnnotation(arrow));
+    s = figureReducer(s, addAnnotation(symbol));
     // Swap A and B — image "a" now on pidB, image "b" on pidA.
     s = figureReducer(s, swapPanels(pidA, pidB));
-    const after = s.annotations.find((a) => a.id === "ar1") as ArrowAnnotation;
+    const after = s.annotations.find((a) => a.id === "ar1") as SymbolAnnotation;
     expect(after.panelId).toBe(pidB);
     expect(after.imageId).toBe("a");
   });
@@ -400,23 +398,22 @@ describe("figureReducer image-bound annotation behavior", () => {
     // new fields on read.
     // Test exists separately under m7-roundtrip / serialize; here we
     // assert just the structural pass.
-    const arrow: ArrowAnnotation = {
+    const symbol: SymbolAnnotation = {
       id: "ar1",
-      kind: "arrow",
+      kind: "symbol",
       z: 1,
-      x1: 10,
-      y1: 10,
-      x2: 20,
-      y2: 20,
+      symbolId: "arrow-filled-right",
+      x: 15,
+      y: 15,
+      sizePx: 60,
+      rotationDeg: 0,
       color: "#FF0000",
-      thicknessPx: 2,
-      head: "filled",
+      strokeWidthPx: 2,
       imageId: "a",
       panelId: "p1",
-      anchor1: { imgU: 0.5, imgV: 0.5 },
-      anchor2: { imgU: 0.6, imgV: 0.6 },
+      anchor: { imgU: 0.55, imgV: 0.55 },
     };
-    expect(arrow.anchor1?.imgU).toBe(0.5);
-    expect(arrow.imageId).toBe("a");
+    expect(symbol.anchor?.imgU).toBe(0.55);
+    expect(symbol.imageId).toBe("a");
   });
 });

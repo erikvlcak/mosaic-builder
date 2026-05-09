@@ -17,12 +17,16 @@
  * `drawAnnotations` MUST NOT mutate the figure or its annotations.
  */
 
-import type { Figure, HardCodedPanel, ResolvedAnnotation } from "../model/types";
+import type {
+  Figure,
+  HardCodedPanel,
+  ResolvedAnnotation,
+} from "../model/types";
 import type {
   LetterAnnotation,
   TextAnnotation,
   BoxAnnotation,
-  ArrowAnnotation,
+  SymbolAnnotation,
   ScaleBarAnnotation,
 } from "../model/annotations";
 import type { LetterStyle } from "../model/global-style";
@@ -61,8 +65,8 @@ export function drawAnnotations(
       case "box":
         drawBox(ctx, a, deps);
         break;
-      case "arrow":
-        drawArrow(ctx, a);
+      case "symbol":
+        drawSymbol(ctx, a);
         break;
       case "scalebar":
         drawScaleBar(ctx, a, figure, deps);
@@ -197,7 +201,12 @@ function drawText(
     const padX = 2;
     const padY = 1;
     ctx.fillStyle = t.bgColor;
-    ctx.fillRect(t.x - padX, t.y - padY, textWidth + padX * 2, sizePx + padY * 2);
+    ctx.fillRect(
+      t.x - padX,
+      t.y - padY,
+      textWidth + padX * 2,
+      sizePx + padY * 2,
+    );
   }
 
   ctx.fillStyle = t.color;
@@ -220,70 +229,11 @@ function drawBox(
   ctx.strokeRect(b.x, b.y, b.w, b.h);
 }
 
-function drawArrow(ctx: DrawCtx, a: ArrowAnnotation): void {
-  ctx.strokeStyle = a.color;
-  ctx.lineWidth = a.thicknessPx;
-  // "butt" (not "round") so a thick shaft doesn't bulge a half-disc past
-  // the tip — that's what made fat arrows look distorted at high thickness.
-  ctx.lineCap = "butt";
-
-  const dx = a.x2 - a.x1;
-  const dy = a.y2 - a.y1;
-  const len = Math.sqrt(dx * dx + dy * dy);
-  if (len === 0) return;
-
-  if (a.head === "none") {
-    // No head: draw the full shaft to the tip.
-    ctx.beginPath();
-    ctx.moveTo(a.x1, a.y1);
-    ctx.lineTo(a.x2, a.y2);
-    ctx.stroke();
-    return;
-  }
-
-  const angle = Math.atan2(dy, dx);
-  // Head proportional to thickness, with a sane floor so 1-2px arrows
-  // still get a recognizable head.
-  const headLen = Math.max(8, a.thicknessPx * 4);
-  const headAngle = Math.PI / 7; // ~25.7° — a touch wider than a needle
-
-  // Head triangle endpoints (splayed ±headAngle from the reverse shaft).
-  const hx1 = a.x2 - headLen * Math.cos(angle - headAngle);
-  const hy1 = a.y2 - headLen * Math.sin(angle - headAngle);
-  const hx2 = a.x2 - headLen * Math.cos(angle + headAngle);
-  const hy2 = a.y2 - headLen * Math.sin(angle + headAngle);
-
-  // Stop the shaft at the back of the head so it doesn't double-up
-  // underneath the head triangle. Use full headLen for "open" so the tip
-  // is owned entirely by the V-shape; for "filled", inset slightly inside
-  // the head so the shaft seam disappears under the fill.
-  const shaftBack = a.head === "filled" ? headLen * 0.85 : headLen;
-  const ux = dx / len;
-  const uy = dy / len;
-  const sx = a.x2 - ux * Math.min(shaftBack, len);
-  const sy = a.y2 - uy * Math.min(shaftBack, len);
-
-  ctx.beginPath();
-  ctx.moveTo(a.x1, a.y1);
-  ctx.lineTo(sx, sy);
-  ctx.stroke();
-
-  if (a.head === "filled") {
-    ctx.fillStyle = a.color;
-    ctx.beginPath();
-    ctx.moveTo(a.x2, a.y2);
-    ctx.lineTo(hx1, hy1);
-    ctx.lineTo(hx2, hy2);
-    ctx.closePath();
-    ctx.fill();
-  } else {
-    // "open": two stroked lines from each side into the tip.
-    ctx.beginPath();
-    ctx.moveTo(hx1, hy1);
-    ctx.lineTo(a.x2, a.y2);
-    ctx.lineTo(hx2, hy2);
-    ctx.stroke();
-  }
+function drawSymbol(_ctx: DrawCtx, _a: SymbolAnnotation): void {
+  // TODO(Task 7): draw symbols — translate→rotate→scale→fill/stroke a Path2D
+  // built from SYMBOL_LIBRARY_BY_ID[a.symbolId].pathD. Stubbed here so the
+  // model swap can land in one bundled commit while rendering follows in
+  // spec 06 Task 7. DrawCtx is intentionally not yet extended for Path2D.
 }
 
 function drawScaleBar(
@@ -350,9 +300,7 @@ function drawScaleBar(
   // bar for bottom-anchored corners, below it for top-anchored ones. This
   // keeps the label inside the panel rather than spilling into the gutter.
   const isTopCorner = corner === "tl" || corner === "tr";
-  const labelY = isTopCorner
-    ? rect.y + rect.h + 2 + sizePx
-    : rect.y - 2;
+  const labelY = isTopCorner ? rect.y + rect.h + 2 + sizePx : rect.y - 2;
 
   ctx.fillText(labelText, labelX, labelY);
 }

@@ -2,11 +2,11 @@ import { describe, it, expect } from "vitest";
 import {
   validateMosaicFile,
   CURRENT_SCHEMA_VERSION,
-  type MosaicFileV1,
+  type MosaicFileV2,
 } from "../../src/renderer/model/schema";
 
-const MIN_VALID: MosaicFileV1 = {
-  schemaVersion: 1,
+const MIN_VALID: MosaicFileV2 = {
+  schemaVersion: 2,
   app: "mosaic-builder",
   appVersion: "0.1.0",
   createdAt: "2026-05-02T10:00:00Z",
@@ -26,26 +26,40 @@ const MIN_VALID: MosaicFileV1 = {
     gutterColor: "#FFFFFF",
     annotations: [],
     globalStyle: {
-      letters: { enabled: true, font: "Arial", sizePt: 12, color: "#000000",
-                 corner: "tl", paddingPx: 6, bold: true },
-      scalebar: { font: "Arial", sizePt: 10, color: "#FFFFFF",
-                  barColor: "#FFFFFF", thicknessPx: 4, corner: "br",
-                  paddingPx: 8, showLabel: true },
+      letters: {
+        enabled: true,
+        font: "Arial",
+        sizePt: 12,
+        color: "#000000",
+        corner: "tl",
+        paddingPx: 6,
+        bold: true,
+      },
+      scalebar: {
+        font: "Arial",
+        sizePt: 10,
+        color: "#FFFFFF",
+        barColor: "#FFFFFF",
+        thicknessPx: 4,
+        corner: "br",
+        paddingPx: 8,
+        showLabel: true,
+      },
     },
     letterOverrides: {},
   },
 };
 
 describe("validateMosaicFile", () => {
-  it("CURRENT_SCHEMA_VERSION is 1", () => {
-    expect(CURRENT_SCHEMA_VERSION).toBe(1);
+  it("CURRENT_SCHEMA_VERSION is 2", () => {
+    expect(CURRENT_SCHEMA_VERSION).toBe(2);
   });
 
   it("accepts a minimal valid file", () => {
     const r = validateMosaicFile(MIN_VALID);
     expect(r.ok).toBe(true);
     if (r.ok) {
-      expect(r.value.schemaVersion).toBe(1);
+      expect(r.value.schemaVersion).toBe(2);
       expect(r.value.state.rows).toBe(2);
     }
   });
@@ -75,8 +89,16 @@ describe("validateMosaicFile", () => {
       ...MIN_VALID,
       state: {
         ...MIN_VALID.state,
-        pool: [{ id: "x", filePath: "/x", mime: "image/png",
-                 width: 1, height: 1, bitDepth: 8 }],
+        pool: [
+          {
+            id: "x",
+            filePath: "/x",
+            mime: "image/png",
+            width: 1,
+            height: 1,
+            bitDepth: 8,
+          },
+        ],
       },
     };
     const r = validateMosaicFile(bad);
@@ -89,20 +111,37 @@ describe("validateMosaicFile", () => {
       ...MIN_VALID,
       state: {
         ...MIN_VALID.state,
-        pool: [{
-          id: "x", filename: "x.png", filePath: "/abs/x.png",
-          relPath: "./images/x.png",
-          sha256: "abc123",
-          mime: "image/png", width: 10, height: 10, bitDepth: 8,
-        }],
+        pool: [
+          {
+            id: "x",
+            filename: "x.png",
+            filePath: "/abs/x.png",
+            relPath: "./images/x.png",
+            sha256: "abc123",
+            mime: "image/png",
+            width: 10,
+            height: 10,
+            bitDepth: 8,
+          },
+        ],
       },
     };
     expect(validateMosaicFile(ok).ok).toBe(true);
   });
 
   it("rejects rows > 10 or rows < 1", () => {
-    expect(validateMosaicFile({ ...MIN_VALID, state: { ...MIN_VALID.state, rows: 0 } }).ok).toBe(false);
-    expect(validateMosaicFile({ ...MIN_VALID, state: { ...MIN_VALID.state, rows: 11 } }).ok).toBe(false);
+    expect(
+      validateMosaicFile({
+        ...MIN_VALID,
+        state: { ...MIN_VALID.state, rows: 0 },
+      }).ok,
+    ).toBe(false);
+    expect(
+      validateMosaicFile({
+        ...MIN_VALID,
+        state: { ...MIN_VALID.state, rows: 11 },
+      }).ok,
+    ).toBe(false);
   });
 
   it("accepts panels with optional `hidden: true`", () => {
@@ -139,3 +178,129 @@ describe("validateMosaicFile", () => {
     if (!r.ok) expect(r.error).toContain("hidden");
   });
 });
+
+describe("validateMosaicFile schema versions", () => {
+  it("accepts a valid v1 file with arrow annotations", () => {
+    const v1 = makeMinimalFile(1, [
+      {
+        id: "a1",
+        kind: "arrow",
+        z: 0,
+        x1: 0,
+        y1: 0,
+        x2: 100,
+        y2: 0,
+        color: "#000000",
+        thicknessPx: 2,
+        head: "filled",
+      },
+    ]);
+    expect(validateMosaicFile(v1).ok).toBe(true);
+  });
+
+  it("accepts a valid v2 file with symbol annotations", () => {
+    const v2 = makeMinimalFile(2, [
+      {
+        id: "a1",
+        kind: "symbol",
+        z: 0,
+        symbolId: "arrow-filled-right",
+        x: 50,
+        y: 50,
+        sizePx: 60,
+        rotationDeg: 0,
+        color: "#000000",
+        strokeWidthPx: 2,
+      },
+    ]);
+    expect(validateMosaicFile(v2).ok).toBe(true);
+  });
+
+  it("rejects a v1 file containing symbol annotations", () => {
+    const bad = makeMinimalFile(1, [
+      {
+        id: "a1",
+        kind: "symbol",
+        z: 0,
+        symbolId: "x",
+        x: 0,
+        y: 0,
+        sizePx: 60,
+        rotationDeg: 0,
+        color: "#000000",
+        strokeWidthPx: 2,
+      },
+    ]);
+    const r = validateMosaicFile(bad);
+    expect(r.ok).toBe(false);
+  });
+
+  it("rejects a v2 file containing arrow annotations", () => {
+    const bad = makeMinimalFile(2, [
+      {
+        id: "a1",
+        kind: "arrow",
+        z: 0,
+        x1: 0,
+        y1: 0,
+        x2: 100,
+        y2: 0,
+        color: "#000000",
+        thicknessPx: 2,
+        head: "filled",
+      },
+    ]);
+    const r = validateMosaicFile(bad);
+    expect(r.ok).toBe(false);
+  });
+
+  it("rejects schemaVersion 3", () => {
+    const bad = makeMinimalFile(3 as 1 | 2, []);
+    expect(validateMosaicFile(bad).ok).toBe(false);
+  });
+});
+
+function makeMinimalFile(
+  schemaVersion: 1 | 2,
+  annotations: unknown[],
+): unknown {
+  return {
+    schemaVersion,
+    app: "mosaic-builder",
+    appVersion: "0.1.0",
+    createdAt: "2026-05-09T00:00:00Z",
+    modifiedAt: "2026-05-09T00:00:00Z",
+    canvas: { widthPx: 800, heightPx: 600, background: "#FFFFFF" },
+    state: {
+      rows: 1,
+      cols: 1,
+      gutterPx: 0,
+      gutterColor: "#FFFFFF",
+      pool: [],
+      panels: [{ id: "p1", row: 0, col: 0, rowSpan: 1, colSpan: 1 }],
+      annotations,
+      globalStyle: {
+        letters: {
+          enabled: true,
+          font: "Arial",
+          sizePt: 14,
+          color: "#000000",
+          paddingPx: 4,
+          bold: true,
+          corner: "tl",
+        },
+        scalebar: {
+          font: "Arial",
+          sizePt: 12,
+          color: "#000000",
+          barColor: "#000000",
+          thicknessPx: 4,
+          paddingPx: 8,
+          showLabel: true,
+          corner: "br",
+        },
+      },
+      letterOverrides: {},
+    },
+  };
+}
