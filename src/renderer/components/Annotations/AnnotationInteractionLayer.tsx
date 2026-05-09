@@ -442,7 +442,7 @@ export function AnnotationInteractionLayer({
       return;
     }
 
-    // box: begin a drag. (TODO(Task 9): "arrow"/"symbol" tool routes here.)
+    // box: begin a drag. (TODO(Task 9): "symbol" tool routes here.)
     if (activeTool !== "box") return;
     e.currentTarget.setPointerCapture(e.pointerId);
     setDrag({
@@ -894,7 +894,7 @@ export function AnnotationInteractionLayer({
   const cursor =
     activeTool === "text"
       ? "text"
-      : activeTool === "arrow" || activeTool === "box"
+      : activeTool === "symbol" || activeTool === "box"
         ? "crosshair"
         : activeTool === "scalebar"
           ? "cell"

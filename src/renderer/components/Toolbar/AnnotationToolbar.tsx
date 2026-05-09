@@ -3,7 +3,7 @@
  * visibility toggle.
  */
 
-export type Tool = "select" | "text" | "arrow" | "box" | "scalebar";
+export type Tool = "select" | "text" | "symbol" | "box" | "scalebar";
 
 interface Props {
   active: Tool;
@@ -15,7 +15,7 @@ interface Props {
 const TOOLS: ReadonlyArray<{ id: Tool; label: string; title: string }> = [
   { id: "select", label: "Select", title: "Select and move annotations" },
   { id: "text", label: "Text", title: "Add text — click to place" },
-  { id: "arrow", label: "Arrow", title: "Add arrow — drag to draw" },
+  { id: "symbol", label: "Symbol", title: "Add symbol — click to place" },
   { id: "box", label: "Box", title: "Add box — drag to draw" },
   { id: "scalebar", label: "Scale", title: "Add scale bar — click a panel" },
 ];
