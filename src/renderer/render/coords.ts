@@ -1,5 +1,9 @@
 import type { Figure, HardCodedPanel } from "../model/types";
 import type { PanelTransform, FitMode, Rotation } from "../model/panels";
+import {
+  rectsFromUniform,
+  uniformLayoutFor,
+} from "../model/grid-layout";
 
 export interface PanelRect {
   x: number;
@@ -104,7 +108,47 @@ export function computePanelRects(figure: Figure): PanelRect[] {
   const { widthPx, heightPx } = figure.canvas;
   const { rows, cols, gutterPx } = figure.grid;
   const outerGutter = figure.grid.outerGutter ?? true;
-  const layout = computeGridLayout(
+  // Spec 11: figure.grid.layout selects the regime. Defaulting to a uniform
+  // layout with equal weights keeps pre-spec-11 hand-built test fixtures
+  // working without modification.
+  const figureLayout = figure.grid.layout ?? uniformLayoutFor(rows, cols);
+
+  if (figureLayout.kind === "free") {
+    return figure.panels.map((p): PanelRect => {
+      const r =
+        p.panelId !== undefined ? figureLayout.rects[p.panelId] : undefined;
+      // Defensive only: a free layout missing a rect for an existing panel
+      // shouldn't happen in production (the reducer keeps rects in sync).
+      return r ?? { x: 0, y: 0, w: 0, h: 0 };
+    });
+  }
+
+  // Uniform: route through rectsFromUniform when panels carry ids (production
+  // path). Hand-built fixtures without panelId fall back to the legacy
+  // cell-grid path, preserving prior behavior.
+  if (figure.panels.every((p) => p.panelId !== undefined)) {
+    const idMap = rectsFromUniform({
+      widthPx,
+      heightPx,
+      rows,
+      cols,
+      gutterPx,
+      outerGutter,
+      colWeights: figureLayout.colWeights,
+      rowWeights: figureLayout.rowWeights,
+      panels: figure.panels.map((p) => ({
+        id: p.panelId!,
+        row: p.row,
+        col: p.col,
+        rowSpan: p.rowSpan ?? 1,
+        colSpan: p.colSpan ?? 1,
+      })),
+    });
+    return figure.panels.map((p): PanelRect => idMap[p.panelId!]!);
+  }
+
+  // Legacy fallback: hand-built fixtures without panelIds.
+  const cellLayout = computeGridLayout(
     widthPx,
     heightPx,
     rows,
@@ -114,7 +158,7 @@ export function computePanelRects(figure: Figure): PanelRect[] {
   );
   return figure.panels.map(
     (p: HardCodedPanel): PanelRect =>
-      computeCellRect(layout, p.row, p.col, p.rowSpan ?? 1, p.colSpan ?? 1),
+      computeCellRect(cellLayout, p.row, p.col, p.rowSpan ?? 1, p.colSpan ?? 1),
   );
 }
 

@@ -187,3 +187,90 @@ describe("computePanelRects with outerGutter=false", () => {
     expect(rects[0]).toEqual({ x: 8, y: 8, w: 84, h: 84 });
   });
 });
+
+describe("computePanelRects — layout-aware (spec 11)", () => {
+  it("uniform with equal weights matches pre-spec-11 behavior", () => {
+    const baseFig: Figure = {
+      canvas: { widthPx: 800, heightPx: 600, background: "#FFFFFF" },
+      grid: { rows: 2, cols: 2, gutterPx: 12, gutterColor: "#FFFFFF" },
+      panels: [
+        { panelId: "a", row: 0, col: 0, kind: "placeholder", label: "A" },
+        { panelId: "b", row: 0, col: 1, kind: "placeholder", label: "B" },
+        { panelId: "c", row: 1, col: 0, kind: "placeholder", label: "C" },
+        { panelId: "d", row: 1, col: 1, kind: "placeholder", label: "D" },
+      ],
+      annotations: [],
+      globalStyle: DEFAULT_GLOBAL_STYLE,
+    };
+    const rectsNoLayout = computePanelRects(baseFig);
+    const rectsWithLayout = computePanelRects({
+      ...baseFig,
+      grid: {
+        ...baseFig.grid,
+        layout: {
+          kind: "uniform",
+          colWeights: [0.5, 0.5],
+          rowWeights: [0.5, 0.5],
+        },
+      },
+    });
+    expect(rectsWithLayout).toEqual(rectsNoLayout);
+  });
+
+  it("uniform with unequal weights produces wider tracks per the weights", () => {
+    const fig: Figure = {
+      canvas: { widthPx: 800, heightPx: 100, background: "#FFFFFF" },
+      grid: {
+        rows: 1,
+        cols: 2,
+        gutterPx: 0,
+        gutterColor: "#FFFFFF",
+        outerGutter: false,
+        layout: {
+          kind: "uniform",
+          colWeights: [0.75, 0.25],
+          rowWeights: [1],
+        },
+      },
+      panels: [
+        { panelId: "a", row: 0, col: 0, kind: "placeholder", label: "A" },
+        { panelId: "b", row: 0, col: 1, kind: "placeholder", label: "B" },
+      ],
+      annotations: [],
+      globalStyle: DEFAULT_GLOBAL_STYLE,
+    };
+    const rects = computePanelRects(fig);
+    expect(rects[0]!.w).toBe(600);
+    expect(rects[1]!.x).toBe(600);
+    expect(rects[1]!.w).toBe(200);
+  });
+
+  it("free-form returns the layout's rect map keyed by panelId", () => {
+    const fig: Figure = {
+      canvas: { widthPx: 1000, heightPx: 1000, background: "#FFFFFF" },
+      grid: {
+        rows: 2,
+        cols: 2,
+        gutterPx: 0,
+        gutterColor: "#FFFFFF",
+        outerGutter: false,
+        layout: {
+          kind: "free",
+          rects: {
+            a: { x: 0, y: 0, w: 600, h: 400 },
+            b: { x: 600, y: 0, w: 400, h: 400 },
+          },
+        },
+      },
+      panels: [
+        { panelId: "a", row: 0, col: 0, kind: "placeholder", label: "A" },
+        { panelId: "b", row: 0, col: 1, kind: "placeholder", label: "B" },
+      ],
+      annotations: [],
+      globalStyle: DEFAULT_GLOBAL_STYLE,
+    };
+    const rects = computePanelRects(fig);
+    expect(rects[0]).toEqual({ x: 0, y: 0, w: 600, h: 400 });
+    expect(rects[1]).toEqual({ x: 600, y: 0, w: 400, h: 400 });
+  });
+});
