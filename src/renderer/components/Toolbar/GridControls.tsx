@@ -9,6 +9,14 @@ interface Props {
   onChangeGutterPx: (px: number) => void;
   onChangeGutterColor: (color: string) => void;
   onChangeOuterGutter: (outerGutter: boolean) => void;
+  /**
+   * Spec 11: which layout regime is active. The "Reset grid" button only
+   * shows when free, since uniform layout already renders equal cells once
+   * weights are equal.
+   */
+  layoutKind?: "uniform" | "free";
+  /** Dispatched when the user clicks "Reset grid". */
+  onResetUniform?: () => void;
 }
 
 export function GridControls({
@@ -22,6 +30,8 @@ export function GridControls({
   onChangeGutterPx,
   onChangeGutterColor,
   onChangeOuterGutter,
+  layoutKind,
+  onResetUniform,
 }: Props): JSX.Element {
   return (
     <div
@@ -94,6 +104,17 @@ export function GridControls({
           />
           Outer gutter
         </label>
+        {layoutKind === "free" && onResetUniform !== undefined && (
+          <button
+            type="button"
+            className="btn-secondary"
+            data-testid="reset-uniform-grid"
+            onClick={onResetUniform}
+            title="Restore equal-width columns and equal-height rows"
+          >
+            Reset grid
+          </button>
+        )}
     </div>
   );
 }

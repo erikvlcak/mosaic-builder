@@ -102,8 +102,8 @@ export function rectsFromUniform(
   if (cols > 0) colWPx[cols - 1] = colWPx[cols - 1]! + wRem;
   if (rows > 0) rowHPx[rows - 1] = rowHPx[rows - 1]! + hRem;
 
-  const colX: number[] = new Array(cols).fill(0);
-  const rowY: number[] = new Array(rows).fill(0);
+  const colX: number[] = Array.from({ length: cols }, () => 0);
+  const rowY: number[] = Array.from({ length: rows }, () => 0);
   for (let i = 0; i < cols; i++) {
     colX[i] =
       i === 0 ? outerOffset : colX[i - 1]! + colWPx[i - 1]! + gutterPx;

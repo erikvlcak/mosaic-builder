@@ -555,21 +555,23 @@ function validateLayout(
 ): Result<GridLayout> {
   if (!isObj(x)) return err(`${path}: expected object`);
   if (x.kind === "uniform") {
-    if (!Array.isArray(x.colWeights))
+    const cw: unknown = x.colWeights;
+    const rw: unknown = x.rowWeights;
+    if (!Array.isArray(cw))
       return err(`${path}.colWeights: expected array`);
-    if (!Array.isArray(x.rowWeights))
+    if (!Array.isArray(rw))
       return err(`${path}.rowWeights: expected array`);
-    if (x.colWeights.length !== cols)
+    if (cw.length !== cols)
       return err(`${path}.colWeights: length must equal cols (${cols})`);
-    if (x.rowWeights.length !== rows)
+    if (rw.length !== rows)
       return err(`${path}.rowWeights: length must equal rows (${rows})`);
-    for (let i = 0; i < x.colWeights.length; i++) {
-      const v = x.colWeights[i];
+    for (let i = 0; i < cw.length; i++) {
+      const v: unknown = cw[i];
       if (!isNum(v) || v <= 0)
         return err(`${path}.colWeights[${i}]: positive number`);
     }
-    for (let i = 0; i < x.rowWeights.length; i++) {
-      const v = x.rowWeights[i];
+    for (let i = 0; i < rw.length; i++) {
+      const v: unknown = rw[i];
       if (!isNum(v) || v <= 0)
         return err(`${path}.rowWeights[${i}]: positive number`);
     }

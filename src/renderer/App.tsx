@@ -571,6 +571,11 @@ export function App(): JSX.Element {
             onChangeGutterPx={(px) => dispatch(setGutterPx(px))}
             onChangeGutterColor={(c) => dispatch(setGutterColor(c))}
             onChangeOuterGutter={(v) => dispatch(setOuterGutter(v))}
+            layoutKind={state.layout.kind}
+            onResetUniform={() => {
+              dispatch(resetToUniformGridAction());
+              history.commit();
+            }}
           />
         </ToolGroup>
         <ToolGroup label="Selection">
