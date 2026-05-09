@@ -162,6 +162,74 @@ describe("validateMosaicFile", () => {
     expect(validateMosaicFile(ok).ok).toBe(true);
   });
 
+  it("accepts panels with an in-range transform.crop", () => {
+    const ok = {
+      ...MIN_VALID,
+      state: {
+        ...MIN_VALID.state,
+        panels: [
+          {
+            id: "p1",
+            row: 0,
+            col: 0,
+            rowSpan: 1,
+            colSpan: 1,
+            imageId: "img",
+            transform: {
+              fit: "contain",
+              panX: 0,
+              panY: 0,
+              zoom: 1,
+              rotation: 0,
+              flipH: false,
+              flipV: false,
+              crop: { x: 0.1, y: 0.2, w: 0.5, h: 0.6 },
+            },
+          },
+          { id: "p2", row: 0, col: 1, rowSpan: 1, colSpan: 1 },
+          { id: "p3", row: 1, col: 0, rowSpan: 1, colSpan: 1 },
+          { id: "p4", row: 1, col: 1, rowSpan: 1, colSpan: 1 },
+        ],
+      },
+    };
+    expect(validateMosaicFile(ok).ok).toBe(true);
+  });
+
+  it("rejects panels with an out-of-range transform.crop", () => {
+    const bad = {
+      ...MIN_VALID,
+      state: {
+        ...MIN_VALID.state,
+        panels: [
+          {
+            id: "p1",
+            row: 0,
+            col: 0,
+            rowSpan: 1,
+            colSpan: 1,
+            imageId: "img",
+            transform: {
+              fit: "contain",
+              panX: 0,
+              panY: 0,
+              zoom: 1,
+              rotation: 0,
+              flipH: false,
+              flipV: false,
+              crop: { x: 0.6, y: 0, w: 0.5, h: 1 },
+            },
+          },
+          { id: "p2", row: 0, col: 1, rowSpan: 1, colSpan: 1 },
+          { id: "p3", row: 1, col: 0, rowSpan: 1, colSpan: 1 },
+          { id: "p4", row: 1, col: 1, rowSpan: 1, colSpan: 1 },
+        ],
+      },
+    };
+    const r = validateMosaicFile(bad);
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error).toContain("crop");
+  });
+
   it("rejects non-boolean `hidden` field", () => {
     const bad = {
       ...MIN_VALID,

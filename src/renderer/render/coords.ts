@@ -307,12 +307,22 @@ export function figureToSource(
   fx: number,
   fy: number,
 ): { sx: number; sy: number } | null {
+  // The transform pipeline operates on the cropped slice (size cw × ch,
+  // origin at offX, offY in the source) as if it were the source. Inverting
+  // here yields a slice-local point; we then add the crop offset to land
+  // back in full-image source-px. When no crop, the math collapses to
+  // (cw, ch) = (imgW, imgH) and zero offset — identical to pre-spec-09.
+  const cw = t.crop !== undefined ? t.crop.w * imgW : imgW;
+  const ch = t.crop !== undefined ? t.crop.h * imgH : imgH;
+  const offX = t.crop !== undefined ? t.crop.x * imgW : 0;
+  const offY = t.crop !== undefined ? t.crop.y * imgH : 0;
+
   // Step 1: translate origin to panel center, then undo user pan.
   let lx = fx - (panelRect.x + panelRect.w / 2) - t.panX;
   let ly = fy - (panelRect.y + panelRect.h / 2) - t.panY;
 
   // Step 2: divide by effective panel scale.
-  const rotImg = rotatedImageDims(imgW, imgH, t.rotation);
+  const rotImg = rotatedImageDims(cw, ch, t.rotation);
   const S = effectivePanelScale(
     t,
     panelRect.w,
@@ -334,7 +344,7 @@ export function figureToSource(
   // The inverse is T_+half * F⁻¹ * R⁻¹ * S⁻¹ * T_-center * T_-pan applied
   // to a figure-px point. Since T_-center and T_-pan and S⁻¹ are already
   // done above, the remaining steps in order are: rotate by -θ, then undo
-  // flip, then translate by (+imgW/2, +imgH/2).
+  // flip, then translate by (+cw/2, +ch/2).
   const theta = (t.rotation * Math.PI) / 180;
   const cos = Math.cos(-theta);
   const sin = Math.sin(-theta);
@@ -347,12 +357,21 @@ export function figureToSource(
   if (t.flipH) lx = -lx;
   if (t.flipV) ly = -ly;
 
-  // Step 5: translate to image-top-left origin.
-  const sx = lx + imgW / 2;
-  const sy = ly + imgH / 2;
+  // Step 5: translate to slice-top-left origin, then add crop offset to
+  // land in full-image source-px.
+  const sx = lx + cw / 2 + offX;
+  const sy = ly + ch / 2 + offY;
 
-  // Bounds-check: outside the source image (e.g. letterbox in Contain).
+  // Bounds-check: outside the source image (e.g. letterbox in Contain, or
+  // outside the cropped slice when a crop is in effect — clicks past the
+  // slice's edge still resolve to source-px outside the crop, which we
+  // reject because they don't correspond to visible pixels).
   if (sx < 0 || sx > imgW || sy < 0 || sy > imgH) return null;
+  if (t.crop !== undefined) {
+    if (sx < offX || sx > offX + cw || sy < offY || sy > offY + ch) {
+      return null;
+    }
+  }
   return { sx, sy };
 }
 
@@ -383,9 +402,19 @@ export function sourceToFigure(
   sx: number,
   sy: number,
 ): { fx: number; fy: number } {
-  // Step 1: translate to image-center origin.
-  let lx = sx - imgW / 2;
-  let ly = sy - imgH / 2;
+  // The forward chain operates on the cropped slice. With no crop, cw/ch
+  // equal imgW/imgH and offX/offY are zero — identical to pre-spec-09
+  // behavior. With a crop, the source point is shifted into slice-local
+  // coords and the slice dims feed the rotation + scale math.
+  const cw = t.crop !== undefined ? t.crop.w * imgW : imgW;
+  const ch = t.crop !== undefined ? t.crop.h * imgH : imgH;
+  const offX = t.crop !== undefined ? t.crop.x * imgW : 0;
+  const offY = t.crop !== undefined ? t.crop.y * imgH : 0;
+
+  // Step 1: translate to slice-center origin (subtract crop offset first
+  // to land in slice-local px, then center).
+  let lx = sx - offX - cw / 2;
+  let ly = sy - offY - ch / 2;
 
   // Step 2: apply flip.
   if (t.flipH) lx = -lx;
@@ -401,7 +430,7 @@ export function sourceToFigure(
   ly = ry;
 
   // Step 4: scale by S.
-  const rotImg = rotatedImageDims(imgW, imgH, t.rotation);
+  const rotImg = rotatedImageDims(cw, ch, t.rotation);
   const S = effectivePanelScale(
     t,
     panelRect.w,

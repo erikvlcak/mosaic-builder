@@ -15,6 +15,19 @@
 export type FitMode = "contain" | "cover" | "stretch";
 export type Rotation = 0 | 90 | 180 | 270;
 
+/**
+ * Sub-rectangle of the source image to display, in normalized 0..1 coords.
+ * Absent ⇔ no crop (uses the full source rect). Stored normalized rather
+ * than in source-px so the value survives image swaps and is meaningful in
+ * hand-built test fixtures that lack real bitmap dims.
+ */
+export interface PanelCrop {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
 export interface PanelTransform {
   fit: FitMode;
   /** figure-px, panel-local; (0,0) = panel center. */
@@ -25,6 +38,8 @@ export interface PanelTransform {
   rotation: Rotation;
   flipH: boolean;
   flipV: boolean;
+  /** Non-destructive sub-rect of the source. Absent = full source. */
+  crop?: PanelCrop;
 }
 
 export const DEFAULT_TRANSFORM: PanelTransform = {
@@ -36,6 +51,26 @@ export const DEFAULT_TRANSFORM: PanelTransform = {
   flipH: false,
   flipV: false,
 };
+
+/**
+ * A `PanelCrop` is valid when its rect is strictly positive and stays
+ * within the unit square. The reducer rejects out-of-range crops as no-ops.
+ */
+export function isValidCrop(c: PanelCrop): boolean {
+  if (
+    !Number.isFinite(c.x) ||
+    !Number.isFinite(c.y) ||
+    !Number.isFinite(c.w) ||
+    !Number.isFinite(c.h)
+  ) {
+    return false;
+  }
+  if (c.x < 0 || c.y < 0) return false;
+  if (c.w <= 0 || c.h <= 0) return false;
+  if (c.x + c.w > 1) return false;
+  if (c.y + c.h > 1) return false;
+  return true;
+}
 
 export interface Panel {
   id: string;

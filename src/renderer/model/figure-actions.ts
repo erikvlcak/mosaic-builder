@@ -1,7 +1,17 @@
 import type { ImagePoolItem, Calibration } from "./pool";
-import type { Panel, PanelTransform, FitMode, Rotation } from "./panels";
-import { DEFAULT_TRANSFORM, findPanelAt } from "./panels";
-import type { FigureState, LetterOverride, LetterPattern } from "./figure-state";
+import type {
+  Panel,
+  PanelTransform,
+  PanelCrop,
+  FitMode,
+  Rotation,
+} from "./panels";
+import { DEFAULT_TRANSFORM, findPanelAt, isValidCrop } from "./panels";
+import type {
+  FigureState,
+  LetterOverride,
+  LetterPattern,
+} from "./figure-state";
 import { initialFigureState, newPanelId } from "./figure-state";
 import { resizePanels } from "./grid-resize";
 import {
@@ -33,6 +43,8 @@ export type FigureAction =
   | { type: "FLIP_PANEL_H"; panelId: string }
   | { type: "FLIP_PANEL_V"; panelId: string }
   | { type: "RESET_PANEL_TRANSFORM"; panelId: string }
+  | { type: "SET_PANEL_CROP"; panelId: string; crop: PanelCrop | null }
+  | { type: "RESET_PANEL_CROP"; panelId: string }
   | { type: "ADD_ANNOTATION"; annotation: Annotation }
   | {
       type: "UPDATE_ANNOTATION";
@@ -138,6 +150,14 @@ export const flipPanelV = (panelId: string): FigureAction => ({
 });
 export const resetPanelTransform = (panelId: string): FigureAction => ({
   type: "RESET_PANEL_TRANSFORM",
+  panelId,
+});
+export const setPanelCrop = (
+  panelId: string,
+  crop: PanelCrop | null,
+): FigureAction => ({ type: "SET_PANEL_CROP", panelId, crop });
+export const resetPanelCrop = (panelId: string): FigureAction => ({
+  type: "RESET_PANEL_CROP",
   panelId,
 });
 export const addAnnotation = (annotation: Annotation): FigureAction => ({
@@ -602,6 +622,57 @@ export function figureReducer(s: FigureState, a: FigureAction): FigureState {
       return r.changed ? { ...s, panels: r.panels } : s;
     }
 
+    case "SET_PANEL_CROP": {
+      const target = findPanelById(s.panels, a.panelId);
+      if (target === undefined || target.transform === undefined) return s;
+      // null is the explicit "remove crop" sentinel; we route it through the
+      // RESET_PANEL_CROP path so the on-disk shape stays clean (no `crop` key).
+      if (a.crop === null) {
+        if (target.transform.crop === undefined) return s;
+        const r = mapPanel(s.panels, a.panelId, (p) => {
+          if (p.transform === undefined) return p;
+          const { crop: _drop, ...rest } = p.transform;
+          return { ...p, transform: rest };
+        });
+        return r.changed ? { ...s, panels: r.panels } : s;
+      }
+      if (!isValidCrop(a.crop)) return s;
+      const existing = target.transform.crop;
+      if (
+        existing !== undefined &&
+        existing.x === a.crop.x &&
+        existing.y === a.crop.y &&
+        existing.w === a.crop.w &&
+        existing.h === a.crop.h
+      ) {
+        return s;
+      }
+      const nextCrop: PanelCrop = {
+        x: a.crop.x,
+        y: a.crop.y,
+        w: a.crop.w,
+        h: a.crop.h,
+      };
+      const r = mapPanel(s.panels, a.panelId, (p) =>
+        p.transform === undefined
+          ? p
+          : { ...p, transform: { ...p.transform, crop: nextCrop } },
+      );
+      return r.changed ? { ...s, panels: r.panels } : s;
+    }
+
+    case "RESET_PANEL_CROP": {
+      const target = findPanelById(s.panels, a.panelId);
+      if (target === undefined || target.transform === undefined) return s;
+      if (target.transform.crop === undefined) return s;
+      const r = mapPanel(s.panels, a.panelId, (p) => {
+        if (p.transform === undefined) return p;
+        const { crop: _drop, ...rest } = p.transform;
+        return { ...p, transform: rest };
+      });
+      return r.changed ? { ...s, panels: r.panels } : s;
+    }
+
     case "ADD_ANNOTATION": {
       const ann = a.annotation;
       // Dedup by id.
@@ -981,7 +1052,13 @@ function findPanelByCoord(
  */
 const ALLOWED_BULK_KEYS: Record<AnnotationKind, ReadonlySet<string>> = {
   text: new Set(["color", "bgColor", "font", "sizePt", "bold", "italic"]),
-  symbol: new Set(["color", "strokeWidthPx", "sizePx", "symbolId", "rotationDeg"]),
+  symbol: new Set([
+    "color",
+    "strokeWidthPx",
+    "sizePx",
+    "symbolId",
+    "rotationDeg",
+  ]),
   box: new Set(["stroke", "strokeWidthPx", "fill"]),
   scalebar: new Set(["lengthValue", "lengthUnit", "cornerOverride"]),
   // letters are derived; bulk-update is a no-op for now (spec 08 may revisit).

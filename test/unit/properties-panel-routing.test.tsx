@@ -6,8 +6,13 @@ import { initialFigureState } from "../../src/renderer/model/figure-state";
 import type { Panel, PanelTransform } from "../../src/renderer/model/panels";
 
 const transform: PanelTransform = {
-  fit: "contain", panX: 0, panY: 0, zoom: 1,
-  rotation: 0, flipH: false, flipV: false,
+  fit: "contain",
+  panX: 0,
+  panY: 0,
+  zoom: 1,
+  rotation: 0,
+  flipH: false,
+  flipV: false,
 };
 
 describe("PropertiesPanel routes by selection", () => {
@@ -20,6 +25,7 @@ describe("PropertiesPanel routes by selection", () => {
         dispatch={vi.fn()}
         commit={{ markDirty: vi.fn(), flush: vi.fn() }}
         onCalibrate={() => {}}
+        onCrop={() => {}}
       />,
     );
     expect(screen.getByText(/Subpanel letters/)).toBeTruthy();
@@ -31,13 +37,22 @@ describe("PropertiesPanel routes by selection", () => {
         state={initialFigureState()}
         focusedPanel={undefined}
         selectedAnno={{
-          id: "t1", kind: "text", x: 0, y: 0, text: "hi",
-          font: "Arial", sizePt: 12, bold: false, italic: false,
-          color: "#000", z: 1,
+          id: "t1",
+          kind: "text",
+          x: 0,
+          y: 0,
+          text: "hi",
+          font: "Arial",
+          sizePt: 12,
+          bold: false,
+          italic: false,
+          color: "#000",
+          z: 1,
         }}
         dispatch={vi.fn()}
         commit={{ markDirty: vi.fn(), flush: vi.fn() }}
         onCalibrate={() => {}}
+        onCrop={() => {}}
       />,
     );
     expect(screen.getByLabelText("Text")).toBeTruthy();
@@ -45,7 +60,11 @@ describe("PropertiesPanel routes by selection", () => {
 
   it("renders PanelPropertiesForm when a focused image panel is given", () => {
     const focusedPanel: Panel = {
-      id: "p1", row: 0, col: 0, rowSpan: 1, colSpan: 1,
+      id: "p1",
+      row: 0,
+      col: 0,
+      rowSpan: 1,
+      colSpan: 1,
       imageId: "img1",
       transform,
     };
@@ -57,6 +76,7 @@ describe("PropertiesPanel routes by selection", () => {
         dispatch={vi.fn()}
         commit={{ markDirty: vi.fn(), flush: vi.fn() }}
         onCalibrate={() => {}}
+        onCrop={() => {}}
       />,
     );
     expect(screen.getByLabelText("Subpanel letter")).toBeTruthy();
@@ -64,7 +84,11 @@ describe("PropertiesPanel routes by selection", () => {
 
   it("renders EmptyPanelForm with Hide + Delete for an empty focused panel", () => {
     const focusedPanel: Panel = {
-      id: "p1", row: 0, col: 0, rowSpan: 1, colSpan: 1,
+      id: "p1",
+      row: 0,
+      col: 0,
+      rowSpan: 1,
+      colSpan: 1,
     };
     const dispatch = vi.fn();
     render(
@@ -75,6 +99,7 @@ describe("PropertiesPanel routes by selection", () => {
         dispatch={dispatch}
         commit={{ markDirty: vi.fn(), flush: vi.fn() }}
         onCalibrate={() => {}}
+        onCrop={() => {}}
       />,
     );
     const hide = screen.getByRole("button", { name: /^Hide$/ });
@@ -94,7 +119,12 @@ describe("PropertiesPanel routes by selection", () => {
 
   it("renders EmptyPanelForm with Show button for a hidden focused panel", () => {
     const focusedPanel: Panel = {
-      id: "p1", row: 0, col: 0, rowSpan: 1, colSpan: 1, hidden: true,
+      id: "p1",
+      row: 0,
+      col: 0,
+      rowSpan: 1,
+      colSpan: 1,
+      hidden: true,
     };
     render(
       <PropertiesPanel
@@ -104,6 +134,7 @@ describe("PropertiesPanel routes by selection", () => {
         dispatch={vi.fn()}
         commit={{ markDirty: vi.fn(), flush: vi.fn() }}
         onCalibrate={() => {}}
+        onCrop={() => {}}
       />,
     );
     expect(screen.getByRole("button", { name: /^Show$/ })).toBeTruthy();
@@ -122,6 +153,7 @@ describe("PropertiesPanel routes by selection", () => {
         dispatch={vi.fn()}
         commit={{ markDirty: vi.fn(), flush: vi.fn() }}
         onCalibrate={() => {}}
+        onCrop={() => {}}
       />,
     );
     // Letter form's "Reset to global" button is unique to LetterAnnoForm.

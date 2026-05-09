@@ -39,6 +39,7 @@ interface Props {
   dispatch: Dispatch<FigureAction>;
   commit: FieldCommit;
   onCalibrate: () => void;
+  onCrop: () => void;
 }
 
 const ANNO_TITLES: Record<Annotation["kind"], string> = {
@@ -60,6 +61,7 @@ export function PropertiesPanel({
   dispatch,
   commit,
   onCalibrate,
+  onCrop,
 }: Props): JSX.Element {
   let title: string;
   let subtitle: string | null = null;
@@ -153,6 +155,7 @@ export function PropertiesPanel({
         dispatch={dispatch}
         commit={commit}
         onCalibrate={onCalibrate}
+        onCrop={onCrop}
       />
     );
   } else if (focusedPanel !== undefined) {

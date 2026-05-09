@@ -145,9 +145,25 @@ function projectAnchor(
   imgW: number,
   imgH: number,
 ): { fx: number; fy: number } {
-  const sx = anchor.imgU * imgW;
-  const sy = anchor.imgV * imgH;
-  return sourceToFigure(panelRect, transform, imgW, imgH, sx, sy);
+  // ImageAnchor is in full-image normalized coords. With a crop in place,
+  // the panel transform operates on the cropped slice as if it were the
+  // source — substitute (cw, ch) for (imgW, imgH), then translate the
+  // anchor into slice-local px by subtracting the crop offset. Anchors
+  // outside the crop project to a point outside the panel rect; the
+  // renderer clips at draw time.
+  const c = transform.crop;
+  if (c === undefined) {
+    const sx = anchor.imgU * imgW;
+    const sy = anchor.imgV * imgH;
+    return sourceToFigure(panelRect, transform, imgW, imgH, sx, sy);
+  }
+  const cw = c.w * imgW;
+  const ch = c.h * imgH;
+  const offX = c.x * imgW;
+  const offY = c.y * imgH;
+  const sx = anchor.imgU * imgW - offX;
+  const sy = anchor.imgV * imgH - offY;
+  return sourceToFigure(panelRect, transform, cw, ch, sx, sy);
 }
 
 /**

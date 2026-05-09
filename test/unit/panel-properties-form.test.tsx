@@ -6,11 +6,20 @@ import { PanelPropertiesForm } from "../../src/renderer/components/Properties/Pa
 import type { Panel, PanelTransform } from "../../src/renderer/model/panels";
 
 const transform: PanelTransform = {
-  fit: "contain", panX: 0, panY: 0,
-  zoom: 1, rotation: 0, flipH: false, flipV: false,
+  fit: "contain",
+  panX: 0,
+  panY: 0,
+  zoom: 1,
+  rotation: 0,
+  flipH: false,
+  flipV: false,
 };
 const panel: Panel & { transform: PanelTransform } = {
-  id: "p1", row: 0, col: 0, rowSpan: 1, colSpan: 1,
+  id: "p1",
+  row: 0,
+  col: 0,
+  rowSpan: 1,
+  colSpan: 1,
   imageId: "img1",
   transform,
 };
@@ -25,6 +34,7 @@ describe("PanelPropertiesForm", () => {
         letterOverride={undefined}
         dispatch={dispatch}
         onCalibrate={() => {}}
+        onCrop={() => {}}
         commit={{ markDirty: vi.fn(), flush: vi.fn() }}
       />,
     );
@@ -50,6 +60,7 @@ describe("PanelPropertiesForm", () => {
         letterOverride={{ style: { color: "#FF0000" } }}
         dispatch={dispatch}
         onCalibrate={() => {}}
+        onCrop={() => {}}
         commit={{ markDirty: vi.fn(), flush: vi.fn() }}
       />,
     );
@@ -73,6 +84,7 @@ describe("PanelPropertiesForm", () => {
         letterOverride={{ text: "A1", style: { color: "#FF0000" } }}
         dispatch={dispatch}
         onCalibrate={() => {}}
+        onCrop={() => {}}
         commit={{ markDirty: vi.fn(), flush: vi.fn() }}
       />,
     );

@@ -45,6 +45,8 @@ import {
   setPanelHidden,
   deletePanel,
   restorePanelAt,
+  setPanelCrop,
+  resetPanelCrop,
 } from "../../src/renderer/model/figure-actions";
 import {
   findPanelAt,
@@ -570,6 +572,107 @@ describe("figureReducer (transform actions)", () => {
     const pid = panelIdAt(s0, 0, 0);
     const s1 = figureReducer(s0, resetPanelTransform(pid));
     expect(s1).toBe(s0);
+  });
+
+  it("SET_PANEL_CROP stores a valid crop on the panel transform", () => {
+    let s = withPool(IMG_A);
+    const p1 = panelIdAt(s, 0, 0);
+    s = figureReducer(s, placeIntoPanel("a", p1));
+    s = figureReducer(s, setPanelCrop(p1, { x: 0.1, y: 0.2, w: 0.5, h: 0.6 }));
+    const t = s.panels.find((p) => p.id === p1)?.transform;
+    expect(t?.crop).toEqual({ x: 0.1, y: 0.2, w: 0.5, h: 0.6 });
+  });
+
+  it("SET_PANEL_CROP rejects out-of-range crops as no-ops", () => {
+    let s = withPool(IMG_A);
+    const p1 = panelIdAt(s, 0, 0);
+    s = figureReducer(s, placeIntoPanel("a", p1));
+    const before = s;
+    s = figureReducer(s, setPanelCrop(p1, { x: 0.5, y: 0, w: 0.6, h: 1 }));
+    expect(s).toBe(before);
+    s = figureReducer(s, setPanelCrop(p1, { x: -0.1, y: 0, w: 0.5, h: 0.5 }));
+    expect(s).toBe(before);
+    s = figureReducer(s, setPanelCrop(p1, { x: 0, y: 0, w: 0, h: 0.5 }));
+    expect(s).toBe(before);
+    s = figureReducer(
+      s,
+      setPanelCrop(p1, { x: 0, y: 0, w: Number.NaN, h: 0.5 }),
+    );
+    expect(s).toBe(before);
+  });
+
+  it("SET_PANEL_CROP no-ops on panel without image", () => {
+    const s0 = initialFigureState();
+    const pid = panelIdAt(s0, 0, 0);
+    const s1 = figureReducer(
+      s0,
+      setPanelCrop(pid, { x: 0, y: 0, w: 0.5, h: 0.5 }),
+    );
+    expect(s1).toBe(s0);
+  });
+
+  it("SET_PANEL_CROP with null clears an existing crop", () => {
+    let s = withPool(IMG_A);
+    const p1 = panelIdAt(s, 0, 0);
+    s = figureReducer(s, placeIntoPanel("a", p1));
+    s = figureReducer(s, setPanelCrop(p1, { x: 0.1, y: 0.2, w: 0.5, h: 0.6 }));
+    s = figureReducer(s, setPanelCrop(p1, null));
+    const t = s.panels.find((p) => p.id === p1)?.transform;
+    expect(t?.crop).toBeUndefined();
+  });
+
+  it("SET_PANEL_CROP with null no-ops when no crop exists", () => {
+    let s = withPool(IMG_A);
+    const p1 = panelIdAt(s, 0, 0);
+    s = figureReducer(s, placeIntoPanel("a", p1));
+    const before = s;
+    s = figureReducer(s, setPanelCrop(p1, null));
+    expect(s).toBe(before);
+  });
+
+  it("SET_PANEL_CROP returns same state when crop is unchanged", () => {
+    let s = withPool(IMG_A);
+    const p1 = panelIdAt(s, 0, 0);
+    s = figureReducer(s, placeIntoPanel("a", p1));
+    s = figureReducer(s, setPanelCrop(p1, { x: 0.1, y: 0.2, w: 0.5, h: 0.6 }));
+    const before = s;
+    s = figureReducer(s, setPanelCrop(p1, { x: 0.1, y: 0.2, w: 0.5, h: 0.6 }));
+    expect(s).toBe(before);
+  });
+
+  it("RESET_PANEL_CROP clears the crop", () => {
+    let s = withPool(IMG_A);
+    const p1 = panelIdAt(s, 0, 0);
+    s = figureReducer(s, placeIntoPanel("a", p1));
+    s = figureReducer(s, setPanelCrop(p1, { x: 0, y: 0, w: 0.5, h: 0.5 }));
+    s = figureReducer(s, resetPanelCrop(p1));
+    const t = s.panels.find((p) => p.id === p1)?.transform;
+    expect(t?.crop).toBeUndefined();
+  });
+
+  it("RESET_PANEL_CROP no-ops when no crop is set", () => {
+    let s = withPool(IMG_A);
+    const p1 = panelIdAt(s, 0, 0);
+    s = figureReducer(s, placeIntoPanel("a", p1));
+    const before = s;
+    s = figureReducer(s, resetPanelCrop(p1));
+    expect(s).toBe(before);
+  });
+
+  it("Two panels showing the same image carry independent crops", () => {
+    let s = withPool(IMG_A, IMG_B);
+    const p0 = panelIdAt(s, 0, 0);
+    const p1 = panelIdAt(s, 0, 1);
+    s = figureReducer(s, placeIntoPanel("a", p0));
+    s = figureReducer(s, placeIntoPanel("b", p1));
+    s = figureReducer(s, setPanelCrop(p0, { x: 0, y: 0, w: 0.5, h: 0.5 }));
+    expect(s.panels.find((p) => p.id === p0)?.transform?.crop).toEqual({
+      x: 0,
+      y: 0,
+      w: 0.5,
+      h: 0.5,
+    });
+    expect(s.panels.find((p) => p.id === p1)?.transform?.crop).toBeUndefined();
   });
 });
 
@@ -1303,7 +1406,9 @@ describe("figureReducer (bulk annotation actions)", () => {
     const s0 = withAnnos(textAnno("t1"), boxAnno("b1"), symbolAnno("s1"));
     const s1 = figureReducer(
       s0,
-      bulkUpdateAnnos(["t1", "b1", "s1"], { color: "#123456" } as Partial<Annotation>),
+      bulkUpdateAnnos(["t1", "b1", "s1"], {
+        color: "#123456",
+      } as Partial<Annotation>),
     );
     const t = s1.annotations.find((a) => a.id === "t1") as TextAnnotation;
     const sym = s1.annotations.find((a) => a.id === "s1") as SymbolAnnotation;
@@ -1345,7 +1450,10 @@ describe("figureReducer (bulk annotation actions)", () => {
   it("BULK_UPDATE_ANNOS no-ops on empty ids", () => {
     const s0 = withAnnos(textAnno("t1"));
     expect(
-      figureReducer(s0, bulkUpdateAnnos([], { color: "#abcdef" } as Partial<Annotation>)),
+      figureReducer(
+        s0,
+        bulkUpdateAnnos([], { color: "#abcdef" } as Partial<Annotation>),
+      ),
     ).toBe(s0);
   });
 
@@ -1369,7 +1477,9 @@ describe("figureReducer (bulk annotation actions)", () => {
     const s0 = withAnnos(textAnno("t1"));
     const s1 = figureReducer(
       s0,
-      bulkUpdateAnnos(["t1", "ghost"], { color: "#222222" } as Partial<Annotation>),
+      bulkUpdateAnnos(["t1", "ghost"], {
+        color: "#222222",
+      } as Partial<Annotation>),
     );
     const t = s1.annotations.find((a) => a.id === "t1") as TextAnnotation;
     expect(t.color).toBe("#222222");

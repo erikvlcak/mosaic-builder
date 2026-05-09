@@ -214,6 +214,29 @@ function validatePanels(x: unknown, path: string): Result<Panel[]> {
         return err(`${path}[${i}].transform.flipH`);
       if (typeof t.flipV !== "boolean")
         return err(`${path}[${i}].transform.flipV`);
+      // crop is optional (added in spec 09); pre-spec-09 files omit the field.
+      // We accept any in-range rect on disk and reject out-of-range so corrupt
+      // values can't slip into the renderer (the reducer also validates, but
+      // the load path skips it — RESET_TO_STATE writes the state directly).
+      if (t.crop !== undefined) {
+        const c = t.crop;
+        if (!isObj(c))
+          return err(`${path}[${i}].transform.crop: expected object`);
+        if (
+          !isNum(c.x) ||
+          !isNum(c.y) ||
+          !isNum(c.w) ||
+          !isNum(c.h) ||
+          c.x < 0 ||
+          c.y < 0 ||
+          c.w <= 0 ||
+          c.h <= 0 ||
+          c.x + c.w > 1 ||
+          c.y + c.h > 1
+        ) {
+          return err(`${path}[${i}].transform.crop: out of range`);
+        }
+      }
     }
   }
   return { ok: true, value: x as Panel[] };
@@ -398,11 +421,7 @@ function validateGlobalStyle(
 export function validateMosaicFile(x: unknown): Result<MosaicFile> {
   if (!isObj(x)) return err("root: expected object");
   if (x.schemaVersion === undefined) return err("schemaVersion: required");
-  if (
-    x.schemaVersion !== 1 &&
-    x.schemaVersion !== 2 &&
-    x.schemaVersion !== 3
-  ) {
+  if (x.schemaVersion !== 1 && x.schemaVersion !== 2 && x.schemaVersion !== 3) {
     return err(`schemaVersion: unsupported (${String(x.schemaVersion)})`);
   }
   const sv: 1 | 2 | 3 = x.schemaVersion;
@@ -453,7 +472,9 @@ export function validateMosaicFile(x: unknown): Result<MosaicFile> {
     const v = lo[k];
     if (sv === 3) {
       if (!isObj(v)) {
-        return err(`state.letterOverrides.${k}: expected LetterOverride object`);
+        return err(
+          `state.letterOverrides.${k}: expected LetterOverride object`,
+        );
       }
       const ov = v;
       if (ov.text !== undefined && !isStr(ov.text)) {

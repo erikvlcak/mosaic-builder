@@ -29,6 +29,18 @@ export interface DrawCtx {
     dw: number,
     dh: number,
   ): void;
+  /** 9-arg form: source sub-rect → destination rect. Used for non-destructive crop. */
+  drawImage(
+    img: CanvasImageSource,
+    sx: number,
+    sy: number,
+    sw: number,
+    sh: number,
+    dx: number,
+    dy: number,
+    dw: number,
+    dh: number,
+  ): void;
   save(): void;
   restore(): void;
   beginPath(): void;
@@ -121,6 +133,16 @@ function drawPanelImage(
   rect: PanelRect,
   t: PanelTransform,
 ): void {
+  // Crop sub-rect in source-px (defaults to the full bitmap when absent).
+  // The fit/pan/zoom/rotation/flip math operates on the cropped slice as
+  // if it were the source — substitute (cw, ch) for (bitmap.w, bitmap.h)
+  // throughout, then the final drawImage uses the 9-arg source-rect form
+  // to draw only the cropped pixels at the equivalent destination box.
+  const sx = t.crop !== undefined ? t.crop.x * bitmap.width : 0;
+  const sy = t.crop !== undefined ? t.crop.y * bitmap.height : 0;
+  const cw = t.crop !== undefined ? t.crop.w * bitmap.width : bitmap.width;
+  const ch = t.crop !== undefined ? t.crop.h * bitmap.height : bitmap.height;
+
   ctx.save();
   // Clip to the panel rect so pan/zoom never bleed into the gutter.
   ctx.beginPath();
@@ -135,10 +157,10 @@ function drawPanelImage(
   if (t.fit === "stretch") {
     // Anisotropic — ignore zoom. Rotation in Stretch produces a useful
     // 90°/270° anisotropic effect, so we still apply it below.
-    const { w: rw, h: rh } = rotatedImageDims(bitmap.width, bitmap.height, t.rotation);
+    const { w: rw, h: rh } = rotatedImageDims(cw, ch, t.rotation);
     ctx.scale(rect.w / rw, rect.h / rh);
   } else {
-    const { w: rw, h: rh } = rotatedImageDims(bitmap.width, bitmap.height, t.rotation);
+    const { w: rw, h: rh } = rotatedImageDims(cw, ch, t.rotation);
     const S =
       t.fit === "cover"
         ? Math.max(rect.w / rw, rect.h / rh)
@@ -152,9 +174,9 @@ function drawPanelImage(
   if (t.flipH || t.flipV) {
     ctx.scale(t.flipH ? -1 : 1, t.flipV ? -1 : 1);
   }
-  ctx.translate(-bitmap.width / 2, -bitmap.height / 2);
+  ctx.translate(-cw / 2, -ch / 2);
 
-  ctx.drawImage(bitmap, 0, 0, bitmap.width, bitmap.height);
+  ctx.drawImage(bitmap, sx, sy, cw, ch, 0, 0, cw, ch);
   ctx.restore();
 }
 

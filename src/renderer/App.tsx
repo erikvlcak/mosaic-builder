@@ -4,10 +4,14 @@ import { ExportMenu } from "./components/Toolbar/ExportMenu";
 import { GridControls } from "./components/Toolbar/GridControls";
 import { MergeControls } from "./components/Toolbar/MergeControls";
 import { PanelControls } from "./components/Toolbar/PanelControls";
-import { AnnotationToolbar, type Tool } from "./components/Toolbar/AnnotationToolbar";
+import {
+  AnnotationToolbar,
+  type Tool,
+} from "./components/Toolbar/AnnotationToolbar";
 import { AnnotationInteractionLayer } from "./components/Annotations/AnnotationInteractionLayer";
 import { CalibrationModal } from "./components/Annotations/CalibrationModal";
 import { RelinkModal } from "./components/Modals/RelinkModal";
+import { CropImageModal } from "./components/Modals/CropImageModal";
 import { Tray } from "./components/Sidebar/Tray";
 import { PropertiesPanel } from "./components/Properties/PropertiesPanel";
 import { GridCells, type DropEvent } from "./components/Grid/GridCells";
@@ -17,10 +21,7 @@ import {
   editingIdOf,
   focusedIdOf,
 } from "./model/panel-interaction";
-import {
-  initialFigureState,
-  type FigureState,
-} from "./model/figure-state";
+import { initialFigureState, type FigureState } from "./model/figure-state";
 import {
   addToPool,
   resizeGrid,
@@ -42,10 +43,7 @@ import {
 } from "./model/figure-actions";
 import { useHistoryReducer } from "./state/use-history-reducer";
 import { applyLoadedProject } from "./state/load-project";
-import {
-  emptySelection,
-  singleSelectedId,
-} from "./state/anno-selection";
+import { emptySelection, singleSelectedId } from "./state/anno-selection";
 import { newImageId, type ImagePoolItem } from "./model/pool";
 import { deriveFigure } from "./model/figure-derivations";
 import { computePanelRects, type PanelRect } from "./render/coords";
@@ -88,7 +86,10 @@ export function App(): JSX.Element {
   const [selectedAnnotationIds, setSelectedAnnotationIds] = useState<
     ReadonlySet<string>
   >(() => emptySelection());
-  const [calibratingImageId, setCalibratingImageId] = useState<string | null>(null);
+  const [calibratingImageId, setCalibratingImageId] = useState<string | null>(
+    null,
+  );
+  const [croppingPanelId, setCroppingPanelId] = useState<string | null>(null);
   const [annotationEditing, setAnnotationEditing] = useState<boolean>(false);
   const stateRef = useRef<FigureState>(state);
   stateRef.current = state;
@@ -160,10 +161,13 @@ export function App(): JSX.Element {
     }
   }, [dispatch, toasts]);
 
-  const onDrop = useCallback((ev: DropEvent): void => {
-    const action = dispatchDrop(stateRef.current, ev);
-    if (action !== null) dispatch(action);
-  }, [dispatch]);
+  const onDrop = useCallback(
+    (ev: DropEvent): void => {
+      const action = dispatchDrop(stateRef.current, ev);
+      if (action !== null) dispatch(action);
+    },
+    [dispatch],
+  );
 
   const onMerge = useCallback(() => {
     const cells = selection.asCoords();
@@ -260,14 +264,11 @@ export function App(): JSX.Element {
     [panelInteraction],
   );
 
-  const onPanelDoubleClick = useCallback(
-    (panelId: string) => {
-      const panel = stateRef.current.panels.find((p) => p.id === panelId);
-      if (panel === undefined || panel.imageId === undefined) return;
-      setPanelInteraction({ mode: "editing", panelId });
-    },
-    [],
-  );
+  const onPanelDoubleClick = useCallback((panelId: string) => {
+    const panel = stateRef.current.panels.find((p) => p.id === panelId);
+    if (panel === undefined || panel.imageId === undefined) return;
+    setPanelInteraction({ mode: "editing", panelId });
+  }, []);
 
   const onHoleClick = useCallback(
     (row: number, col: number) => {
@@ -407,6 +408,11 @@ export function App(): JSX.Element {
     setCalibratingImageId(selectedImagePanel.imageId);
   }, [selectedImagePanel]);
 
+  const onCrop = useCallback(() => {
+    if (selectedImagePanel?.imageId === undefined) return;
+    setCroppingPanelId(selectedImagePanel.id);
+  }, [selectedImagePanel]);
+
   const onSaveProject = useCallback(async () => {
     const file = toMosaicFile({
       state,
@@ -420,7 +426,8 @@ export function App(): JSX.Element {
     });
     const r = await window.api.saveProject({
       file,
-      defaultName: projectPath !== null ? basename(projectPath) : "untitled.mosaic",
+      defaultName:
+        projectPath !== null ? basename(projectPath) : "untitled.mosaic",
     });
     if (!r.ok) {
       if (r.reason !== "canceled") {
@@ -484,9 +491,15 @@ export function App(): JSX.Element {
     onExportPng: () =>
       toasts.push({ kind: "info", message: "Use Export → PNG in the toolbar" }),
     onExportJpeg: () =>
-      toasts.push({ kind: "info", message: "Use Export → JPEG in the toolbar" }),
+      toasts.push({
+        kind: "info",
+        message: "Use Export → JPEG in the toolbar",
+      }),
     onExportTiff: () =>
-      toasts.push({ kind: "info", message: "Use Export → TIFF in the toolbar" }),
+      toasts.push({
+        kind: "info",
+        message: "Use Export → TIFF in the toolbar",
+      }),
     onExportPdf: () =>
       toasts.push({ kind: "info", message: "Use Export → PDF in the toolbar" }),
     onUndo: history.undo,
@@ -619,7 +632,11 @@ export function App(): JSX.Element {
               boxShadow: "var(--sh-md)",
             }}
           >
-            <EditorCanvas figure={figure} images={bitmaps} pool={imagesByIdMemo} />
+            <EditorCanvas
+              figure={figure}
+              images={bitmaps}
+              pool={imagesByIdMemo}
+            />
             <GridCells
               state={state}
               figurePxW={FIGURE_PX_W}
@@ -633,6 +650,7 @@ export function App(): JSX.Element {
               onPanelClick={onPanelSingleClick}
               onPanelDoubleClick={onPanelDoubleClick}
               onHoleClick={onHoleClick}
+              onPanelCropBadgeClick={setCroppingPanelId}
             />
             {editingIdOf(panelInteraction) !== null &&
               selectedImagePanel !== undefined &&
@@ -692,6 +710,7 @@ export function App(): JSX.Element {
           dispatch={dispatch}
           commit={fieldCommit}
           onCalibrate={onCalibrate}
+          onCrop={onCrop}
         />
       </div>
       {calibratingImageId !== null && calibratingBitmap !== undefined && (
@@ -702,6 +721,32 @@ export function App(): JSX.Element {
           dispatch={dispatch}
         />
       )}
+      {(() => {
+        if (croppingPanelId === null) return null;
+        const cp = state.panels.find((p) => p.id === croppingPanelId);
+        if (
+          cp === undefined ||
+          cp.imageId === undefined ||
+          cp.transform === undefined
+        ) {
+          return null;
+        }
+        const bm = bitmaps.get(cp.imageId);
+        if (bm === undefined) return null;
+        const rect = panelRectsByIdMemo.get(cp.id);
+        const aspect = rect !== undefined && rect.h > 0 ? rect.w / rect.h : 1;
+        return (
+          <CropImageModal
+            panelId={cp.id}
+            bitmap={bm}
+            initialCrop={cp.transform.crop}
+            transform={cp.transform}
+            panelAspect={aspect}
+            onClose={() => setCroppingPanelId(null)}
+            dispatch={dispatch}
+          />
+        );
+      })()}
       {missingImages.length > 0 && (
         <RelinkModal
           missing={missingImages}

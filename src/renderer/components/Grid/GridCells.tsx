@@ -38,6 +38,8 @@ interface Props {
   onPanelDoubleClick: (panelId: string) => void;
   /** Click on a hole cell — restores a 1x1 panel there. */
   onHoleClick: (row: number, col: number) => void;
+  /** Click on the crop badge of a panel that has a non-default crop. */
+  onPanelCropBadgeClick?: (panelId: string) => void;
 }
 
 export function GridCells({
@@ -53,6 +55,7 @@ export function GridCells({
   onPanelClick,
   onPanelDoubleClick,
   onHoleClick,
+  onPanelCropBadgeClick,
 }: Props): JSX.Element {
   const [hoverPanelId, setHoverPanelId] = useState<string | null>(null);
   const [draggingPanelId, setDraggingPanelId] = useState<string | null>(null);
@@ -248,7 +251,9 @@ export function GridCells({
             onDoubleClick={onDoubleClick}
             data-testid={`panel-${panel.row}-${panel.col}`}
             data-panel-id={panel.id}
-            data-mode={isEditing ? "editing" : isSelected ? "selected" : undefined}
+            data-mode={
+              isEditing ? "editing" : isSelected ? "selected" : undefined
+            }
             data-hidden={isHidden ? "true" : undefined}
             style={{
               position: "absolute",
@@ -265,7 +270,27 @@ export function GridCells({
               boxSizing: "border-box",
             }}
           >
-            {isHidden && <span className="grid-panel-hidden-badge">hidden</span>}
+            {isHidden && (
+              <span className="grid-panel-hidden-badge">hidden</span>
+            )}
+            {panel.transform?.crop !== undefined && (
+              <button
+                type="button"
+                className="grid-panel-crop-badge"
+                data-testid={`crop-badge-${panel.row}-${panel.col}`}
+                title="Adjust crop"
+                aria-label="Adjust crop"
+                onClick={(e) => {
+                  // Stop the click from bubbling up to the panel's
+                  // selection click handler — the badge is a discrete
+                  // control with its own action.
+                  e.stopPropagation();
+                  onPanelCropBadgeClick?.(panel.id);
+                }}
+              >
+                ✂
+              </button>
+            )}
           </div>
         );
       })}

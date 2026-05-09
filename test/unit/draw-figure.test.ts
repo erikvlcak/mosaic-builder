@@ -243,9 +243,11 @@ describe("drawFigure", () => {
       expect(scales[0]?.args).toEqual([0.85, 0.85]);
       // No rotate call when rotation === 0.
       expect(ctx.calls.some((c) => c.op === "rotate")).toBe(false);
-      // drawImage at (0,0) with the bitmap's native dims.
+      // drawImage uses the 9-arg source-rect form (s/d both = full bitmap).
+      // The crop feature substitutes the source rect; absent crop still
+      // routes through the same 9-arg call to keep the draw path uniform.
       const drew = ctx.calls.find((c) => c.op === "drawImage");
-      expect(drew?.args).toEqual([bitmap, 0, 0, 100, 100]);
+      expect(drew?.args).toEqual([bitmap, 0, 0, 100, 100, 0, 0, 100, 100]);
     });
 
     it("Cover fit applies max() scale instead of min()", () => {
@@ -346,6 +348,68 @@ describe("drawFigure", () => {
       const scales = ctx.calls.filter((c) => c.op === "scale");
       // First scale = baseScale (1,1); second = flip (-1, 1)
       expect(scales[1]?.args).toEqual([-1, 1]);
+    });
+
+    it("crop substitutes a source sub-rect and rescales fit math to the crop dims", () => {
+      const ctx = makeRecorder();
+      // 100×100 bitmap, panel rect (0,0,100,100), Contain fit, crop is the
+      // top-left quarter — the cropped slice is 50×50, so Contain into a
+      // 100×100 panel scales by 2.0 (vs 1.0 for no crop).
+      const bitmap = { width: 100, height: 100 } as unknown as ImageBitmap;
+      const fig: Figure = {
+        canvas: { widthPx: 100, heightPx: 100, background: "#FFF" },
+        grid: { rows: 1, cols: 1, gutterPx: 0, gutterColor: "#FFF" },
+        panels: [
+          {
+            panelId: "p1",
+            row: 0,
+            col: 0,
+            kind: "image",
+            imageId: "f",
+            transform: {
+              ...DEFAULT_TRANSFORM,
+              crop: { x: 0, y: 0, w: 0.5, h: 0.5 },
+            },
+          },
+        ],
+        annotations: [],
+        globalStyle: LETTERS_OFF,
+      };
+      drawFigure(ctx, fig, new Map([["f", bitmap]]));
+      // Contain on a 50×50 cropped slice into a 100×100 panel = scale 2.
+      const scales = ctx.calls.filter((c) => c.op === "scale");
+      expect(scales[0]?.args).toEqual([2, 2]);
+      // Source rect on drawImage is the top-left 50×50 of the bitmap.
+      const drew = ctx.calls.find((c) => c.op === "drawImage");
+      expect(drew?.args).toEqual([bitmap, 0, 0, 50, 50, 0, 0, 50, 50]);
+    });
+
+    it("crop offsets the source rect when not at the origin", () => {
+      const ctx = makeRecorder();
+      const bitmap = { width: 200, height: 100 } as unknown as ImageBitmap;
+      const fig: Figure = {
+        canvas: { widthPx: 100, heightPx: 100, background: "#FFF" },
+        grid: { rows: 1, cols: 1, gutterPx: 0, gutterColor: "#FFF" },
+        panels: [
+          {
+            panelId: "p1",
+            row: 0,
+            col: 0,
+            kind: "image",
+            imageId: "f",
+            transform: {
+              ...DEFAULT_TRANSFORM,
+              crop: { x: 0.5, y: 0.25, w: 0.25, h: 0.5 },
+            },
+          },
+        ],
+        annotations: [],
+        globalStyle: LETTERS_OFF,
+      };
+      drawFigure(ctx, fig, new Map([["f", bitmap]]));
+      // Source rect: x = 0.5*200 = 100, y = 0.25*100 = 25, w = 50, h = 50.
+      const drew = ctx.calls.find((c) => c.op === "drawImage");
+      expect(drew?.args).toEqual([bitmap, 100, 25, 50, 50, 0, 0, 50, 50]);
     });
   });
 });
