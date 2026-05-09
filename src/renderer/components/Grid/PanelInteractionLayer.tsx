@@ -1,8 +1,10 @@
+import * as React from "react";
 import { useEffect, useRef } from "react";
 import type { Dispatch } from "react";
 import type { FigureAction } from "../../model/figure-actions";
 import { setPanelTransform } from "../../model/figure-actions";
 import type { PanelTransform } from "../../model/panels";
+import type { Corner } from "../../model/grid-layout";
 import {
   panForCursorZoom,
   snapTransform,
@@ -25,6 +27,12 @@ interface Props {
    * a sequence of wheel events records a single history entry.
    */
   onCommit: () => void;
+  /**
+   * Spec 11: when present, four corner handles are rendered. Dragging a
+   * handle dispatches RESIZE_PANEL_FREEFORM via this callback. dx/dy are
+   * cumulative figure-px deltas from the drag start (NOT incremental).
+   */
+  onResizeFreeform?: (corner: Corner, dx: number, dy: number) => void;
 }
 
 /**
@@ -47,6 +55,7 @@ export function PanelInteractionLayer({
   cssH,
   dispatch,
   onCommit,
+  onResizeFreeform,
 }: Props): JSX.Element | null {
   const ref = useRef<HTMLDivElement | null>(null);
   // Keep the latest transform/rect/etc. in a ref so the wheel handler
@@ -172,7 +181,11 @@ export function PanelInteractionLayer({
   function onPointerUp(e: React.PointerEvent<HTMLDivElement>): void {
     const drag = dragRef.current;
     if (drag === null || drag.pointerId !== e.pointerId) return;
-    if (ref.current?.hasPointerCapture(e.pointerId)) {
+    if (
+      ref.current !== null &&
+      typeof ref.current.hasPointerCapture === "function" &&
+      ref.current.hasPointerCapture(e.pointerId)
+    ) {
       ref.current.releasePointerCapture(e.pointerId);
     }
     dragRef.current = null;
@@ -180,6 +193,8 @@ export function PanelInteractionLayer({
   }
 
   const dragging = dragRef.current !== null;
+  const cssToFigX = figurePxW / cssW;
+  const cssToFigY = figurePxH / cssH;
 
   return (
     <div
@@ -210,6 +225,140 @@ export function PanelInteractionLayer({
         // Keep above GridCells so pointer events route here, but below any
         // toolbar overlays we add later.
         zIndex: 2,
+      }}
+    >
+      {onResizeFreeform !== undefined && (
+        <>
+          <CornerHandle
+            corner="tl"
+            cssToFigX={cssToFigX}
+            cssToFigY={cssToFigY}
+            onResize={onResizeFreeform}
+            onCommit={onCommit}
+          />
+          <CornerHandle
+            corner="tr"
+            cssToFigX={cssToFigX}
+            cssToFigY={cssToFigY}
+            onResize={onResizeFreeform}
+            onCommit={onCommit}
+          />
+          <CornerHandle
+            corner="bl"
+            cssToFigX={cssToFigX}
+            cssToFigY={cssToFigY}
+            onResize={onResizeFreeform}
+            onCommit={onCommit}
+          />
+          <CornerHandle
+            corner="br"
+            cssToFigX={cssToFigX}
+            cssToFigY={cssToFigY}
+            onResize={onResizeFreeform}
+            onCommit={onCommit}
+          />
+        </>
+      )}
+    </div>
+  );
+}
+
+interface CornerHandleProps {
+  corner: Corner;
+  cssToFigX: number;
+  cssToFigY: number;
+  onResize: (corner: Corner, dx: number, dy: number) => void;
+  onCommit: () => void;
+}
+
+function CornerHandle({
+  corner,
+  cssToFigX,
+  cssToFigY,
+  onResize,
+  onCommit,
+}: CornerHandleProps): JSX.Element {
+  const ref = useRef<HTMLDivElement | null>(null);
+  // Track last clientX/Y so each pointermove dispatches an INCREMENTAL delta
+  // (frame-to-frame). The reducer applies each delta atop the current rects,
+  // so cumulative semantics emerge naturally from incremental dispatches.
+  const dragRef = useRef<
+    | { pointerId: number; lastClientX: number; lastClientY: number }
+    | null
+  >(null);
+
+  function onPointerDown(e: React.PointerEvent<HTMLDivElement>): void {
+    // Reject right/middle clicks. e.button can be undefined under jsdom
+    // synthesized events; treat that as "primary" for testability.
+    if (e.button !== undefined && e.button !== 0) return;
+    if (ref.current === null) return;
+    // Don't bubble to PanelInteractionLayer's pan-drag handler.
+    e.stopPropagation();
+    if (typeof ref.current.setPointerCapture === "function") {
+      ref.current.setPointerCapture(e.pointerId);
+    }
+    dragRef.current = {
+      pointerId: e.pointerId,
+      lastClientX: e.clientX,
+      lastClientY: e.clientY,
+    };
+  }
+
+  function onPointerMove(e: React.PointerEvent<HTMLDivElement>): void {
+    const drag = dragRef.current;
+    if (drag === null || drag.pointerId !== e.pointerId) return;
+    const dx = (e.clientX - drag.lastClientX) * cssToFigX;
+    const dy = (e.clientY - drag.lastClientY) * cssToFigY;
+    drag.lastClientX = e.clientX;
+    drag.lastClientY = e.clientY;
+    if (dx !== 0 || dy !== 0) {
+      onResize(corner, dx, dy);
+    }
+  }
+
+  function onPointerUp(e: React.PointerEvent<HTMLDivElement>): void {
+    const drag = dragRef.current;
+    if (drag === null || drag.pointerId !== e.pointerId) return;
+    if (
+      ref.current !== null &&
+      typeof ref.current.hasPointerCapture === "function" &&
+      ref.current.hasPointerCapture(e.pointerId)
+    ) {
+      ref.current.releasePointerCapture(e.pointerId);
+    }
+    dragRef.current = null;
+    onCommit();
+  }
+
+  const SIZE = 12;
+  // Position relative to parent (PanelInteractionLayer's outer div). The
+  // negative offsets put the handle CENTERED on the panel's corner.
+  const positions: Record<Corner, React.CSSProperties> = {
+    tl: { left: -SIZE / 2, top: -SIZE / 2, cursor: "nwse-resize" },
+    tr: { right: -SIZE / 2, top: -SIZE / 2, cursor: "nesw-resize" },
+    bl: { left: -SIZE / 2, bottom: -SIZE / 2, cursor: "nesw-resize" },
+    br: { right: -SIZE / 2, bottom: -SIZE / 2, cursor: "nwse-resize" },
+  };
+  return (
+    <div
+      ref={ref}
+      data-testid={`corner-handle-${corner}`}
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={onPointerUp}
+      onPointerCancel={onPointerUp}
+      className="corner-handle"
+      style={{
+        position: "absolute",
+        width: SIZE,
+        height: SIZE,
+        ...positions[corner],
+        background: "var(--c-focus-stroke)",
+        border: "1px solid #fff",
+        borderRadius: 2,
+        zIndex: 5,
+        pointerEvents: "auto",
+        touchAction: "none",
       }}
     />
   );

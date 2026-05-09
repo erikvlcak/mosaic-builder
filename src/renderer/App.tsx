@@ -675,6 +675,18 @@ export function App(): JSX.Element {
                   cssH={CANVAS_CSS_H}
                   dispatch={dispatch}
                   onCommit={history.commit}
+                  onResizeFreeform={(corner, dx, dy) => {
+                    dispatch(
+                      resizePanelFreeformAction(
+                        selectedImagePanel.id,
+                        corner,
+                        dx,
+                        dy,
+                        { widthPx: FIGURE_PX_W, heightPx: FIGURE_PX_H },
+                      ),
+                    );
+                    // history.commit() runs on pointer-up via onCommit.
+                  }}
                 />
               )}
             <AnnotationInteractionLayer
