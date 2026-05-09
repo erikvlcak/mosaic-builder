@@ -13,6 +13,7 @@ import type {
   LetterAnnotation,
 } from "./annotations";
 import type { GlobalAnnoStyle } from "./global-style";
+import type { LetterOverride } from "./figure-state";
 
 export type Hex = string; // "#RRGGBB" or "#RRGGBBAA"
 
@@ -84,6 +85,13 @@ export interface Figure {
   annotations: ResolvedAnnotation[];
   /** Needed by drawAnnotations for corner + style resolution. */
   globalStyle: GlobalAnnoStyle;
+  /**
+   * Per-letter overrides keyed by panel id. Optional so hand-built test
+   * fixtures (which build `Figure` directly) can omit it; the renderer
+   * defaults to "no per-letter style". Production figures always carry the
+   * full map via `deriveFigure`.
+   */
+  letterOverrides?: Record<string, LetterOverride>;
 }
 
 export type { PanelTransform, FitMode, Rotation } from "./panels";

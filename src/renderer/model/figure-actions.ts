@@ -1,7 +1,7 @@
 import type { ImagePoolItem, Calibration } from "./pool";
 import type { Panel, PanelTransform, FitMode, Rotation } from "./panels";
 import { DEFAULT_TRANSFORM, findPanelAt } from "./panels";
-import type { FigureState } from "./figure-state";
+import type { FigureState, LetterOverride, LetterPattern } from "./figure-state";
 import { initialFigureState, newPanelId } from "./figure-state";
 import { resizePanels } from "./grid-resize";
 import {
@@ -46,7 +46,13 @@ export type FigureAction =
       patch: Partial<Annotation>;
     }
   | { type: "BULK_REMOVE_ANNOS"; ids: string[] }
-  | { type: "SET_LETTER_OVERRIDE"; panelId: string; override: string | null }
+  | {
+      type: "SET_LETTER_OVERRIDE";
+      panelId: string;
+      override: LetterOverride | null;
+    }
+  | { type: "SET_LETTER_PATTERN"; pattern: LetterPattern }
+  | { type: "CLEAR_ALL_LETTER_OVERRIDES" }
   | { type: "SET_GLOBAL_STYLE"; style: GlobalAnnoStyle }
   | { type: "SET_LETTERS_ENABLED"; enabled: boolean }
   | {
@@ -156,8 +162,15 @@ export const bulkRemoveAnnos = (ids: string[]): FigureAction => ({
 });
 export const setLetterOverride = (
   panelId: string,
-  override: string | null,
+  override: LetterOverride | null,
 ): FigureAction => ({ type: "SET_LETTER_OVERRIDE", panelId, override });
+export const setLetterPattern = (pattern: LetterPattern): FigureAction => ({
+  type: "SET_LETTER_PATTERN",
+  pattern,
+});
+export const clearAllLetterOverrides = (): FigureAction => ({
+  type: "CLEAR_ALL_LETTER_OVERRIDES",
+});
 export const setGlobalStyle = (style: GlobalAnnoStyle): FigureAction => ({
   type: "SET_GLOBAL_STYLE",
   style,
@@ -688,11 +701,35 @@ export function figureReducer(s: FigureState, a: FigureAction): FigureState {
           letterOverrides: deleteOverride(s.letterOverrides, a.panelId),
         };
       }
-      if (s.letterOverrides[a.panelId] === a.override) return s;
+      const normalized = normalizeOverride(a.override);
+      // Empty override (no text, no style fields) collapses to a delete so
+      // we never persist a useless `{}` entry — keeps the on-disk file lean
+      // and the "is this letter overridden" check a simple `panelId in map`.
+      if (normalized === null) {
+        if (!(a.panelId in s.letterOverrides)) return s;
+        return {
+          ...s,
+          letterOverrides: deleteOverride(s.letterOverrides, a.panelId),
+        };
+      }
+      const existing = s.letterOverrides[a.panelId];
+      if (existing !== undefined && overridesEqual(existing, normalized)) {
+        return s;
+      }
       return {
         ...s,
-        letterOverrides: { ...s.letterOverrides, [a.panelId]: a.override },
+        letterOverrides: { ...s.letterOverrides, [a.panelId]: normalized },
       };
+    }
+
+    case "SET_LETTER_PATTERN": {
+      if (s.letterPattern === a.pattern) return s;
+      return { ...s, letterPattern: a.pattern };
+    }
+
+    case "CLEAR_ALL_LETTER_OVERRIDES": {
+      if (Object.keys(s.letterOverrides).length === 0) return s;
+      return { ...s, letterOverrides: {} };
     }
 
     case "SET_GLOBAL_STYLE": {
@@ -836,10 +873,10 @@ function isHexColor(s: string): boolean {
  * is in `keepIds`. Always allocates a new object.
  */
 function filterOverrides(
-  overrides: Record<string, string>,
+  overrides: Record<string, LetterOverride>,
   keepIds: Set<string>,
-): Record<string, string> {
-  const out: Record<string, string> = {};
+): Record<string, LetterOverride> {
+  const out: Record<string, LetterOverride> = {};
   for (const k in overrides) {
     if (keepIds.has(k)) out[k] = overrides[k]!;
   }
@@ -850,14 +887,76 @@ function filterOverrides(
  * Return a fresh letterOverrides object with `panelId` removed.
  */
 function deleteOverride(
-  overrides: Record<string, string>,
+  overrides: Record<string, LetterOverride>,
   panelId: string,
-): Record<string, string> {
-  const out: Record<string, string> = {};
+): Record<string, LetterOverride> {
+  const out: Record<string, LetterOverride> = {};
   for (const k in overrides) {
     if (k !== panelId) out[k] = overrides[k]!;
   }
   return out;
+}
+
+/**
+ * Strip empty string/object substructure from an override so we don't persist
+ * meaningless entries. Returns null when the override carries no actual data
+ * (no text, no style fields). Always allocates fresh objects.
+ */
+function normalizeOverride(o: LetterOverride): LetterOverride | null {
+  const out: LetterOverride = {};
+  if (typeof o.text === "string" && o.text.length > 0) out.text = o.text;
+  if (o.style !== undefined) {
+    const s: NonNullable<LetterOverride["style"]> = {};
+    let any = false;
+    if (o.style.color !== undefined) {
+      s.color = o.style.color;
+      any = true;
+    }
+    if (o.style.bgColor !== undefined) {
+      s.bgColor = o.style.bgColor;
+      any = true;
+    }
+    if (o.style.font !== undefined) {
+      s.font = o.style.font;
+      any = true;
+    }
+    if (o.style.sizePt !== undefined) {
+      s.sizePt = o.style.sizePt;
+      any = true;
+    }
+    if (o.style.bold !== undefined) {
+      s.bold = o.style.bold;
+      any = true;
+    }
+    if (o.style.italic !== undefined) {
+      s.italic = o.style.italic;
+      any = true;
+    }
+    if (any) out.style = s;
+  }
+  if (out.text === undefined && out.style === undefined) return null;
+  return out;
+}
+
+/**
+ * Shallow-equal compare for two normalized overrides. Used to short-circuit
+ * the reducer to a `===` no-op when nothing actually changed (preserves the
+ * memoization contract documented in CLAUDE.md).
+ */
+function overridesEqual(a: LetterOverride, b: LetterOverride): boolean {
+  if (a.text !== b.text) return false;
+  const sa = a.style;
+  const sb = b.style;
+  if (sa === undefined && sb === undefined) return true;
+  if (sa === undefined || sb === undefined) return false;
+  return (
+    sa.color === sb.color &&
+    sa.bgColor === sb.bgColor &&
+    sa.font === sb.font &&
+    sa.sizePt === sb.sizePt &&
+    sa.bold === sb.bold &&
+    sa.italic === sb.italic
+  );
 }
 
 /**

@@ -62,13 +62,48 @@ describe("deriveFigure", () => {
     const s = initialFigureState();
     const firstPanelId = s.panels[0]?.id;
     if (firstPanelId === undefined) throw new Error("no first panel");
-    s.letterOverrides = { [firstPanelId]: "A1" };
+    s.letterOverrides = { [firstPanelId]: { text: "A1" } };
     const f = deriveFigure(s, { canvas: CANVAS });
     const letterFor0 = f.annotations.find(
       (a) => a.kind === "letter" && a.panelId === firstPanelId,
     );
     if (letterFor0?.kind === "letter") {
       expect(letterFor0.text).toBe("A1");
+    } else {
+      throw new Error("expected letter annotation for first panel");
+    }
+  });
+
+  it("derives auto labels from the active letterPattern", () => {
+    const s = initialFigureState();
+    const numericState = { ...s, letterPattern: "numeric" as const };
+    const f = deriveFigure(numericState, { canvas: CANVAS });
+    const letters = f.annotations.filter((a) => a.kind === "letter");
+    // 2x2 grid → 1, 2, 3, 4 in row-major order.
+    expect(letters.map((l) => l.kind === "letter" && l.text)).toEqual([
+      "1",
+      "2",
+      "3",
+      "4",
+    ]);
+  });
+
+  it("manual text override wins over the pattern", () => {
+    const s = initialFigureState();
+    const firstPanelId = s.panels[0]?.id;
+    if (firstPanelId === undefined) throw new Error("no first panel");
+    const customState = {
+      ...s,
+      letterPattern: "numeric" as const,
+      letterOverrides: { [firstPanelId]: { text: "Hero" } },
+    };
+    const f = deriveFigure(customState, { canvas: CANVAS });
+    const letterFor0 = f.annotations.find(
+      (a) => a.kind === "letter" && a.panelId === firstPanelId,
+    );
+    if (letterFor0?.kind === "letter") {
+      // Manual override beats the numeric pattern.
+      expect(letterFor0.text).toBe("Hero");
     } else {
       throw new Error("expected letter annotation for first panel");
     }

@@ -2,11 +2,11 @@ import { describe, it, expect } from "vitest";
 import {
   validateMosaicFile,
   CURRENT_SCHEMA_VERSION,
-  type MosaicFileV2,
+  type MosaicFileV3,
 } from "../../src/renderer/model/schema";
 
-const MIN_VALID: MosaicFileV2 = {
-  schemaVersion: 2,
+const MIN_VALID: MosaicFileV3 = {
+  schemaVersion: 3,
   app: "mosaic-builder",
   appVersion: "0.1.0",
   createdAt: "2026-05-02T10:00:00Z",
@@ -34,6 +34,7 @@ const MIN_VALID: MosaicFileV2 = {
         corner: "tl",
         paddingPx: 6,
         bold: true,
+        italic: false,
       },
       scalebar: {
         font: "Arial",
@@ -47,19 +48,20 @@ const MIN_VALID: MosaicFileV2 = {
       },
     },
     letterOverrides: {},
+    letterPattern: "uppercase",
   },
 };
 
 describe("validateMosaicFile", () => {
-  it("CURRENT_SCHEMA_VERSION is 2", () => {
-    expect(CURRENT_SCHEMA_VERSION).toBe(2);
+  it("CURRENT_SCHEMA_VERSION is 3", () => {
+    expect(CURRENT_SCHEMA_VERSION).toBe(3);
   });
 
   it("accepts a minimal valid file", () => {
     const r = validateMosaicFile(MIN_VALID);
     expect(r.ok).toBe(true);
     if (r.ok) {
-      expect(r.value.schemaVersion).toBe(2);
+      expect(r.value.schemaVersion).toBe(3);
       expect(r.value.state.rows).toBe(2);
     }
   });
@@ -254,14 +256,14 @@ describe("validateMosaicFile schema versions", () => {
     expect(r.ok).toBe(false);
   });
 
-  it("rejects schemaVersion 3", () => {
-    const bad = makeMinimalFile(3 as 1 | 2, []);
+  it("rejects schemaVersion 99 (unsupported)", () => {
+    const bad = makeMinimalFile(99 as unknown as 1 | 2 | 3, []);
     expect(validateMosaicFile(bad).ok).toBe(false);
   });
 });
 
 function makeMinimalFile(
-  schemaVersion: 1 | 2,
+  schemaVersion: 1 | 2 | 3,
   annotations: unknown[],
 ): unknown {
   return {

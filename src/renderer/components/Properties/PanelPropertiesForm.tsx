@@ -1,5 +1,6 @@
 import type { Dispatch } from "react";
 import type { Panel, PanelTransform } from "../../model/panels";
+import type { LetterOverride } from "../../model/figure-state";
 import type { FigureAction } from "../../model/figure-actions";
 import {
   setPanelFit, rotatePanel90, flipPanelH, flipPanelV,
@@ -12,14 +13,30 @@ import { TextField } from "./inputs/TextField";
 interface Props {
   /** Only image-bearing panels are accepted; transform must be present. */
   panel: Panel & { transform: PanelTransform };
-  letterOverride: string | undefined;
+  /**
+   * Current text override for this panel's letter (if any). Style overrides
+   * live in `LetterOverride.style` and are edited from the letter's own
+   * properties form (LetterAnnoForm), not here.
+   */
+  letterOverrideText: string | undefined;
+  /**
+   * Full override object for this panel, used to preserve `style` when the
+   * user only edits the text from this form (text-only edit must NOT clear
+   * a separately-set color/font override).
+   */
+  letterOverride: LetterOverride | undefined;
   dispatch: Dispatch<FigureAction>;
   onCalibrate: () => void;
   commit: FieldCommit;
 }
 
 export function PanelPropertiesForm({
-  panel, letterOverride, dispatch, onCalibrate, commit,
+  panel,
+  letterOverrideText,
+  letterOverride,
+  dispatch,
+  onCalibrate,
+  commit,
 }: Props): JSX.Element {
   const t = panel.transform;
   return (
@@ -85,10 +102,25 @@ export function PanelPropertiesForm({
       </dl>
 
       <TextField label="Subpanel letter"
-        value={letterOverride ?? ""}
+        value={letterOverrideText ?? ""}
         placeholder="(auto)"
         onChange={(s) => {
-          dispatch(setLetterOverride(panel.id, s === "" ? null : s));
+          if (s === "") {
+            // Clearing the text leaves any style override intact: an
+            // empty-text + null-style override normalizes to null in the
+            // reducer, but a style-only override survives.
+            const nextOverride: LetterOverride | null =
+              letterOverride?.style !== undefined
+                ? { style: letterOverride.style }
+                : null;
+            dispatch(setLetterOverride(panel.id, nextOverride));
+          } else {
+            const nextOverride: LetterOverride = { text: s };
+            if (letterOverride?.style !== undefined) {
+              nextOverride.style = letterOverride.style;
+            }
+            dispatch(setLetterOverride(panel.id, nextOverride));
+          }
           commit.markDirty();
         }}
         onBlur={commit.flush} />

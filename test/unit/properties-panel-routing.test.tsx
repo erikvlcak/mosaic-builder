@@ -109,4 +109,26 @@ describe("PropertiesPanel routes by selection", () => {
     expect(screen.getByRole("button", { name: /^Show$/ })).toBeTruthy();
     expect(screen.queryByRole("button", { name: /^Hide$/ })).toBeNull();
   });
+
+  it("renders LetterAnnoForm when a letter is selected (via selectedLetterPanelId)", () => {
+    const state = initialFigureState();
+    const firstPanelId = state.panels[0]!.id;
+    render(
+      <PropertiesPanel
+        state={state}
+        focusedPanel={undefined}
+        selectedLetterPanelId={firstPanelId}
+        selectedAnno={undefined}
+        dispatch={vi.fn()}
+        commit={{ markDirty: vi.fn(), flush: vi.fn() }}
+        onCalibrate={() => {}}
+      />,
+    );
+    // Letter form's "Reset to global" button is unique to LetterAnnoForm.
+    expect(
+      screen.getByRole("button", { name: /reset to global/i }),
+    ).toBeTruthy();
+    // Title says "Letter" — confirms routing.
+    expect(screen.getByText(/^Letter$/)).toBeTruthy();
+  });
 });

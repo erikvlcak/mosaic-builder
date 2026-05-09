@@ -1361,6 +1361,77 @@ export function AnnotationInteractionLayer({
 
   // Build hit-rects for select mode.
   const userAnnos = figure.annotations.filter(isUserAnno);
+  // Letters (derived) get their own hit-rects so users can click a letter
+  // to select it (spec 08). We compute an approximate rect from the panel
+  // corner + padding + glyph metrics; exact positioning matches drawLetter
+  // (alphabetic baseline + corner anchor). Letters cannot be dragged or
+  // resized, so the gesture is select-only.
+  const letterHits = (() => {
+    const out: {
+      id: string;
+      panelId: string;
+      x: number;
+      y: number;
+      w: number;
+      h: number;
+    }[] = [];
+    if (!figure.globalStyle.letters.enabled) return out;
+    for (const a of figure.annotations) {
+      if (a.kind !== "letter") continue;
+      const rect = panelRectsById.get(a.panelId);
+      if (rect === undefined) continue;
+      const styleOverride = figure.letterOverrides?.[a.panelId]?.style;
+      const sizePt = styleOverride?.sizePt ?? figure.globalStyle.letters.sizePt;
+      const padding = figure.globalStyle.letters.paddingPx;
+      const corner = figure.globalStyle.letters.corner;
+      // Same heuristic as TextAnnotation: 0.6 × sizePt × char count.
+      const w = Math.max(MIN_HIT_PX, a.text.length * sizePt * 0.6);
+      const h = sizePt * 1.2;
+      let x: number;
+      let y: number;
+      switch (corner) {
+        case "tl":
+          x = rect.x + padding;
+          y = rect.y + padding;
+          break;
+        case "tr":
+          x = rect.x + rect.w - padding - w;
+          y = rect.y + padding;
+          break;
+        case "bl":
+          x = rect.x + padding;
+          y = rect.y + rect.h - padding - h;
+          break;
+        case "br":
+          x = rect.x + rect.w - padding - w;
+          y = rect.y + rect.h - padding - h;
+          break;
+      }
+      out.push({ id: a.id, panelId: a.panelId, x, y, w, h });
+    }
+    return out;
+  })();
+
+  function onLetterHitPointerDown(
+    e: React.PointerEvent<HTMLDivElement>,
+    letterId: string,
+  ): void {
+    if (e.button !== 0) return;
+    e.stopPropagation();
+    // Letters use the same selection set as user-annos but never engage the
+    // drag/move state machine. Plain click replaces the selection; shift-click
+    // toggles membership.
+    if (e.shiftKey) {
+      const inSet = selectedAnnotationIds.has(letterId);
+      onSelectionChange(
+        inSet
+          ? removeFromSelection(selectedAnnotationIds, letterId)
+          : addToSelection(selectedAnnotationIds, letterId),
+      );
+    } else {
+      onSelectionChange(replaceSelection(letterId));
+    }
+  }
 
   return (
     <div
@@ -1465,6 +1536,48 @@ export function AnnotationInteractionLayer({
           />
         );
       })}
+
+      {/* Letter hit-rects (spec 08). Click selects; no drag/move. */}
+      {letterHits.map((b) => (
+        <div
+          key={`hit-${b.id}`}
+          data-testid={`anno-hit-${b.id}`}
+          onPointerDown={(e) => onLetterHitPointerDown(e, b.id)}
+          style={{
+            position: "absolute",
+            left: b.x * figToCssX,
+            top: b.y * figToCssY,
+            width: Math.max(MIN_HIT_PX, b.w * figToCssX),
+            height: Math.max(MIN_HIT_PX, b.h * figToCssY),
+            pointerEvents: "auto",
+            cursor: "pointer",
+            background: "transparent",
+          }}
+        />
+      ))}
+
+      {/* Letter selection chrome — dashed outline around the letter when
+          selected. Letters appear in `selectedAnnotationIds` alongside user
+          annotations; we paint chrome here separately because letter rects
+          aren't computed via `annoBounds`. */}
+      {letterHits
+        .filter((b) => selectedAnnotationIds.has(b.id))
+        .map((b) => (
+          <div
+            key={`chrome-${b.id}`}
+            data-testid={`anno-selection-chrome-${b.id}`}
+            style={{
+              position: "absolute",
+              left: b.x * figToCssX - 2,
+              top: b.y * figToCssY - 2,
+              width: Math.max(MIN_HIT_PX, b.w * figToCssX) + 4,
+              height: Math.max(MIN_HIT_PX, b.h * figToCssY) + 4,
+              pointerEvents: "none",
+              border: "2px dashed #0066FF",
+              boxSizing: "border-box",
+            }}
+          />
+        ))}
 
       {/* Selection chrome — dashed outline per selected annotation. Loops
           across the full selection set so multi-select shows every member. */}

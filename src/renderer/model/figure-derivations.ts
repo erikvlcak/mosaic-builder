@@ -6,7 +6,7 @@ import type {
 } from "./types";
 import type { FigureState } from "./figure-state";
 import { DEFAULT_TRANSFORM } from "./panels";
-import { cellLabel } from "../render/letters";
+import { labelForPattern } from "../render/letters";
 
 export interface DeriveOptions {
   canvas: FigureCanvas;
@@ -58,13 +58,18 @@ export function deriveFigure(
   });
 
   // Synthesise letter annotations (z=0) for each visible panel in
-  // row-major order. The annotation pass DOES NOT depend on
-  // globalStyle.letters.enabled here — drawAnnotations checks the flag
-  // at render time so toggling doesn't require a re-derive.
+  // row-major order. Letters draw with the active `letterPattern`; manual
+  // text overrides win over the pattern (so changing the pattern doesn't
+  // overwrite hand-edited labels). Style overrides aren't carried on the
+  // resolved annotation — `draw-annotations.ts` reads them straight off
+  // `state.letterOverrides[panelId].style` via the figure's globalStyle
+  // path. The annotation pass DOES NOT depend on
+  // globalStyle.letters.enabled here — drawAnnotations checks the flag at
+  // render time so toggling doesn't require a re-derive.
   const letters: ResolvedAnnotation[] = visiblePanels.map((p) => {
-    const tlIndex = p.row * state.cols + p.col;
-    const auto = cellLabel(tlIndex);
-    const text = state.letterOverrides[p.id] ?? auto;
+    const auto = labelForPattern(p.row, p.col, state.cols, state.letterPattern);
+    const overrideText = state.letterOverrides[p.id]?.text;
+    const text = overrideText ?? auto;
     return {
       id: `letter:${p.id}`,
       kind: "letter" as const,
@@ -100,5 +105,6 @@ export function deriveFigure(
     panels,
     annotations: [...letters, ...userAnnos],
     globalStyle: state.globalStyle,
+    letterOverrides: state.letterOverrides,
   };
 }

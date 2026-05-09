@@ -1,6 +1,11 @@
 import type { Dispatch } from "react";
 import type { FigureAction } from "../../model/figure-actions";
-import { setGlobalStyle } from "../../model/figure-actions";
+import {
+  clearAllLetterOverrides,
+  setGlobalStyle,
+  setLetterPattern,
+} from "../../model/figure-actions";
+import type { FigureState, LetterPattern } from "../../model/figure-state";
 import type { GlobalAnnoStyle, LetterStyle, ScaleBarStyle } from "../../model/global-style";
 import type { FieldCommit } from "../../hooks/useFieldCommit";
 import { NumberField } from "./inputs/NumberField";
@@ -8,13 +13,28 @@ import { ColorField } from "./inputs/ColorField";
 import { CornerField } from "./inputs/CornerField";
 
 interface Props {
+  /**
+   * Full figure state. Required for the spec-08 pattern picker to read
+   * `letterPattern` and detect whether any overrides exist (for the reset
+   * button's enabled state).
+   */
+  state: FigureState;
   globalStyle: GlobalAnnoStyle;
   dispatch: Dispatch<FigureAction>;
   commit: FieldCommit;
 }
 
+const PATTERN_OPTIONS: ReadonlyArray<{ value: LetterPattern; label: string }> = [
+  { value: "uppercase", label: "A, B, C…" },
+  { value: "lowercase", label: "a, b, c…" },
+  { value: "numeric", label: "1, 2, 3…" },
+  { value: "uppercase-paren", label: "(A), (B)…" },
+  { value: "uppercase-bracket", label: "[A], [B]…" },
+  { value: "rowcol-mixed", label: "1a, 1b… 2a, 2b…" },
+];
+
 export function CanvasAndGlobalStyleForm({
-  globalStyle, dispatch, commit,
+  state, globalStyle, dispatch, commit,
 }: Props): JSX.Element {
   function patchLetters(p: Partial<LetterStyle>, immediate = false): void {
     const next: GlobalAnnoStyle = {
@@ -49,6 +69,48 @@ export function CanvasAndGlobalStyleForm({
         <legend className="section-heading" style={{ padding: 0, marginBottom: 4 }}>
           Subpanel letters
         </legend>
+        <label htmlFor="letter-pattern" className="field">
+          <span className="field-label">Pattern</span>
+          <select
+            id="letter-pattern"
+            aria-label="Letter pattern"
+            className="input"
+            value={state.letterPattern}
+            onChange={(e) => {
+              dispatch(setLetterPattern(e.currentTarget.value as LetterPattern));
+              commit.flush();
+            }}
+          >
+            {PATTERN_OPTIONS.map((p) => (
+              <option key={p.value} value={p.value}>
+                {p.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <p
+          style={{
+            margin: 0,
+            fontSize: 11,
+            color: "var(--c-text-muted)",
+            lineHeight: 1.35,
+          }}
+        >
+          Pattern controls auto-generated labels. Letters with manual overrides
+          are unaffected. To re-apply the pattern everywhere, click
+          “Reset all letter overrides” first.
+        </p>
+        <button
+          type="button"
+          className="btn"
+          disabled={Object.keys(state.letterOverrides).length === 0}
+          onClick={() => {
+            dispatch(clearAllLetterOverrides());
+            commit.flush();
+          }}
+        >
+          Reset all letter overrides
+        </button>
         <NumberField label="Size (pt)" value={globalStyle.letters.sizePt}
           min={4} max={144}
           onChange={(sizePt) => patchLetters({ sizePt })}

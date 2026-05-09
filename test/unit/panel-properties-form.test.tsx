@@ -20,7 +20,9 @@ describe("PanelPropertiesForm", () => {
     const dispatch = vi.fn();
     render(
       <PanelPropertiesForm
-        panel={panel} letterOverride={undefined}
+        panel={panel}
+        letterOverrideText={undefined}
+        letterOverride={undefined}
         dispatch={dispatch}
         onCalibrate={() => {}}
         commit={{ markDirty: vi.fn(), flush: vi.fn() }}
@@ -35,7 +37,53 @@ describe("PanelPropertiesForm", () => {
     expect(dispatch).toHaveBeenCalledWith({
       type: "SET_LETTER_OVERRIDE",
       panelId: "p1",
-      override: "A",
+      override: { text: "A" },
+    });
+  });
+
+  it("preserves an existing style override when the text is edited", async () => {
+    const dispatch = vi.fn();
+    render(
+      <PanelPropertiesForm
+        panel={panel}
+        letterOverrideText={undefined}
+        letterOverride={{ style: { color: "#FF0000" } }}
+        dispatch={dispatch}
+        onCalibrate={() => {}}
+        commit={{ markDirty: vi.fn(), flush: vi.fn() }}
+      />,
+    );
+    const { fireEvent } = await import("@testing-library/react");
+    fireEvent.change(screen.getByLabelText("Subpanel letter"), {
+      target: { value: "A1" },
+    });
+    expect(dispatch).toHaveBeenCalledWith({
+      type: "SET_LETTER_OVERRIDE",
+      panelId: "p1",
+      override: { text: "A1", style: { color: "#FF0000" } },
+    });
+  });
+
+  it("clears text override but keeps style override when text is emptied", async () => {
+    const dispatch = vi.fn();
+    render(
+      <PanelPropertiesForm
+        panel={panel}
+        letterOverrideText="A1"
+        letterOverride={{ text: "A1", style: { color: "#FF0000" } }}
+        dispatch={dispatch}
+        onCalibrate={() => {}}
+        commit={{ markDirty: vi.fn(), flush: vi.fn() }}
+      />,
+    );
+    const { fireEvent } = await import("@testing-library/react");
+    fireEvent.change(screen.getByLabelText("Subpanel letter"), {
+      target: { value: "" },
+    });
+    expect(dispatch).toHaveBeenCalledWith({
+      type: "SET_LETTER_OVERRIDE",
+      panelId: "p1",
+      override: { style: { color: "#FF0000" } },
     });
   });
 
@@ -43,8 +91,11 @@ describe("PanelPropertiesForm", () => {
     const onCalibrate = vi.fn();
     render(
       <PanelPropertiesForm
-        panel={panel} letterOverride={undefined}
-        dispatch={vi.fn()} onCalibrate={onCalibrate}
+        panel={panel}
+        letterOverrideText={undefined}
+        letterOverride={undefined}
+        dispatch={vi.fn()}
+        onCalibrate={onCalibrate}
         commit={{ markDirty: vi.fn(), flush: vi.fn() }}
       />,
     );

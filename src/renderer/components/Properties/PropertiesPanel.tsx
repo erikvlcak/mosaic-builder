@@ -5,9 +5,11 @@ import { setPanelHidden, deletePanel } from "../../model/figure-actions";
 import type { Annotation } from "../../model/annotations";
 import type { Panel, PanelTransform } from "../../model/panels";
 import type { FieldCommit } from "../../hooks/useFieldCommit";
+import { labelForPattern } from "../../render/letters";
 import { CanvasAndGlobalStyleForm } from "./CanvasAndGlobalStyleForm";
 import { AnnotationOverview } from "./AnnotationOverview";
 import { AnnotationPropertiesForm } from "./AnnotationPropertiesForm";
+import { LetterAnnoForm } from "./LetterAnnoForm";
 import { MultiAnnoForm } from "./MultiAnnoForm";
 import { PanelPropertiesForm } from "./PanelPropertiesForm";
 import { EmptyPanelForm } from "./EmptyPanelForm";
@@ -15,6 +17,13 @@ import { EmptyPanelForm } from "./EmptyPanelForm";
 interface Props {
   state: FigureState;
   focusedPanel: Panel | undefined;
+  /**
+   * Panel id of a single-selected derived letter, when one is selected.
+   * Letters live in `figure.annotations` only (derived) so they can't be
+   * looked up in `state.annotations`; the parent passes their bound panel
+   * id directly so this component can resolve the override for editing.
+   */
+  selectedLetterPanelId?: string;
   selectedAnno: Annotation | undefined;
   /** Annotations represented by the multi-select set (size > 1 case).
    *  Empty / single-element arrays mean PropertiesPanel uses the single-select
@@ -42,6 +51,7 @@ const ANNO_TITLES: Record<Annotation["kind"], string> = {
 export function PropertiesPanel({
   state,
   focusedPanel,
+  selectedLetterPanelId,
   selectedAnno,
   selectedAnnos,
   onMultiBulkRemove,
@@ -70,6 +80,46 @@ export function PropertiesPanel({
         onBulkRemove={onMultiBulkRemove ?? (() => {})}
       />
     );
+  } else if (selectedLetterPanelId !== undefined) {
+    // Single-letter selection. Letters are derived: we look up the bound
+    // panel + override and resolve the derived label via the active pattern
+    // so the form can show it as a placeholder.
+    const panel = state.panels.find((p) => p.id === selectedLetterPanelId);
+    if (panel === undefined) {
+      // Stale selection (e.g. panel was deleted). Fall through to the
+      // empty/global-state body so the panel doesn't render in a broken
+      // state. The parent should be clearing the selection on its side too.
+      title = "Figure";
+      subtitle = "No selection — editing global style";
+      body = (
+        <CanvasAndGlobalStyleForm
+          state={state}
+          globalStyle={state.globalStyle}
+          dispatch={dispatch}
+          commit={commit}
+        />
+      );
+    } else {
+      const derivedText = labelForPattern(
+        panel.row,
+        panel.col,
+        state.cols,
+        state.letterPattern,
+      );
+      const override = state.letterOverrides[selectedLetterPanelId];
+      title = "Letter";
+      subtitle = `Subpanel ${override?.text ?? derivedText}`;
+      body = (
+        <LetterAnnoForm
+          panelId={selectedLetterPanelId}
+          override={override}
+          derivedText={derivedText}
+          globalLetters={state.globalStyle.letters}
+          dispatch={dispatch}
+          commit={commit}
+        />
+      );
+    }
   } else if (selectedAnno !== undefined) {
     title = ANNO_TITLES[selectedAnno.kind];
     body = (
@@ -90,13 +140,15 @@ export function PropertiesPanel({
     };
     title = "Selected panel";
     const letterOverride = state.letterOverrides[focusedPanel.id];
+    const letterOverrideText = letterOverride?.text;
     subtitle =
-      letterOverride !== undefined
-        ? `Subpanel ${letterOverride}`
+      letterOverrideText !== undefined
+        ? `Subpanel ${letterOverrideText}`
         : `Row ${focusedPanel.row + 1}, col ${focusedPanel.col + 1}`;
     body = (
       <PanelPropertiesForm
         panel={panelWithTransform}
+        letterOverrideText={letterOverrideText}
         letterOverride={letterOverride}
         dispatch={dispatch}
         commit={commit}
@@ -142,6 +194,7 @@ export function PropertiesPanel({
       <>
         {overview}
         <CanvasAndGlobalStyleForm
+          state={state}
           globalStyle={state.globalStyle}
           dispatch={dispatch}
           commit={commit}

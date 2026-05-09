@@ -10,12 +10,12 @@
  * integrity warnings; both are added by `serialize.ts`, not the reducer.
  */
 
-import type { FigureState } from "./figure-state";
+import type { FigureState, LetterOverride } from "./figure-state";
 import type { ImagePoolItem } from "./pool";
 import type { Panel } from "./panels";
 import type { Annotation, ImageAnchor } from "./annotations";
 
-export const CURRENT_SCHEMA_VERSION = 2;
+export const CURRENT_SCHEMA_VERSION = 3;
 
 export type Result<T> = { ok: true; value: T } | { ok: false; error: string };
 
@@ -80,8 +80,22 @@ export interface MosaicFileV2
   };
 }
 
+/**
+ * v3: spec 08 — `letterOverrides` becomes `Record<panelId, LetterOverride>`
+ * (was `Record<panelId, string>`); `letterPattern` is added; `globalStyle.letters`
+ * gains `italic`. Loader migrates v1/v2 → v3 in-memory; we only WRITE v3.
+ */
+export interface MosaicFileV3
+  extends Omit<MosaicFileV2, "schemaVersion" | "state"> {
+  schemaVersion: 3;
+  state: Omit<MosaicFileV2["state"], "letterOverrides"> & {
+    letterOverrides: Record<string, LetterOverride>;
+    letterPattern: FigureState["letterPattern"];
+  };
+}
+
 /** Type alias used by callers that don't care about version. */
-export type MosaicFile = MosaicFileV1 | MosaicFileV2;
+export type MosaicFile = MosaicFileV1 | MosaicFileV2 | MosaicFileV3;
 
 function isObj(x: unknown): x is Record<string, unknown> {
   return typeof x === "object" && x !== null && !Array.isArray(x);
@@ -208,7 +222,7 @@ function validatePanels(x: unknown, path: string): Result<Panel[]> {
 function validateAnnotations(
   x: unknown,
   path: string,
-  schemaVersion: 1 | 2,
+  schemaVersion: 1 | 2 | 3,
 ): Result<FigureState["annotations"]> {
   if (!Array.isArray(x)) return err(`${path}: expected array`);
   const arr = x as unknown[];
@@ -263,8 +277,8 @@ function validateAnnotations(
         return err(`${path}[${i}].anchor2`);
       }
     } else if (k === "symbol") {
-      // symbol annotations only exist in v2 files; v1 files use `arrow`.
-      if (schemaVersion !== 2) {
+      // symbol annotations only exist in v2+ files; v1 files use `arrow`.
+      if (schemaVersion === 1) {
         return err(
           `${path}[${i}].kind: symbol not allowed in v${schemaVersion}`,
         );
@@ -342,6 +356,11 @@ function validateGlobalStyle(
   ) {
     return err(`${path}.letters: malformed`);
   }
+  // Italic is added in spec 08; pre-spec-08 files lack the field. Loader
+  // defaults missing values to false. Reject only if it's present-and-wrong.
+  if (l.italic !== undefined && typeof l.italic !== "boolean") {
+    return err(`${path}.letters.italic`);
+  }
   if (l.bgColor !== undefined && !isHex(l.bgColor))
     return err(`${path}.letters.bgColor`);
   if (
@@ -379,10 +398,14 @@ function validateGlobalStyle(
 export function validateMosaicFile(x: unknown): Result<MosaicFile> {
   if (!isObj(x)) return err("root: expected object");
   if (x.schemaVersion === undefined) return err("schemaVersion: required");
-  if (x.schemaVersion !== 1 && x.schemaVersion !== 2) {
+  if (
+    x.schemaVersion !== 1 &&
+    x.schemaVersion !== 2 &&
+    x.schemaVersion !== 3
+  ) {
     return err(`schemaVersion: unsupported (${String(x.schemaVersion)})`);
   }
-  const sv: 1 | 2 = x.schemaVersion;
+  const sv: 1 | 2 | 3 = x.schemaVersion;
   if (x.app !== "mosaic-builder") return err("app: must be 'mosaic-builder'");
   if (!isStr(x.appVersion)) return err("appVersion: expected string");
   if (!isStr(x.createdAt)) return err("createdAt: expected ISO string");
@@ -421,9 +444,55 @@ export function validateMosaicFile(x: unknown): Result<MosaicFile> {
 
   if (!isObj(st.letterOverrides))
     return err("state.letterOverrides: expected object");
-  for (const k in st.letterOverrides) {
-    if (!isStr(st.letterOverrides[k])) {
-      return err(`state.letterOverrides.${k}: expected string`);
+  // v1/v2 stored letterOverrides as Record<panelId, string>. v3 stores
+  // Record<panelId, LetterOverride>. We accept either at the validator level
+  // and let `fromMosaicFile` migrate the old shape — that keeps the type
+  // story for the in-memory FigureState clean (one shape, one path).
+  const lo = st.letterOverrides;
+  for (const k in lo) {
+    const v = lo[k];
+    if (sv === 3) {
+      if (!isObj(v)) {
+        return err(`state.letterOverrides.${k}: expected LetterOverride object`);
+      }
+      const ov = v;
+      if (ov.text !== undefined && !isStr(ov.text)) {
+        return err(`state.letterOverrides.${k}.text`);
+      }
+      if (ov.style !== undefined) {
+        if (!isObj(ov.style))
+          return err(`state.letterOverrides.${k}.style: expected object`);
+        const s = ov.style;
+        if (s.color !== undefined && !isHex(s.color))
+          return err(`state.letterOverrides.${k}.style.color`);
+        if (s.bgColor !== undefined && !isHex(s.bgColor))
+          return err(`state.letterOverrides.${k}.style.bgColor`);
+        if (s.font !== undefined && !isStr(s.font))
+          return err(`state.letterOverrides.${k}.style.font`);
+        if (s.sizePt !== undefined && !isNum(s.sizePt))
+          return err(`state.letterOverrides.${k}.style.sizePt`);
+        if (s.bold !== undefined && typeof s.bold !== "boolean")
+          return err(`state.letterOverrides.${k}.style.bold`);
+        if (s.italic !== undefined && typeof s.italic !== "boolean")
+          return err(`state.letterOverrides.${k}.style.italic`);
+      }
+    } else {
+      if (!isStr(v)) {
+        return err(`state.letterOverrides.${k}: expected string`);
+      }
+    }
+  }
+  // letterPattern only exists in v3 files; older files default in the loader.
+  if (sv === 3) {
+    if (
+      st.letterPattern !== "uppercase" &&
+      st.letterPattern !== "lowercase" &&
+      st.letterPattern !== "numeric" &&
+      st.letterPattern !== "uppercase-paren" &&
+      st.letterPattern !== "uppercase-bracket" &&
+      st.letterPattern !== "rowcol-mixed"
+    ) {
+      return err("state.letterPattern: invalid");
     }
   }
 

@@ -827,18 +827,18 @@ describe("figureReducer (M6 annotations)", () => {
     expect(s2).toBe(s1);
   });
 
-  it("SET_LETTER_OVERRIDE writes a value for a panel id", () => {
+  it("SET_LETTER_OVERRIDE writes a text override for a panel id", () => {
     const s0 = initialFigureState();
     const pid = panelIdAt(s0, 0, 0);
-    const s1 = figureReducer(s0, setLetterOverride(pid, "A1"));
-    expect(s1.letterOverrides[pid]).toBe("A1");
+    const s1 = figureReducer(s0, setLetterOverride(pid, { text: "A1" }));
+    expect(s1.letterOverrides[pid]).toEqual({ text: "A1" });
   });
 
   it("SET_LETTER_OVERRIDE deletes when override is null", () => {
     const s0 = initialFigureState();
     const pid = panelIdAt(s0, 0, 0);
-    let s = figureReducer(s0, setLetterOverride(pid, "A1"));
-    expect(s.letterOverrides[pid]).toBe("A1");
+    let s = figureReducer(s0, setLetterOverride(pid, { text: "A1" }));
+    expect(s.letterOverrides[pid]).toEqual({ text: "A1" });
     s = figureReducer(s, setLetterOverride(pid, null));
     expect(s.letterOverrides[pid]).toBeUndefined();
     expect(Object.keys(s.letterOverrides)).not.toContain(pid);
@@ -847,8 +847,69 @@ describe("figureReducer (M6 annotations)", () => {
   it("SET_LETTER_OVERRIDE returns a fresh object (not the same reference)", () => {
     const s0 = initialFigureState();
     const pid = panelIdAt(s0, 0, 0);
-    const s1 = figureReducer(s0, setLetterOverride(pid, "X"));
+    const s1 = figureReducer(s0, setLetterOverride(pid, { text: "X" }));
     expect(s1.letterOverrides).not.toBe(s0.letterOverrides);
+  });
+
+  it("SET_LETTER_OVERRIDE writes a style-only override", () => {
+    const s0 = initialFigureState();
+    const pid = panelIdAt(s0, 0, 0);
+    const s1 = figureReducer(
+      s0,
+      setLetterOverride(pid, { style: { color: "#FF0000" } }),
+    );
+    expect(s1.letterOverrides[pid]).toEqual({ style: { color: "#FF0000" } });
+  });
+
+  it("SET_LETTER_OVERRIDE collapses an empty override object to a delete", () => {
+    const s0 = initialFigureState();
+    const pid = panelIdAt(s0, 0, 0);
+    // Pre-seed an override to verify the empty payload deletes it.
+    let s = figureReducer(s0, setLetterOverride(pid, { text: "A1" }));
+    expect(s.letterOverrides[pid]).toEqual({ text: "A1" });
+    s = figureReducer(s, setLetterOverride(pid, {}));
+    expect(s.letterOverrides[pid]).toBeUndefined();
+  });
+
+  it("SET_LETTER_OVERRIDE no-ops when value is unchanged (preserves identity)", () => {
+    const s0 = initialFigureState();
+    const pid = panelIdAt(s0, 0, 0);
+    const s1 = figureReducer(
+      s0,
+      setLetterOverride(pid, { text: "A1", style: { color: "#FF0000" } }),
+    );
+    const s2 = figureReducer(
+      s1,
+      setLetterOverride(pid, { text: "A1", style: { color: "#FF0000" } }),
+    );
+    expect(s2).toBe(s1);
+  });
+
+  it("SET_LETTER_PATTERN updates the figure-wide pattern", () => {
+    const s0 = initialFigureState();
+    expect(s0.letterPattern).toBe("uppercase");
+    const s1 = figureReducer(s0, {
+      type: "SET_LETTER_PATTERN",
+      pattern: "numeric",
+    });
+    expect(s1.letterPattern).toBe("numeric");
+    // No-op when set to the same value.
+    const s2 = figureReducer(s1, {
+      type: "SET_LETTER_PATTERN",
+      pattern: "numeric",
+    });
+    expect(s2).toBe(s1);
+  });
+
+  it("CLEAR_ALL_LETTER_OVERRIDES wipes every entry", () => {
+    const s0 = initialFigureState();
+    const p0 = panelIdAt(s0, 0, 0);
+    const p1 = panelIdAt(s0, 0, 1);
+    let s = figureReducer(s0, setLetterOverride(p0, { text: "Z" }));
+    s = figureReducer(s, setLetterOverride(p1, { style: { bold: false } }));
+    expect(Object.keys(s.letterOverrides).length).toBe(2);
+    s = figureReducer(s, { type: "CLEAR_ALL_LETTER_OVERRIDES" });
+    expect(s.letterOverrides).toEqual({});
   });
 
   it("SET_GLOBAL_STYLE replaces the global style when colors validate", () => {
@@ -957,19 +1018,19 @@ describe("figureReducer (M6 annotations)", () => {
     const s0 = initialFigureState();
     const pid_outside = panelIdAt(s0, 1, 1);
     const pid_kept = panelIdAt(s0, 0, 0);
-    let s = figureReducer(s0, setLetterOverride(pid_outside, "Z"));
-    s = figureReducer(s, setLetterOverride(pid_kept, "A"));
+    let s = figureReducer(s0, setLetterOverride(pid_outside, { text: "Z" }));
+    s = figureReducer(s, setLetterOverride(pid_kept, { text: "A" }));
     s = figureReducer(s, { type: "RESIZE_GRID", rows: 1, cols: 1 } as const);
     expect(s.letterOverrides[pid_outside]).toBeUndefined();
-    expect(s.letterOverrides[pid_kept]).toBe("A");
+    expect(s.letterOverrides[pid_kept]).toEqual({ text: "A" });
   });
 
   it("MERGE_CELLS keeps the top-left override on the new merged panel and drops the others", () => {
     const s0 = initialFigureState();
     const pid_tl = panelIdAt(s0, 0, 0);
     const pid_tr = panelIdAt(s0, 0, 1);
-    let s = figureReducer(s0, setLetterOverride(pid_tl, "TL"));
-    s = figureReducer(s, setLetterOverride(pid_tr, "TR"));
+    let s = figureReducer(s0, setLetterOverride(pid_tl, { text: "TL" }));
+    s = figureReducer(s, setLetterOverride(pid_tr, { text: "TR" }));
     s = figureReducer(s, {
       type: "MERGE_CELLS",
       cells: [
@@ -979,7 +1040,7 @@ describe("figureReducer (M6 annotations)", () => {
     } as const);
     const merged = s.panels.find((p) => p.colSpan === 2);
     if (merged === undefined) throw new Error("expected merged");
-    expect(s.letterOverrides[merged.id]).toBe("TL");
+    expect(s.letterOverrides[merged.id]).toEqual({ text: "TL" });
     // Old per-cell ids should not appear as override keys anymore.
     expect(s.letterOverrides[pid_tl]).toBeUndefined();
     expect(s.letterOverrides[pid_tr]).toBeUndefined();
@@ -996,8 +1057,8 @@ describe("figureReducer (M6 annotations)", () => {
     } as const);
     const merged = s.panels.find((p) => p.colSpan === 2);
     if (merged === undefined) throw new Error("expected merged");
-    s = figureReducer(s, setLetterOverride(merged.id, "MM"));
-    expect(s.letterOverrides[merged.id]).toBe("MM");
+    s = figureReducer(s, setLetterOverride(merged.id, { text: "MM" }));
+    expect(s.letterOverrides[merged.id]).toEqual({ text: "MM" });
     s = figureReducer(s, {
       type: "UNMERGE_PANEL",
       panelId: merged.id,
@@ -1067,7 +1128,7 @@ describe("RESET_FIGURE", () => {
     });
     const dirtyPid = dirty.panels[0]!.id;
     dirty = figureReducer(dirty, addAnnotation(textAnno("t-dirty", dirtyPid)));
-    dirty = figureReducer(dirty, setLetterOverride(dirtyPid, "Z9"));
+    dirty = figureReducer(dirty, setLetterOverride(dirtyPid, { text: "Z9" }));
     dirty = figureReducer(dirty, {
       type: "SET_GLOBAL_STYLE",
       style: {
@@ -1147,8 +1208,8 @@ describe("figureReducer (hide / delete / restore — spec 02)", () => {
   it("DELETE_PANEL drops the per-panel letter override", () => {
     let s = initialFigureState();
     const pid = panelIdAt(s, 0, 0);
-    s = figureReducer(s, setLetterOverride(pid, "Z1"));
-    expect(s.letterOverrides[pid]).toBe("Z1");
+    s = figureReducer(s, setLetterOverride(pid, { text: "Z1" }));
+    expect(s.letterOverrides[pid]).toEqual({ text: "Z1" });
     s = figureReducer(s, deletePanel(pid));
     expect(s.letterOverrides[pid]).toBeUndefined();
   });

@@ -104,9 +104,16 @@ function drawLetter(
   figure: Figure,
   deps: AnnotationDrawDeps,
 ): void {
-  const style: LetterStyle = figure.globalStyle.letters;
+  // Per-letter style merge (spec 08): the global style is the base; the
+  // override's `style` patch wins per-field. Layout-bearing fields (corner,
+  // paddingPx, enabled) are NOT overridable per-letter — they belong to the
+  // figure's letter system, not to one label.
+  const baseStyle: LetterStyle = figure.globalStyle.letters;
   // Render-time check so toggling `enabled` doesn't require a re-derive.
-  if (!style.enabled) return;
+  if (!baseStyle.enabled) return;
+
+  const overridePatch = figure.letterOverrides?.[letter.panelId]?.style;
+  const style: LetterStyle = mergeLetterStyle(baseStyle, overridePatch);
 
   const rect = deps.panelRectsById.get(letter.panelId);
   // Orphaned letter (panel was removed but annotation lingers): skip.
@@ -116,6 +123,7 @@ function drawLetter(
   const sizePx = style.sizePt;
   ctx.font = fontString({
     bold: style.bold,
+    italic: style.italic,
     sizePx,
     family: style.font,
   });
@@ -325,6 +333,37 @@ function drawScaleBar(
   const labelY = isTopCorner ? rect.y + rect.h + 2 + sizePx : rect.y - 2;
 
   ctx.fillText(labelText, labelX, labelY);
+}
+
+/**
+ * Merge a per-letter style override patch over the figure's global letter
+ * style. Layout fields (`enabled`, `corner`, `paddingPx`) are intentionally
+ * NOT overridable per-letter and always come from the global style — keeps
+ * letter placement consistent across the figure even when a single letter
+ * customizes its appearance.
+ */
+function mergeLetterStyle(
+  base: LetterStyle,
+  patch:
+    | Partial<{
+        color: string;
+        bgColor: string;
+        font: string;
+        sizePt: number;
+        bold: boolean;
+        italic: boolean;
+      }>
+    | undefined,
+): LetterStyle {
+  if (patch === undefined) return base;
+  const out: LetterStyle = { ...base };
+  if (patch.color !== undefined) out.color = patch.color;
+  if (patch.bgColor !== undefined) out.bgColor = patch.bgColor;
+  if (patch.font !== undefined) out.font = patch.font;
+  if (patch.sizePt !== undefined) out.sizePt = patch.sizePt;
+  if (patch.bold !== undefined) out.bold = patch.bold;
+  if (patch.italic !== undefined) out.italic = patch.italic;
+  return out;
 }
 
 // Re-export ResolvedAnnotation in case future callers want the union here.

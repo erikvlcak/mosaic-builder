@@ -678,3 +678,81 @@ describe("AnnotationInteractionLayer: multi-select gestures", () => {
     expect(onSelectionChange).toHaveBeenCalledWith(new Set(["b2", "b1"]));
   });
 });
+
+describe("AnnotationInteractionLayer: letter selection (spec 08)", () => {
+  /**
+   * Figure with a single panel + one derived letter annotation, with letters
+   * enabled in the global style so the layer renders a hit-rect for it.
+   */
+  const FIG_WITH_LETTER: Figure = {
+    canvas: { widthPx: 200, heightPx: 200, background: "#FFF" },
+    grid: { rows: 1, cols: 1, gutterPx: 0, gutterColor: "#FFF" },
+    panels: [
+      {
+        panelId: "p1",
+        row: 0,
+        col: 0,
+        kind: "placeholder",
+        label: "(empty)",
+        rowSpan: 1,
+        colSpan: 1,
+      },
+    ],
+    annotations: [
+      { id: "letter:p1", kind: "letter", panelId: "p1", z: 0, text: "A" },
+    ],
+    globalStyle: DEFAULT_GLOBAL_STYLE, // enabled: true, corner: "tl"
+  };
+
+  function setupLetter(opts?: {
+    selectedIds?: ReadonlySet<string>;
+  }): { onSelectionChange: ReturnType<typeof vi.fn> } {
+    const onSelectionChange = vi.fn();
+    const panelRect: PanelRect = { x: 0, y: 0, w: 200, h: 200 };
+    render(
+      <AnnotationInteractionLayer
+        activeTool="select"
+        figure={FIG_WITH_LETTER}
+        panelRectsById={new Map([["p1", panelRect]])}
+        imagesById={new Map()}
+        cssW={200}
+        cssH={200}
+        figurePxW={200}
+        figurePxH={200}
+        selectedAnnotationIds={opts?.selectedIds ?? new Set()}
+        onSelectionChange={onSelectionChange}
+        onEditingChange={() => {}}
+        dispatch={vi.fn()}
+      />,
+    );
+    return { onSelectionChange };
+  }
+
+  it("renders a hit-rect for derived letters", () => {
+    setupLetter();
+    expect(screen.getByTestId("anno-hit-letter:p1")).toBeDefined();
+  });
+
+  it("plain click on a letter replaces selection with the letter id", () => {
+    const { onSelectionChange } = setupLetter();
+    const hit = screen.getByTestId("anno-hit-letter:p1");
+    fireEvent.pointerDown(hit, { button: 0, clientX: 5, clientY: 5 });
+    expect(onSelectionChange).toHaveBeenCalledWith(new Set(["letter:p1"]));
+  });
+
+  it("shift-click toggles a letter in the existing selection", () => {
+    const { onSelectionChange } = setupLetter({
+      selectedIds: new Set(["someAnno"]),
+    });
+    const hit = screen.getByTestId("anno-hit-letter:p1");
+    fireEvent.pointerDown(hit, {
+      button: 0,
+      clientX: 5,
+      clientY: 5,
+      shiftKey: true,
+    });
+    expect(onSelectionChange).toHaveBeenCalledWith(
+      new Set(["someAnno", "letter:p1"]),
+    );
+  });
+});

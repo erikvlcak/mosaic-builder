@@ -212,6 +212,15 @@ export function App(): JSX.Element {
     return state.annotations.filter((a) => selectedAnnotationIds.has(a.id));
   }, [state.annotations, selectedAnnotationIds]);
 
+  // Spec 08: derived letters carry id `letter:<panelId>`. They aren't in
+  // `state.annotations`, so the parent extracts the bound panel id and
+  // passes it as a separate routing prop to PropertiesPanel.
+  const selectedLetterPanelId = useMemo(() => {
+    if (singleSelectedAnnoId === null) return undefined;
+    if (!singleSelectedAnnoId.startsWith("letter:")) return undefined;
+    return singleSelectedAnnoId.slice("letter:".length);
+  }, [singleSelectedAnnoId]);
+
   const onRotate90 = useCallback(() => {
     if (selectedImagePanel === undefined) return;
     dispatch(rotatePanel90(selectedImagePanel.id));
@@ -673,6 +682,9 @@ export function App(): JSX.Element {
           state={state}
           focusedPanel={selectedImagePanel}
           selectedAnno={selectedAnno}
+          {...(selectedLetterPanelId !== undefined
+            ? { selectedLetterPanelId }
+            : {})}
           {...(selectedAnnos !== undefined ? { selectedAnnos } : {})}
           onMultiBulkRemove={() => setSelectedAnnotationIds(emptySelection())}
           selectedAnnotationIds={selectedAnnotationIds}

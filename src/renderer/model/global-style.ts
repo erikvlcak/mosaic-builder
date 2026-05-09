@@ -14,6 +14,7 @@ export interface LetterStyle {
   corner: Corner;
   paddingPx: number;
   bold: boolean;
+  italic: boolean;
 }
 
 export interface ScaleBarStyle {
@@ -41,6 +42,7 @@ export const DEFAULT_GLOBAL_STYLE: GlobalAnnoStyle = Object.freeze({
     corner: "tl",
     paddingPx: 6,
     bold: true,
+    italic: false,
   }),
   scalebar: Object.freeze({
     font: "Arial, Helvetica, sans-serif",

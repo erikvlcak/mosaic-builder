@@ -21,7 +21,7 @@ const SAMPLE_IMG: ImagePoolItem = {
 };
 
 describe("toMosaicFile", () => {
-  it("emits schemaVersion=1, app=mosaic-builder, copies state through", () => {
+  it("emits schemaVersion=3, app=mosaic-builder, copies state through", () => {
     const f = toMosaicFile({
       state: initialFigureState(),
       canvas: { widthPx: 800, heightPx: 600, background: "#FFFFFF" },
@@ -29,7 +29,7 @@ describe("toMosaicFile", () => {
       appVersion: "0.1.0",
       now: () => "2026-05-02T10:00:00Z",
     });
-    expect(f.schemaVersion).toBe(2);
+    expect(f.schemaVersion).toBe(3);
     expect(f.app).toBe("mosaic-builder");
     expect(f.appVersion).toBe("0.1.0");
     expect(f.createdAt).toBe("2026-05-02T10:00:00Z");
@@ -189,7 +189,7 @@ describe("v1 → v2 migration on fromMosaicFile", () => {
     });
   });
 
-  it("toMosaicFile always writes schemaVersion=2", () => {
+  it("toMosaicFile always writes schemaVersion=3", () => {
     const f = toMosaicFile({
       state: initialFigureState(),
       canvas: { widthPx: 800, heightPx: 600, background: "#FFFFFF" },
@@ -197,6 +197,62 @@ describe("v1 → v2 migration on fromMosaicFile", () => {
       appVersion: "0.1.0",
       now: () => "2026-05-09T00:00:00Z",
     });
-    expect(f.schemaVersion).toBe(2);
+    expect(f.schemaVersion).toBe(3);
+  });
+
+  it("v1 file with string-shaped letterOverrides loads as v3 LetterOverride map", () => {
+    // Old (v1/v2) callers stored letterOverrides as Record<panelId, string>.
+    // The loader must lift each string into `{ text }` so all downstream code
+    // sees the v3 shape.
+    const v1: MosaicFileV1 = {
+      schemaVersion: 1,
+      app: "mosaic-builder",
+      appVersion: "0.1.0",
+      createdAt: "2025-12-01T00:00:00Z",
+      modifiedAt: "2025-12-01T00:00:00Z",
+      canvas: { widthPx: 800, heightPx: 600, background: "#FFFFFF" },
+      state: {
+        rows: 1,
+        cols: 1,
+        gutterPx: 4,
+        gutterColor: "#FFFFFF",
+        outerGutter: true,
+        pool: [],
+        panels: [
+          { id: "p1", row: 0, col: 0, rowSpan: 1, colSpan: 1 },
+        ],
+        annotations: [],
+        globalStyle: {
+          letters: {
+            enabled: true,
+            font: "Arial",
+            sizePt: 14,
+            color: "#000000",
+            paddingPx: 4,
+            bold: true,
+            corner: "tl",
+            // intentionally no italic — tests pre-spec-08 default
+          } as MosaicFileV1["state"]["globalStyle"]["letters"],
+          scalebar: {
+            font: "Arial",
+            sizePt: 12,
+            color: "#000000",
+            barColor: "#000000",
+            thicknessPx: 4,
+            paddingPx: 8,
+            showLabel: true,
+            corner: "br",
+          },
+        },
+        // v1 used a flat string here.
+        letterOverrides: { p1: "A1" } as unknown as MosaicFileV1["state"]["letterOverrides"],
+      },
+    };
+    const { state } = fromMosaicFile(v1);
+    expect(state.letterOverrides).toEqual({ p1: { text: "A1" } });
+    // Default pattern lands on uppercase since v1 files lack `letterPattern`.
+    expect(state.letterPattern).toBe("uppercase");
+    // italic defaults to false on legacy files.
+    expect(state.globalStyle.letters.italic).toBe(false);
   });
 });
