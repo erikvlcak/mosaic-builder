@@ -53,8 +53,8 @@ const MIN_VALID: MosaicFileV3 = {
 };
 
 describe("validateMosaicFile", () => {
-  it("CURRENT_SCHEMA_VERSION is 3", () => {
-    expect(CURRENT_SCHEMA_VERSION).toBe(3);
+  it("CURRENT_SCHEMA_VERSION is 4", () => {
+    expect(CURRENT_SCHEMA_VERSION).toBe(4);
   });
 
   it("accepts a minimal valid file", () => {
@@ -327,6 +327,102 @@ describe("validateMosaicFile schema versions", () => {
   it("rejects schemaVersion 99 (unsupported)", () => {
     const bad = makeMinimalFile(99 as unknown as 1 | 2 | 3, []);
     expect(validateMosaicFile(bad).ok).toBe(false);
+  });
+});
+
+describe("schema v4 — layout (spec 11)", () => {
+  function v4File(layoutOverride?: object): unknown {
+    return {
+      schemaVersion: 4,
+      app: "mosaic-builder",
+      appVersion: "0.1.0",
+      createdAt: "2026-05-09T00:00:00.000Z",
+      modifiedAt: "2026-05-09T00:00:00.000Z",
+      canvas: { widthPx: 800, heightPx: 600, background: "#FFFFFF" },
+      state: {
+        rows: 2,
+        cols: 2,
+        gutterPx: 12,
+        gutterColor: "#FFFFFF",
+        outerGutter: true,
+        pool: [],
+        panels: [
+          { id: "p1", row: 0, col: 0, rowSpan: 1, colSpan: 1 },
+          { id: "p2", row: 0, col: 1, rowSpan: 1, colSpan: 1 },
+          { id: "p3", row: 1, col: 0, rowSpan: 1, colSpan: 1 },
+          { id: "p4", row: 1, col: 1, rowSpan: 1, colSpan: 1 },
+        ],
+        annotations: [],
+        globalStyle: {
+          letters: {
+            enabled: true,
+            font: "Arial",
+            sizePt: 12,
+            color: "#000000",
+            corner: "tl",
+            paddingPx: 6,
+            bold: true,
+            italic: false,
+          },
+          scalebar: {
+            font: "Arial",
+            sizePt: 10,
+            color: "#FFFFFF",
+            barColor: "#FFFFFF",
+            thicknessPx: 4,
+            corner: "br",
+            paddingPx: 8,
+            showLabel: true,
+          },
+        },
+        letterOverrides: {},
+        letterPattern: "uppercase",
+        layout: layoutOverride ?? {
+          kind: "uniform",
+          colWeights: [0.5, 0.5],
+          rowWeights: [0.5, 0.5],
+        },
+      },
+    };
+  }
+
+  it("accepts a uniform layout with valid weights", () => {
+    const r = validateMosaicFile(v4File());
+    expect(r.ok).toBe(true);
+  });
+
+  it("rejects uniform layout with mismatched colWeights length", () => {
+    const r = validateMosaicFile(
+      v4File({ kind: "uniform", colWeights: [1.0], rowWeights: [0.5, 0.5] }),
+    );
+    expect(r.ok).toBe(false);
+  });
+
+  it("accepts a free layout with valid rects", () => {
+    const r = validateMosaicFile(
+      v4File({
+        kind: "free",
+        rects: {
+          p1: { x: 0, y: 0, w: 100, h: 100 },
+        },
+      }),
+    );
+    expect(r.ok).toBe(true);
+  });
+
+  it("rejects free layout with non-numeric rect", () => {
+    const r = validateMosaicFile(
+      v4File({
+        kind: "free",
+        rects: { p1: { x: "wrong", y: 0, w: 100, h: 100 } },
+      }),
+    );
+    expect(r.ok).toBe(false);
+  });
+
+  it("rejects unknown layout.kind", () => {
+    const r = validateMosaicFile(v4File({ kind: "wat" }));
+    expect(r.ok).toBe(false);
   });
 });
 

@@ -14,8 +14,9 @@ import type { FigureState, LetterOverride } from "./figure-state";
 import type { ImagePoolItem } from "./pool";
 import type { Panel } from "./panels";
 import type { Annotation, ImageAnchor } from "./annotations";
+import type { GridLayout } from "./grid-layout";
 
-export const CURRENT_SCHEMA_VERSION = 3;
+export const CURRENT_SCHEMA_VERSION = 4;
 
 export type Result<T> = { ok: true; value: T } | { ok: false; error: string };
 
@@ -94,8 +95,22 @@ export interface MosaicFileV3
   };
 }
 
+/**
+ * v4: spec 11 — adds `state.layout: GridLayout`. Loader migrates v1/v2/v3 →
+ * v4 in-memory by seeding a uniform layout with equal weights.
+ */
+export interface MosaicFileV4
+  extends Omit<MosaicFileV3, "schemaVersion" | "state"> {
+  schemaVersion: 4;
+  state: MosaicFileV3["state"] & { layout: GridLayout };
+}
+
 /** Type alias used by callers that don't care about version. */
-export type MosaicFile = MosaicFileV1 | MosaicFileV2 | MosaicFileV3;
+export type MosaicFile =
+  | MosaicFileV1
+  | MosaicFileV2
+  | MosaicFileV3
+  | MosaicFileV4;
 
 function isObj(x: unknown): x is Record<string, unknown> {
   return typeof x === "object" && x !== null && !Array.isArray(x);
@@ -245,7 +260,7 @@ function validatePanels(x: unknown, path: string): Result<Panel[]> {
 function validateAnnotations(
   x: unknown,
   path: string,
-  schemaVersion: 1 | 2 | 3,
+  schemaVersion: 1 | 2 | 3 | 4,
 ): Result<FigureState["annotations"]> {
   if (!Array.isArray(x)) return err(`${path}: expected array`);
   const arr = x as unknown[];
@@ -421,10 +436,15 @@ function validateGlobalStyle(
 export function validateMosaicFile(x: unknown): Result<MosaicFile> {
   if (!isObj(x)) return err("root: expected object");
   if (x.schemaVersion === undefined) return err("schemaVersion: required");
-  if (x.schemaVersion !== 1 && x.schemaVersion !== 2 && x.schemaVersion !== 3) {
+  if (
+    x.schemaVersion !== 1 &&
+    x.schemaVersion !== 2 &&
+    x.schemaVersion !== 3 &&
+    x.schemaVersion !== 4
+  ) {
     return err(`schemaVersion: unsupported (${String(x.schemaVersion)})`);
   }
-  const sv: 1 | 2 | 3 = x.schemaVersion;
+  const sv: 1 | 2 | 3 | 4 = x.schemaVersion;
   if (x.app !== "mosaic-builder") return err("app: must be 'mosaic-builder'");
   if (!isStr(x.appVersion)) return err("appVersion: expected string");
   if (!isStr(x.createdAt)) return err("createdAt: expected ISO string");
@@ -470,7 +490,7 @@ export function validateMosaicFile(x: unknown): Result<MosaicFile> {
   const lo = st.letterOverrides;
   for (const k in lo) {
     const v = lo[k];
-    if (sv === 3) {
+    if (sv === 3 || sv === 4) {
       if (!isObj(v)) {
         return err(
           `state.letterOverrides.${k}: expected LetterOverride object`,
@@ -503,8 +523,8 @@ export function validateMosaicFile(x: unknown): Result<MosaicFile> {
       }
     }
   }
-  // letterPattern only exists in v3 files; older files default in the loader.
-  if (sv === 3) {
+  // letterPattern only exists in v3+ files; older files default in the loader.
+  if (sv === 3 || sv === 4) {
     if (
       st.letterPattern !== "uppercase" &&
       st.letterPattern !== "lowercase" &&
@@ -517,5 +537,58 @@ export function validateMosaicFile(x: unknown): Result<MosaicFile> {
     }
   }
 
+  // layout only exists in v4 files; older files default to uniform in the
+  // loader. Validate cross-checks (col/row-weight length must match cols/rows).
+  if (sv === 4) {
+    const layout = validateLayout(st.layout, "state.layout", st.rows, st.cols);
+    if (!layout.ok) return layout;
+  }
+
   return { ok: true, value: x as unknown as MosaicFile };
+}
+
+function validateLayout(
+  x: unknown,
+  path: string,
+  rows: number,
+  cols: number,
+): Result<GridLayout> {
+  if (!isObj(x)) return err(`${path}: expected object`);
+  if (x.kind === "uniform") {
+    if (!Array.isArray(x.colWeights))
+      return err(`${path}.colWeights: expected array`);
+    if (!Array.isArray(x.rowWeights))
+      return err(`${path}.rowWeights: expected array`);
+    if (x.colWeights.length !== cols)
+      return err(`${path}.colWeights: length must equal cols (${cols})`);
+    if (x.rowWeights.length !== rows)
+      return err(`${path}.rowWeights: length must equal rows (${rows})`);
+    for (let i = 0; i < x.colWeights.length; i++) {
+      const v = x.colWeights[i];
+      if (!isNum(v) || v <= 0)
+        return err(`${path}.colWeights[${i}]: positive number`);
+    }
+    for (let i = 0; i < x.rowWeights.length; i++) {
+      const v = x.rowWeights[i];
+      if (!isNum(v) || v <= 0)
+        return err(`${path}.rowWeights[${i}]: positive number`);
+    }
+    return { ok: true, value: x as unknown as GridLayout };
+  }
+  if (x.kind === "free") {
+    if (!isObj(x.rects)) return err(`${path}.rects: expected object`);
+    const rects = x.rects;
+    for (const k in rects) {
+      const r = rects[k];
+      if (!isObj(r)) return err(`${path}.rects.${k}: expected object`);
+      if (!isNum(r.x) || !isNum(r.y) || !isNum(r.w) || !isNum(r.h)) {
+        return err(`${path}.rects.${k}: x/y/w/h must be numbers`);
+      }
+      if (r.w <= 0 || r.h <= 0) {
+        return err(`${path}.rects.${k}: w and h must be positive`);
+      }
+    }
+    return { ok: true, value: x as unknown as GridLayout };
+  }
+  return err(`${path}.kind: must be uniform|free`);
 }
