@@ -351,7 +351,7 @@ describe("drawFigure", () => {
 });
 
 // ---------------------------------------------------------------------------
-// drawAnnotations (M6 Task 5): letter, text, box. arrow + scalebar in Task 6.
+// drawAnnotations: letter, text, box, symbol, scalebar.
 // ---------------------------------------------------------------------------
 
 describe("drawAnnotations", () => {

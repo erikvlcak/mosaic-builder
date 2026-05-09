@@ -8,7 +8,7 @@
  *    annotation has a small invisible hit-rect with `pointer-events: auto`.
  *    A trailing transparent backdrop (also auto) catches "clicked nothing"
  *    and clears the current selection.
- *  - In any creation tool (`text`/`arrow`/`box`/`scalebar`), the layer is
+ *  - In any creation tool (`text`/`symbol`/`box`/`scalebar`), the layer is
  *    `pointer-events: auto` so it captures every click and the underlying
  *    GridCells layer cannot steal the gesture.
  *
@@ -258,11 +258,11 @@ function anchorFromFigure(
 /**
  * Conservative bounding-box approximation of an annotation's hit-rect, in
  * figure-px. For text, we estimate width as `text.length * sizePx * 0.6`
- * and height as `sizePx * 1.2`. For arrows, we use the segment's bbox
- * (with a small stroke margin). For scalebar, we use the bar rect — but
- * since the bar position is computed at draw time from the panel rect +
- * corner, we approximate it as the bottom-right corner of the panel
- * (close enough for selection in M6).
+ * and height as `sizePx * 1.2`. For symbols, we use a `sizePx`-square
+ * centered at `(x, y)`. For scalebar, we use the bar rect — but since the
+ * bar position is computed at draw time from the panel rect + corner, we
+ * approximate it as the bottom-right corner of the panel (close enough
+ * for selection in M6).
  */
 function annoBounds(
   a: UserAnno,
@@ -635,7 +635,7 @@ export function AnnotationInteractionLayer({
     const dy = c.fy - drag.startFy;
     const start = drag.startAnno;
     if (start === undefined || drag.movingId === undefined) return;
-    // Dispatch a patch with the annotation's new (x, y) (or arrow endpoints).
+    // Dispatch a patch with the annotation's new (x, y).
     let patch: Partial<Annotation> | null = null;
     switch (start.kind) {
       case "text": {
@@ -736,13 +736,14 @@ export function AnnotationInteractionLayer({
   }
 
   // -------------------------------------------------------------------
-  // SELECT MODE — endpoint/corner handles (per-endpoint resize).
+  // SELECT MODE — corner / rotation / endpoint handles.
   //
-  // Endpoint handles only render when the arrow is selected; whole-arrow
-  // drag remains active on the body hit-rect. Same for box corners.
-  // Handles are rendered ABOVE the body hit-rect in DOM order so clicks
-  // on a handle take precedence over body drag (stopPropagation also
-  // prevents the body's pointerdown from firing).
+  // Corner / rotation / endpoint handles render when the matching
+  // annotation kind is selected. Whole-annotation drag remains active on
+  // the body hit-rect for select-mode. Handles are rendered ABOVE the
+  // body hit-rect in DOM order so clicks on a handle take precedence
+  // over body drag (stopPropagation also prevents the body's pointerdown
+  // from firing).
   // -------------------------------------------------------------------
 
   function onBoxCornerPointerDown(
@@ -1353,7 +1354,7 @@ export function AnnotationInteractionLayer({
           </>
         )}
 
-      {/* Transient preview during arrow/box creation. */}
+      {/* Transient preview during box creation. */}
       {drag !== null && drag.kind === "create-box" && (
         <div
           data-testid="anno-preview-box"

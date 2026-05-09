@@ -722,7 +722,7 @@ export function figureReducer(s: FigureState, a: FigureAction): FigureState {
       if (target.imageId !== undefined) return s;
       const panels = s.panels.filter((p) => p.id !== a.panelId);
       // Drop the per-panel letter override and any annotations anchored
-      // to this panel (text/arrow/box keyed by panelId, plus scale bars
+      // to this panel (text/symbol/box keyed by panelId, plus scale bars
       // — though scale bars require an image and so won't appear here).
       const letterOverrides = deleteOverride(s.letterOverrides, a.panelId);
       const annotations = s.annotations.filter(

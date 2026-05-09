@@ -616,7 +616,7 @@ function textAnno(id: string, panelId?: string): TextAnnotation {
     color: "#000000",
   };
 }
-function arrowAnno(id: string, panelId?: string): SymbolAnnotation {
+function symbolAnno(id: string, panelId?: string): SymbolAnnotation {
   return {
     id,
     kind: "symbol",
@@ -677,10 +677,10 @@ describe("figureReducer (M6 annotations)", () => {
     expect(s1.annotations).toEqual([ann]);
   });
 
-  it("ADD_ANNOTATION adds an arrow annotation", () => {
+  it("ADD_ANNOTATION adds a symbol annotation", () => {
     const s0 = initialFigureState();
     const pid = panelIdAt(s0, 0, 0);
-    const ann = arrowAnno("a1", pid);
+    const ann = symbolAnno("a1", pid);
     const s1 = figureReducer(s0, addAnnotation(ann));
     expect(s1.annotations).toEqual([ann]);
   });
@@ -1003,26 +1003,26 @@ describe("figureReducer (M6 annotations)", () => {
     expect(s.letterOverrides[merged.id]).toBeUndefined();
   });
 
-  it("REMOVE_FROM_POOL drops scale-bar annotations on affected panel; keeps text/arrow/box", () => {
+  it("REMOVE_FROM_POOL drops scale-bar annotations on affected panel; keeps text/symbol/box", () => {
     let s = withPool(IMG_CAL);
     const pid = panelIdAt(s, 0, 0);
     s = figureReducer(s, placeIntoPanel("cal", pid));
     s = figureReducer(s, addAnnotation(scalebarAnno("sb1", pid)));
     s = figureReducer(s, addAnnotation(textAnno("t1", pid)));
-    s = figureReducer(s, addAnnotation(arrowAnno("a1", pid)));
+    s = figureReducer(s, addAnnotation(symbolAnno("a1", pid)));
     s = figureReducer(s, addAnnotation(boxAnno("b1", pid)));
     s = figureReducer(s, removeFromPool("cal"));
     const ids = s.annotations.map((a) => a.id).sort();
     expect(ids).toEqual(["a1", "b1", "t1"]);
   });
 
-  it("UNPLACE_PANEL drops scale-bar annotations on the freed panel; keeps text/arrow/box", () => {
+  it("UNPLACE_PANEL drops scale-bar annotations on the freed panel; keeps text/symbol/box", () => {
     let s = withPool(IMG_CAL);
     const pid = panelIdAt(s, 0, 0);
     s = figureReducer(s, placeIntoPanel("cal", pid));
     s = figureReducer(s, addAnnotation(scalebarAnno("sb1", pid)));
     s = figureReducer(s, addAnnotation(textAnno("t1", pid)));
-    s = figureReducer(s, addAnnotation(arrowAnno("a1", pid)));
+    s = figureReducer(s, addAnnotation(symbolAnno("a1", pid)));
     s = figureReducer(s, addAnnotation(boxAnno("b1", pid)));
     s = figureReducer(s, unplacePanel(pid));
     const ids = s.annotations.map((a) => a.id).sort();
