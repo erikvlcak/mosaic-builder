@@ -51,6 +51,15 @@ import { figureToSource, type PanelRect } from "../../render/coords";
 import type { ImagePoolItem } from "../../model/pool";
 import type { Tool } from "../Toolbar/AnnotationToolbar";
 import { DEFAULT_SYMBOL_ID } from "../../symbols/library";
+import {
+  addToSelection,
+  clearSelection,
+  removeFromSelection,
+  replaceSelection,
+  setSelection,
+  singleSelectedId,
+  unionSelection,
+} from "../../state/anno-selection";
 
 /**
  * User-facing annotation kinds in their RESOLVED shape (as carried by
@@ -77,8 +86,15 @@ interface Props {
   /** Figure-canvas pixel dimensions. */
   figurePxW: number;
   figurePxH: number;
-  selectedAnnotationId: string | null;
-  onSelectAnnotation: (id: string | null) => void;
+  /**
+   * Current selection. A 1-element set behaves exactly like the legacy
+   * single-id selection — chrome, drag, properties form all unchanged.
+   * A larger set engages multi-select: per-anno chrome on every member, a
+   * group bounding box, and bulk drag.
+   */
+  selectedAnnotationIds: ReadonlySet<string>;
+  /** Replace the entire selection set. */
+  onSelectionChange: (next: ReadonlySet<string>) => void;
   /** When the text-input is open we need to suppress the global Delete shortcut. */
   onEditingChange?: (editing: boolean) => void;
   dispatch: Dispatch<FigureAction>;
@@ -88,18 +104,23 @@ interface DragState {
   pointerId: number;
   /**
    * - "create-box": rubber-band drag to create a new box.
-   * - "move": translate whole annotation (body hit-rect drag).
+   * - "move": translate whole annotation (body hit-rect drag). When the
+   *   selection set has > 1 member and the dragged anno is in it, every
+   *   selected anno translates by the same delta — see `bulkSnapshots`.
    * - "box-corner": drag one corner of a box (resize from that corner).
    * - "symbol-corner": drag one corner of a selected symbol (center-anchored
    *   resize — see onSymbolCornerPointerMove).
    * - "symbol-rotate": drag the rotation grip above a selected symbol.
+   * - "marquee": rubber-band drag in select mode from empty space — selects
+   *   every annotation whose bounds intersect the drag rect on pointerup.
    */
   kind:
     | "create-box"
     | "move"
     | "box-corner"
     | "symbol-corner"
-    | "symbol-rotate";
+    | "symbol-rotate"
+    | "marquee";
   /** Origin in figure-px. */
   startFx: number;
   startFy: number;
@@ -110,6 +131,12 @@ interface DragState {
   movingId?: string;
   /** Original annotation snapshot (for "move", "box-corner", "symbol-*"). */
   startAnno?: UserAnno;
+  /**
+   * Per-anno snapshots for a bulk "move" drag. Keyed by annotation id and
+   * populated only when the user grabs a member of a > 1 selection. Each
+   * pointermove patches every entry by the same dx/dy.
+   */
+  bulkSnapshots?: Map<string, UserAnno>;
   /** Which box corner is being dragged ("box-corner" only). */
   corner?: "tl" | "tr" | "bl" | "br";
   /** For "symbol-rotate" only: the angle (degrees) the symbol had at drag start. */
@@ -121,6 +148,8 @@ interface DragState {
    * on grab.
    */
   startGripAngleRad?: number;
+  /** Marquee gesture only: shift held when the gesture began (additive marquee). */
+  shiftKey?: boolean;
 }
 
 interface PendingScalebar {
@@ -171,6 +200,11 @@ const MIN_SYMBOL_DIM = 8;
 
 // Endpoint/corner handle size in CSS px (square hit-rect).
 const HANDLE_PX = 8;
+
+// Marquee gesture only counts as a drag (vs a click) once the pointer has
+// moved this many CSS px. Below this we treat pointerdown+pointerup as a
+// click on empty space and apply the clear-or-preserve logic.
+const MARQUEE_MIN_PX = 4;
 
 // How long the scalebar error banner stays visible (ms).
 const SCALEBAR_ERROR_TTL_MS = 2500;
@@ -264,6 +298,24 @@ function anchorFromFigure(
  * approximate it as the bottom-right corner of the panel (close enough
  * for selection in M6).
  */
+/**
+ * AABB-intersection test for two rectangles (figure-px). Used by marquee
+ * selection to test annotation bounds against the drag rect. Touching
+ * edges count as intersecting, which matches user expectation for a
+ * "drag a rectangle that crosses the annotation" gesture.
+ */
+function rectsIntersect(
+  a: { x: number; y: number; w: number; h: number },
+  b: { x: number; y: number; w: number; h: number },
+): boolean {
+  return (
+    a.x <= b.x + b.w &&
+    a.x + a.w >= b.x &&
+    a.y <= b.y + b.h &&
+    a.y + a.h >= b.y
+  );
+}
+
 function annoBounds(
   a: UserAnno,
   panelRectsById: Map<string, PanelRect>,
@@ -310,11 +362,15 @@ export function AnnotationInteractionLayer({
   cssH,
   figurePxW,
   figurePxH,
-  selectedAnnotationId,
-  onSelectAnnotation,
+  selectedAnnotationIds,
+  onSelectionChange,
   onEditingChange,
   dispatch,
 }: Props): JSX.Element {
+  // Single-select id (null when 0 or > 1 selected). Reused throughout
+  // chrome/handles/effects so existing single-select code paths are
+  // untouched when the user has exactly one annotation selected.
+  const selectedAnnotationId = singleSelectedId(selectedAnnotationIds);
   const ref = useRef<HTMLDivElement | null>(null);
   const textInputRef = useRef<HTMLInputElement | null>(null);
   /**
@@ -515,7 +571,7 @@ export function AnnotationInteractionLayer({
         }
       }
       dispatch(addAnnotation(ann));
-      onSelectAnnotation(ann.id);
+      onSelectionChange(replaceSelection(ann.id));
       return;
     }
 
@@ -595,8 +651,91 @@ export function AnnotationInteractionLayer({
         }
       }
       dispatch(addAnnotation(ann));
-      onSelectAnnotation(ann.id);
+      onSelectionChange(replaceSelection(ann.id));
     }
+    setDrag(null);
+  }
+
+  // -------------------------------------------------------------------
+  // SELECT MODE — marquee (rubber-band selection from empty space).
+  //
+  // Mounted on the backdrop div (zIndex below the per-anno hit-rects), so
+  // any pointerdown on a real annotation goes to onHitPointerDown instead.
+  // -------------------------------------------------------------------
+
+  function onBackdropPointerDown(e: React.PointerEvent<HTMLDivElement>): void {
+    if (e.button !== 0) return;
+    if (activeTool !== "select") return;
+    // Hit-rects are above this div in DOM order and stopPropagation, so an
+    // event arriving here means the user clicked empty space. Belt-and-
+    // braces: bail out unless the event target IS the backdrop itself.
+    if (e.target !== e.currentTarget) return;
+    const c = clientToFigure(e);
+    if (c === null) return;
+    e.currentTarget.setPointerCapture(e.pointerId);
+    setDrag({
+      pointerId: e.pointerId,
+      kind: "marquee",
+      startFx: c.fx,
+      startFy: c.fy,
+      curFx: c.fx,
+      curFy: c.fy,
+      shiftKey: e.shiftKey,
+    });
+  }
+
+  function onBackdropPointerMove(e: React.PointerEvent<HTMLDivElement>): void {
+    if (drag === null || drag.kind !== "marquee" || drag.pointerId !== e.pointerId)
+      return;
+    const c = clientToFigure(e);
+    if (c === null) return;
+    setDrag({ ...drag, curFx: c.fx, curFy: c.fy });
+  }
+
+  function onBackdropPointerUp(e: React.PointerEvent<HTMLDivElement>): void {
+    if (drag === null || drag.kind !== "marquee" || drag.pointerId !== e.pointerId)
+      return;
+    if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    }
+    // Use the most recent pointer position from this event; falls back to
+    // the last move's stored coords if the up event somehow has no client
+    // coords. We compute "did the drag move enough" here (instead of in
+    // onBackdropPointerMove + state) so the test harness's synchronous
+    // fireEvent flow is reliable: pointermove's setDrag may not have
+    // committed by the time pointerup runs.
+    const c = clientToFigure(e);
+    const endFx = c?.fx ?? drag.curFx;
+    const endFy = c?.fy ?? drag.curFy;
+    const dxCss = (endFx - drag.startFx) * figToCssX;
+    const dyCss = (endFy - drag.startFy) * figToCssY;
+    const moved = Math.hypot(dxCss, dyCss) >= MARQUEE_MIN_PX;
+    if (!moved) {
+      // Treat as a click on empty space.
+      // Shift-click on empty preserves selection; plain click clears it.
+      if (drag.shiftKey !== true) {
+        onSelectionChange(clearSelection());
+      }
+      setDrag(null);
+      return;
+    }
+    // Commit marquee: collect every user-anno whose bounds intersect the rect.
+    const x = Math.min(drag.startFx, endFx);
+    const y = Math.min(drag.startFy, endFy);
+    const w = Math.abs(endFx - drag.startFx);
+    const h = Math.abs(endFy - drag.startFy);
+    const hits: string[] = [];
+    for (const a of figure.annotations) {
+      if (!isUserAnno(a)) continue;
+      const b = annoBounds(a, panelRectsById);
+      if (b === null) continue;
+      if (rectsIntersect(b, { x, y, w, h })) hits.push(a.id);
+    }
+    onSelectionChange(
+      drag.shiftKey === true
+        ? unionSelection(selectedAnnotationIds, hits)
+        : setSelection(hits),
+    );
     setDrag(null);
   }
 
@@ -610,10 +749,45 @@ export function AnnotationInteractionLayer({
   ): void {
     if (e.button !== 0) return;
     e.stopPropagation();
-    onSelectAnnotation(a.id);
     const c = clientToFigure(e);
     if (c === null) return;
+    // Selection-set update first, before the drag bookkeeping.
+    //
+    // - Shift-click toggles the anno in/out of the set. If it ends up out
+    //   of the set, the user can't drag it (no startAnno), so we early-exit
+    //   without setting up a drag.
+    // - Plain click on an anno already in the set: keep the set intact so
+    //   the user can drag the whole group. (We do NOT collapse to single-
+    //   select here — that would defeat the whole point of multi-select.)
+    // - Plain click on an anno not in the set: replace the set with this id.
+    let nextSelection: ReadonlySet<string>;
+    if (e.shiftKey) {
+      const inSet = selectedAnnotationIds.has(a.id);
+      nextSelection = inSet
+        ? removeFromSelection(selectedAnnotationIds, a.id)
+        : addToSelection(selectedAnnotationIds, a.id);
+      onSelectionChange(nextSelection);
+      // Toggle-out: don't start a drag.
+      if (inSet) return;
+    } else if (selectedAnnotationIds.has(a.id)) {
+      nextSelection = selectedAnnotationIds;
+    } else {
+      nextSelection = replaceSelection(a.id);
+      onSelectionChange(nextSelection);
+    }
     e.currentTarget.setPointerCapture(e.pointerId);
+    // Bulk drag setup: snapshot every selected anno so each pointermove
+    // can apply the same dx/dy delta to its own start coordinates.
+    let bulkSnapshots: Map<string, UserAnno> | undefined;
+    if (nextSelection.size > 1 && nextSelection.has(a.id)) {
+      bulkSnapshots = new Map();
+      for (const id of nextSelection) {
+        const ann = figure.annotations.find(
+          (x): x is UserAnno => x.id === id && isUserAnno(x),
+        );
+        if (ann !== undefined) bulkSnapshots.set(id, ann);
+      }
+    }
     setDrag({
       pointerId: e.pointerId,
       kind: "move",
@@ -623,28 +797,27 @@ export function AnnotationInteractionLayer({
       curFy: c.fy,
       movingId: a.id,
       startAnno: a,
+      ...(bulkSnapshots !== undefined ? { bulkSnapshots } : {}),
     });
   }
 
-  function onHitPointerMove(e: React.PointerEvent<HTMLDivElement>): void {
-    if (drag === null || drag.kind !== "move" || drag.pointerId !== e.pointerId)
-      return;
-    const c = clientToFigure(e);
-    if (c === null) return;
-    const dx = c.fx - drag.startFx;
-    const dy = c.fy - drag.startFy;
-    const start = drag.startAnno;
-    if (start === undefined || drag.movingId === undefined) return;
-    // Dispatch a patch with the annotation's new (x, y).
-    let patch: Partial<Annotation> | null = null;
+  /**
+   * Compute a (kind-specific) move patch for a single anno snapshot, given
+   * a translation `(dx, dy)` from the snapshot's drag-time origin. Returns
+   * `null` for kinds that don't translate via x/y (scalebar). Re-anchors
+   * image-bound annos against `figure` so a later image swap doesn't
+   * teleport the anno back to its pre-drag position.
+   */
+  function computeMovePatch(
+    start: UserAnno,
+    dx: number,
+    dy: number,
+  ): Partial<Annotation> | null {
     switch (start.kind) {
       case "text": {
         const nx = start.x + dx;
         const ny = start.y + dy;
-        patch = { x: nx, y: ny };
-        // Re-anchor on every move so the image-bound fields stay in sync
-        // with the user's drag — otherwise a later swap would teleport
-        // the annotation back to its create-time position.
+        const patch: Partial<TextAnnotation> = { x: nx, y: ny };
         if (start.imageId !== undefined) {
           const ctx = imageContextAt(
             nx,
@@ -655,15 +828,15 @@ export function AnnotationInteractionLayer({
           );
           if (ctx !== null && ctx.imageId === start.imageId) {
             const a = anchorFromFigure(nx, ny, ctx);
-            if (a !== null) (patch as Partial<TextAnnotation>).anchor = a;
+            if (a !== null) patch.anchor = a;
           }
         }
-        break;
+        return patch;
       }
       case "box": {
         const nx = start.x + dx;
         const ny = start.y + dy;
-        patch = { x: nx, y: ny };
+        const patch: Partial<BoxAnnotation> = { x: nx, y: ny };
         if (start.imageId !== undefined) {
           const tlCtx = imageContextAt(
             nx,
@@ -688,19 +861,17 @@ export function AnnotationInteractionLayer({
             const a1 = anchorFromFigure(nx, ny, tlCtx);
             const a2 = anchorFromFigure(nx + start.w, ny + start.h, tlCtx);
             if (a1 !== null && a2 !== null) {
-              (patch as Partial<BoxAnnotation>).anchor1 = a1;
-              (patch as Partial<BoxAnnotation>).anchor2 = a2;
+              patch.anchor1 = a1;
+              patch.anchor2 = a2;
             }
           }
         }
-        break;
+        return patch;
       }
       case "symbol": {
         const nx = start.x + dx;
         const ny = start.y + dy;
-        const movePatch: Partial<SymbolAnnotation> = { x: nx, y: ny };
-        // Re-anchor on every move so a future image-swap teleport doesn't
-        // undo the user's drag (mirrors the text/box pattern).
+        const patch: Partial<SymbolAnnotation> = { x: nx, y: ny };
         if (start.imageId !== undefined) {
           const ctx = imageContextAt(
             nx,
@@ -711,16 +882,37 @@ export function AnnotationInteractionLayer({
           );
           if (ctx !== null && ctx.imageId === start.imageId) {
             const anchor = anchorFromFigure(nx, ny, ctx);
-            if (anchor !== null) movePatch.anchor = anchor;
+            if (anchor !== null) patch.anchor = anchor;
           }
         }
-        patch = movePatch;
-        break;
+        return patch;
       }
       case "scalebar":
-        // Scale bars are positioned via panel + corner; dragging is a no-op.
-        break;
+        // Scale bars are positioned via panel + corner; drag is a no-op.
+        return null;
     }
+  }
+
+  function onHitPointerMove(e: React.PointerEvent<HTMLDivElement>): void {
+    if (drag === null || drag.kind !== "move" || drag.pointerId !== e.pointerId)
+      return;
+    const c = clientToFigure(e);
+    if (c === null) return;
+    const dx = c.fx - drag.startFx;
+    const dy = c.fy - drag.startFy;
+    if (drag.bulkSnapshots !== undefined) {
+      // Bulk drag: dispatch one UPDATE_ANNOTATION per selected anno using
+      // its own snapshot. Per-anno re-anchoring still happens inside
+      // computeMovePatch — each anno may sit on a different image/panel.
+      for (const [id, snapshot] of drag.bulkSnapshots) {
+        const patch = computeMovePatch(snapshot, dx, dy);
+        if (patch !== null) dispatch(updateAnnotation(id, patch));
+      }
+      return;
+    }
+    const start = drag.startAnno;
+    if (start === undefined || drag.movingId === undefined) return;
+    const patch = computeMovePatch(start, dx, dy);
     if (patch !== null) {
       dispatch(updateAnnotation(drag.movingId, patch));
     }
@@ -753,7 +945,7 @@ export function AnnotationInteractionLayer({
   ): void {
     if (e.button !== 0) return;
     e.stopPropagation();
-    onSelectAnnotation(a.id);
+    onSelectionChange(replaceSelection(a.id));
     const c = clientToFigure(e);
     if (c === null) return;
     e.currentTarget.setPointerCapture(e.pointerId);
@@ -896,7 +1088,7 @@ export function AnnotationInteractionLayer({
   ): void {
     if (e.button !== 0) return;
     e.stopPropagation();
-    onSelectAnnotation(a.id);
+    onSelectionChange(replaceSelection(a.id));
     const c = clientToFigure(e);
     if (c === null) return;
     e.currentTarget.setPointerCapture(e.pointerId);
@@ -963,7 +1155,7 @@ export function AnnotationInteractionLayer({
   ): void {
     if (e.button !== 0) return;
     e.stopPropagation();
-    onSelectAnnotation(a.id);
+    onSelectionChange(replaceSelection(a.id));
     const c = clientToFigure(e);
     if (c === null) return;
     e.currentTarget.setPointerCapture(e.pointerId);
@@ -1104,7 +1296,7 @@ export function AnnotationInteractionLayer({
       }
     }
     dispatch(addAnnotation(ann));
-    onSelectAnnotation(ann.id);
+    onSelectionChange(replaceSelection(ann.id));
     setPendingText(null);
   }
 
@@ -1112,7 +1304,10 @@ export function AnnotationInteractionLayer({
   // RENDER
   // -------------------------------------------------------------------
 
-  // Find the selected annotation (for chrome).
+  // Find the selected annotations. `selected` is the legacy "exactly one"
+  // value used by kind-specific handles + the delete chip; `selectedList`
+  // is every annotation in the set, used for per-anno chrome and the
+  // group bbox.
   const selected: UserAnno | undefined =
     selectedAnnotationId !== null
       ? figure.annotations.find(
@@ -1121,6 +1316,33 @@ export function AnnotationInteractionLayer({
       : undefined;
   const selectedBounds =
     selected !== undefined ? annoBounds(selected, panelRectsById) : null;
+  const selectedList: UserAnno[] = [];
+  if (selectedAnnotationIds.size > 0) {
+    for (const a of figure.annotations) {
+      if (selectedAnnotationIds.has(a.id) && isUserAnno(a)) selectedList.push(a);
+    }
+  }
+  const selectedBoundsList = selectedList.flatMap((a) => {
+    const b = annoBounds(a, panelRectsById);
+    return b !== null ? [{ id: a.id, ...b }] : [];
+  });
+  // Group bbox shown only when > 1 annotation is selected. Aggregates the
+  // per-anno bounds into a single rectangle in figure-px.
+  let groupBounds: { x: number; y: number; w: number; h: number } | null =
+    null;
+  if (selectedBoundsList.length > 1) {
+    let minX = Infinity;
+    let minY = Infinity;
+    let maxX = -Infinity;
+    let maxY = -Infinity;
+    for (const b of selectedBoundsList) {
+      if (b.x < minX) minX = b.x;
+      if (b.y < minY) minY = b.y;
+      if (b.x + b.w > maxX) maxX = b.x + b.w;
+      if (b.y + b.h > maxY) maxY = b.y + b.h;
+    }
+    groupBounds = { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
+  }
 
   // Layer-level pointer-events: auto when in a creation tool, none otherwise.
   // In select mode, the per-annotation hit-rects re-enable pointer-events.
@@ -1164,16 +1386,19 @@ export function AnnotationInteractionLayer({
         touchAction: activeTool === "select" ? "auto" : "none",
       }}
     >
-      {/* Backdrop in select mode: catches "clicked nothing" to clear selection. */}
-      {activeTool === "select" && selectedAnnotationId !== null && (
+      {/* Backdrop in select mode: pointerdown starts a marquee. On
+          pointerup, a "click" (no movement past MARQUEE_MIN_PX) clears the
+          selection (or preserves it on shift); a real drag commits the
+          marquee selection. The backdrop is mounted whenever the layer is
+          in select mode — it has to be live BEFORE anything is selected so
+          the user can drag-select on an empty canvas. */}
+      {activeTool === "select" && (
         <div
           data-testid="annotation-backdrop"
-          onPointerDown={(e) => {
-            // Only clear when the click did NOT bubble from a hit-rect.
-            if (e.target === e.currentTarget) {
-              onSelectAnnotation(null);
-            }
-          }}
+          onPointerDown={onBackdropPointerDown}
+          onPointerMove={onBackdropPointerMove}
+          onPointerUp={onBackdropPointerUp}
+          onPointerCancel={onBackdropPointerUp}
           style={{
             position: "absolute",
             inset: 0,
@@ -1184,6 +1409,33 @@ export function AnnotationInteractionLayer({
           }}
         />
       )}
+
+      {/* Marquee preview rectangle while a drag is in flight. The threshold
+          check matches onBackdropPointerUp's drag-vs-click detection — under
+          MARQUEE_MIN_PX of movement we suppress the preview so a quick click
+          on empty space doesn't flicker a tiny rectangle into view. */}
+      {drag !== null &&
+        drag.kind === "marquee" &&
+        Math.hypot(
+          (drag.curFx - drag.startFx) * figToCssX,
+          (drag.curFy - drag.startFy) * figToCssY,
+        ) >= MARQUEE_MIN_PX && (
+          <div
+            data-testid="anno-marquee"
+            style={{
+              position: "absolute",
+              left: Math.min(drag.startFx, drag.curFx) * figToCssX,
+              top: Math.min(drag.startFy, drag.curFy) * figToCssY,
+              width: Math.abs(drag.curFx - drag.startFx) * figToCssX,
+              height: Math.abs(drag.curFy - drag.startFy) * figToCssY,
+              pointerEvents: "none",
+              border: "1px dashed #0066FF",
+              background: "rgba(0, 102, 255, 0.08)",
+              boxSizing: "border-box",
+              zIndex: 5,
+            }}
+          />
+        )}
 
       {/* Per-annotation hit-rects. Rendered in every tool so that clicks on an
           existing annotation always select (and never create a new one nearby).
@@ -1214,18 +1466,39 @@ export function AnnotationInteractionLayer({
         );
       })}
 
-      {/* Selection chrome — dashed outline around the selected annotation. */}
-      {selectedBounds !== null && (
+      {/* Selection chrome — dashed outline per selected annotation. Loops
+          across the full selection set so multi-select shows every member. */}
+      {selectedBoundsList.map((b) => (
         <div
-          data-testid="anno-selection-chrome"
+          key={`chrome-${b.id}`}
+          data-testid={`anno-selection-chrome-${b.id}`}
           style={{
             position: "absolute",
-            left: selectedBounds.x * figToCssX - 2,
-            top: selectedBounds.y * figToCssY - 2,
-            width: Math.max(MIN_HIT_PX, selectedBounds.w * figToCssX) + 4,
-            height: Math.max(MIN_HIT_PX, selectedBounds.h * figToCssY) + 4,
+            left: b.x * figToCssX - 2,
+            top: b.y * figToCssY - 2,
+            width: Math.max(MIN_HIT_PX, b.w * figToCssX) + 4,
+            height: Math.max(MIN_HIT_PX, b.h * figToCssY) + 4,
             pointerEvents: "none",
             border: "2px dashed #0066FF",
+            boxSizing: "border-box",
+          }}
+        />
+      ))}
+
+      {/* Group bbox — shown only when more than one annotation is selected.
+          A faint accent stroke around the union of all selected anno bounds.
+          Helps the user see "what set is currently selected" at a glance. */}
+      {groupBounds !== null && (
+        <div
+          data-testid="anno-group-bbox"
+          style={{
+            position: "absolute",
+            left: groupBounds.x * figToCssX - 6,
+            top: groupBounds.y * figToCssY - 6,
+            width: groupBounds.w * figToCssX + 12,
+            height: groupBounds.h * figToCssY + 12,
+            pointerEvents: "none",
+            border: "1px solid rgba(0, 102, 255, 0.35)",
             boxSizing: "border-box",
           }}
         />
@@ -1503,7 +1776,7 @@ export function AnnotationInteractionLayer({
           data-testid="anno-delete-chip"
           onClick={() => {
             dispatch(removeAnnotation(selected.id));
-            onSelectAnnotation(null);
+            onSelectionChange(clearSelection());
           }}
           style={{
             position: "absolute",

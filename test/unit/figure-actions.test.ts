@@ -35,6 +35,8 @@ import {
   addAnnotation,
   updateAnnotation,
   removeAnnotation,
+  bulkUpdateAnnos,
+  bulkRemoveAnnos,
   setLetterOverride,
   setGlobalStyle,
   setLettersEnabled,
@@ -1222,5 +1224,110 @@ describe("figureReducer (hide / delete / restore — spec 02)", () => {
     expect(figureReducer(s0, restorePanelAt(-1, 0))).toBe(s0);
     expect(figureReducer(s0, restorePanelAt(0, 99))).toBe(s0);
     expect(figureReducer(s0, restorePanelAt(2.5, 0))).toBe(s0);
+  });
+});
+
+describe("figureReducer (bulk annotation actions)", () => {
+  beforeEach(() => {
+    __resetPanelIdsForTests();
+  });
+
+  function withAnnos(...annos: Annotation[]): FigureState {
+    let s = initialFigureState();
+    for (const a of annos) s = figureReducer(s, addAnnotation(a));
+    return s;
+  }
+
+  it("BULK_UPDATE_ANNOS applies common keys across mixed kinds", () => {
+    const s0 = withAnnos(textAnno("t1"), boxAnno("b1"), symbolAnno("s1"));
+    const s1 = figureReducer(
+      s0,
+      bulkUpdateAnnos(["t1", "b1", "s1"], { color: "#123456" } as Partial<Annotation>),
+    );
+    const t = s1.annotations.find((a) => a.id === "t1") as TextAnnotation;
+    const sym = s1.annotations.find((a) => a.id === "s1") as SymbolAnnotation;
+    const b = s1.annotations.find((a) => a.id === "b1") as BoxAnnotation;
+    expect(t.color).toBe("#123456");
+    expect(sym.color).toBe("#123456");
+    // 'color' is not a valid key for boxes (boxes use 'stroke') — patch dropped.
+    expect(b.stroke).toBe("#00FF00");
+  });
+
+  it("BULK_UPDATE_ANNOS drops keys invalid for some kinds (heterogeneous patch)", () => {
+    const s0 = withAnnos(textAnno("t1"), boxAnno("b1"));
+    const s1 = figureReducer(
+      s0,
+      // 'stroke' is valid for boxes only; 'sizePt' valid for text only.
+      bulkUpdateAnnos(["t1", "b1"], {
+        stroke: "#FF0000",
+        sizePt: 24,
+      } as Partial<Annotation>),
+    );
+    const t = s1.annotations.find((a) => a.id === "t1") as TextAnnotation;
+    const b = s1.annotations.find((a) => a.id === "b1") as BoxAnnotation;
+    expect(t.sizePt).toBe(24); // applied
+    expect(b.stroke).toBe("#FF0000"); // applied
+    // box never sees sizePt; text never sees stroke — type system enforces this,
+    // but check by structure too.
+    expect((b as unknown as { sizePt?: number }).sizePt).toBeUndefined();
+  });
+
+  it("BULK_UPDATE_ANNOS no-ops when no patch keys are valid for any selected anno", () => {
+    const s0 = withAnnos(textAnno("t1"));
+    const s1 = figureReducer(
+      s0,
+      bulkUpdateAnnos(["t1"], { stroke: "#000000" } as Partial<Annotation>),
+    );
+    expect(s1).toBe(s0);
+  });
+
+  it("BULK_UPDATE_ANNOS no-ops on empty ids", () => {
+    const s0 = withAnnos(textAnno("t1"));
+    expect(
+      figureReducer(s0, bulkUpdateAnnos([], { color: "#abcdef" } as Partial<Annotation>)),
+    ).toBe(s0);
+  });
+
+  it("BULK_UPDATE_ANNOS strips id and kind from the patch", () => {
+    const s0 = withAnnos(textAnno("t1"));
+    const s1 = figureReducer(
+      s0,
+      bulkUpdateAnnos(["t1"], {
+        id: "hijack",
+        kind: "box",
+        color: "#abcdef",
+      } as unknown as Partial<Annotation>),
+    );
+    const t = s1.annotations.find((a) => a.id === "t1") as TextAnnotation;
+    expect(t.id).toBe("t1");
+    expect(t.kind).toBe("text");
+    expect(t.color).toBe("#abcdef");
+  });
+
+  it("BULK_UPDATE_ANNOS skips ids not in state", () => {
+    const s0 = withAnnos(textAnno("t1"));
+    const s1 = figureReducer(
+      s0,
+      bulkUpdateAnnos(["t1", "ghost"], { color: "#222222" } as Partial<Annotation>),
+    );
+    const t = s1.annotations.find((a) => a.id === "t1") as TextAnnotation;
+    expect(t.color).toBe("#222222");
+    expect(s1.annotations).toHaveLength(1);
+  });
+
+  it("BULK_REMOVE_ANNOS removes only the listed ids", () => {
+    const s0 = withAnnos(textAnno("t1"), boxAnno("b1"), symbolAnno("s1"));
+    const s1 = figureReducer(s0, bulkRemoveAnnos(["t1", "s1"]));
+    expect(s1.annotations.map((a) => a.id)).toEqual(["b1"]);
+  });
+
+  it("BULK_REMOVE_ANNOS no-ops on empty ids", () => {
+    const s0 = withAnnos(textAnno("t1"));
+    expect(figureReducer(s0, bulkRemoveAnnos([]))).toBe(s0);
+  });
+
+  it("BULK_REMOVE_ANNOS no-ops when no ids match", () => {
+    const s0 = withAnnos(textAnno("t1"));
+    expect(figureReducer(s0, bulkRemoveAnnos(["ghost1", "ghost2"]))).toBe(s0);
   });
 });

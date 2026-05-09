@@ -42,6 +42,10 @@ import {
 } from "./model/figure-actions";
 import { useHistoryReducer } from "./state/use-history-reducer";
 import { applyLoadedProject } from "./state/load-project";
+import {
+  emptySelection,
+  singleSelectedId,
+} from "./state/anno-selection";
 import { newImageId, type ImagePoolItem } from "./model/pool";
 import { deriveFigure } from "./model/figure-derivations";
 import { computePanelRects, type PanelRect } from "./render/coords";
@@ -81,7 +85,9 @@ export function App(): JSX.Element {
   const [missingImages, setMissingImages] = useState<
     { imageId: string; filename: string; attemptedPaths: string[] }[]
   >([]);
-  const [selectedAnnotationId, setSelectedAnnotationId] = useState<string | null>(null);
+  const [selectedAnnotationIds, setSelectedAnnotationIds] = useState<
+    ReadonlySet<string>
+  >(() => emptySelection());
   const [calibratingImageId, setCalibratingImageId] = useState<string | null>(null);
   const [annotationEditing, setAnnotationEditing] = useState<boolean>(false);
   const stateRef = useRef<FigureState>(state);
@@ -187,13 +193,24 @@ export function App(): JSX.Element {
     focusedPanel?.imageId !== undefined ? focusedPanel : undefined;
 
   const fieldCommit = useFieldCommit(history.commit, 400);
+  // Single-selected anno is only meaningful for the legacy properties-panel
+  // path. With > 1 in the set, PropertiesPanel routes to MultiAnnoForm
+  // instead and reads `selectedAnnotationIds` directly.
+  const singleSelectedAnnoId = singleSelectedId(selectedAnnotationIds);
   const selectedAnno = useMemo(
     () =>
-      selectedAnnotationId === null
+      singleSelectedAnnoId === null
         ? undefined
-        : state.annotations.find((a) => a.id === selectedAnnotationId),
-    [state.annotations, selectedAnnotationId],
+        : state.annotations.find((a) => a.id === singleSelectedAnnoId),
+    [state.annotations, singleSelectedAnnoId],
   );
+  // Annotations for the multi-select form. Computed only when the set has
+  // > 1 entry; otherwise we leave it undefined so PropertiesPanel falls
+  // through to the single-select / global routing.
+  const selectedAnnos = useMemo(() => {
+    if (selectedAnnotationIds.size <= 1) return undefined;
+    return state.annotations.filter((a) => selectedAnnotationIds.has(a.id));
+  }, [state.annotations, selectedAnnotationIds]);
 
   const onRotate90 = useCallback(() => {
     if (selectedImagePanel === undefined) return;
@@ -264,16 +281,24 @@ export function App(): JSX.Element {
   const onEscape = useCallback(() => {
     selection.clear();
     setPanelInteraction(null);
-    setSelectedAnnotationId(null);
+    setSelectedAnnotationIds(emptySelection());
     setActiveTool("select");
   }, [selection]);
 
   const onDeleteAnnotation = useCallback(() => {
-    if (selectedAnnotationId === null) return;
+    if (selectedAnnotationIds.size === 0) return;
     if (annotationEditing) return; // an inline editor owns the keystroke
-    dispatch(removeAnnotation(selectedAnnotationId));
-    setSelectedAnnotationId(null);
-  }, [selectedAnnotationId, annotationEditing, dispatch]);
+    if (selectedAnnotationIds.size === 1) {
+      const id = singleSelectedId(selectedAnnotationIds);
+      if (id !== null) dispatch(removeAnnotation(id));
+    } else {
+      dispatch({
+        type: "BULK_REMOVE_ANNOS",
+        ids: Array.from(selectedAnnotationIds),
+      });
+    }
+    setSelectedAnnotationIds(emptySelection());
+  }, [selectedAnnotationIds, annotationEditing, dispatch]);
 
   useKeyboardShortcuts({
     onMerge,
@@ -433,7 +458,7 @@ export function App(): JSX.Element {
     setBitmaps(new Map());
     setProjectPath(null);
     setPanelInteraction(null);
-    setSelectedAnnotationId(null);
+    setSelectedAnnotationIds(emptySelection());
     toasts.push({ kind: "info", message: "New figure" });
   }, [dispatch, toasts]);
 
@@ -627,8 +652,8 @@ export function App(): JSX.Element {
               cssH={CANVAS_CSS_H}
               figurePxW={FIGURE_PX_W}
               figurePxH={FIGURE_PX_H}
-              selectedAnnotationId={selectedAnnotationId}
-              onSelectAnnotation={setSelectedAnnotationId}
+              selectedAnnotationIds={selectedAnnotationIds}
+              onSelectionChange={setSelectedAnnotationIds}
               onEditingChange={setAnnotationEditing}
               dispatch={dispatch}
             />
@@ -648,6 +673,10 @@ export function App(): JSX.Element {
           state={state}
           focusedPanel={selectedImagePanel}
           selectedAnno={selectedAnno}
+          {...(selectedAnnos !== undefined ? { selectedAnnos } : {})}
+          onMultiBulkRemove={() => setSelectedAnnotationIds(emptySelection())}
+          selectedAnnotationIds={selectedAnnotationIds}
+          onSelectionChange={setSelectedAnnotationIds}
           dispatch={dispatch}
           commit={fieldCommit}
           onCalibrate={onCalibrate}

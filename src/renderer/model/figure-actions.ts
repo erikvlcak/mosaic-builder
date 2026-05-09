@@ -40,6 +40,12 @@ export type FigureAction =
       patch: Partial<Annotation>;
     }
   | { type: "REMOVE_ANNOTATION"; annotationId: string }
+  | {
+      type: "BULK_UPDATE_ANNOS";
+      ids: string[];
+      patch: Partial<Annotation>;
+    }
+  | { type: "BULK_REMOVE_ANNOS"; ids: string[] }
   | { type: "SET_LETTER_OVERRIDE"; panelId: string; override: string | null }
   | { type: "SET_GLOBAL_STYLE"; style: GlobalAnnoStyle }
   | { type: "SET_LETTERS_ENABLED"; enabled: boolean }
@@ -139,6 +145,14 @@ export const updateAnnotation = (
 export const removeAnnotation = (annotationId: string): FigureAction => ({
   type: "REMOVE_ANNOTATION",
   annotationId,
+});
+export const bulkUpdateAnnos = (
+  ids: string[],
+  patch: Partial<Annotation>,
+): FigureAction => ({ type: "BULK_UPDATE_ANNOS", ids, patch });
+export const bulkRemoveAnnos = (ids: string[]): FigureAction => ({
+  type: "BULK_REMOVE_ANNOS",
+  ids,
 });
 export const setLetterOverride = (
   panelId: string,
@@ -634,6 +648,38 @@ export function figureReducer(s: FigureState, a: FigureAction): FigureState {
       };
     }
 
+    case "BULK_UPDATE_ANNOS": {
+      if (a.ids.length === 0) return s;
+      const idSet = new Set(a.ids);
+      // Strip immutable fields. The patch is then narrowed per-kind below
+      // by ALLOWED_BULK_KEYS so e.g. setting `stroke` on a text anno is dropped.
+      const {
+        id: _id,
+        kind: _kind,
+        ...rawPatch
+      } = a.patch as Partial<Annotation> & {
+        id?: string;
+        kind?: AnnotationKind;
+      };
+      let touched = false;
+      const next = s.annotations.map((existing) => {
+        if (!idSet.has(existing.id)) return existing;
+        const filteredPatch = filterPatchByKind(rawPatch, existing.kind);
+        if (Object.keys(filteredPatch).length === 0) return existing;
+        touched = true;
+        return { ...existing, ...filteredPatch } as Annotation;
+      });
+      return touched ? { ...s, annotations: next } : s;
+    }
+
+    case "BULK_REMOVE_ANNOS": {
+      if (a.ids.length === 0) return s;
+      const idSet = new Set(a.ids);
+      const next = s.annotations.filter((x) => !idSet.has(x.id));
+      if (next.length === s.annotations.length) return s;
+      return { ...s, annotations: next };
+    }
+
     case "SET_LETTER_OVERRIDE": {
       if (a.override === null) {
         if (!(a.panelId in s.letterOverrides)) return s;
@@ -824,4 +870,33 @@ function findPanelByCoord(
   col: number,
 ): Panel | undefined {
   return panels.find((p) => p.row === row && p.col === col);
+}
+
+/**
+ * Per-kind allowlist of mutable patch keys for BULK_UPDATE_ANNOS. We keep
+ * this narrow on purpose: bulk forms only ever expose style fields that are
+ * unambiguous across multiple selected annos (color, stroke, font, size).
+ * Geometry fields (x/y/w/h, panelId, anchors) and identity (id, kind) are
+ * excluded — bulk *drag* goes through individual UPDATE_ANNOTATION dispatches
+ * which handle re-anchoring per anno.
+ */
+const ALLOWED_BULK_KEYS: Record<AnnotationKind, ReadonlySet<string>> = {
+  text: new Set(["color", "bgColor", "font", "sizePt", "bold", "italic"]),
+  symbol: new Set(["color", "strokeWidthPx", "sizePx", "symbolId", "rotationDeg"]),
+  box: new Set(["stroke", "strokeWidthPx", "fill"]),
+  scalebar: new Set(["lengthValue", "lengthUnit", "cornerOverride"]),
+  // letters are derived; bulk-update is a no-op for now (spec 08 may revisit).
+  letter: new Set(),
+};
+
+function filterPatchByKind(
+  patch: Record<string, unknown>,
+  kind: AnnotationKind,
+): Record<string, unknown> {
+  const allowed = ALLOWED_BULK_KEYS[kind];
+  const out: Record<string, unknown> = {};
+  for (const k in patch) {
+    if (allowed.has(k)) out[k] = patch[k];
+  }
+  return out;
 }

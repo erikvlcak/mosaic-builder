@@ -78,8 +78,8 @@ function setup(): { dispatch: ReturnType<typeof vi.fn> } {
       cssH={200}
       figurePxW={200}
       figurePxH={200}
-      selectedAnnotationId={null}
-      onSelectAnnotation={() => {}}
+      selectedAnnotationIds={new Set()}
+      onSelectionChange={() => {}}
       onEditingChange={() => {}}
       dispatch={dispatch}
     />,
@@ -191,8 +191,8 @@ describe("AnnotationInteractionLayer: click-on-anno-selects in creation mode", (
         cssH={200}
         figurePxW={200}
         figurePxH={200}
-        selectedAnnotationId={null}
-        onSelectAnnotation={onSelect}
+        selectedAnnotationIds={new Set()}
+        onSelectionChange={onSelect}
         onEditingChange={() => {}}
         dispatch={dispatch}
       />,
@@ -209,7 +209,7 @@ describe("AnnotationInteractionLayer: click-on-anno-selects in creation mode", (
     const { dispatch, onSelect } = setupWithExistingBox("box");
     const hit = screen.getByTestId("anno-hit-box-1");
     fireEvent.pointerDown(hit, { button: 0, clientX: 60, clientY: 60 });
-    expect(onSelect).toHaveBeenCalledWith("box-1");
+    expect(onSelect).toHaveBeenCalledWith(new Set(["box-1"]));
     expect(
       dispatch.mock.calls.some(
         ([a]) => (a as { type: string }).type === "ADD_ANNOTATION",
@@ -236,8 +236,8 @@ describe("AnnotationInteractionLayer: symbol creation + handles", () => {
         cssH={200}
         figurePxW={200}
         figurePxH={200}
-        selectedAnnotationId={null}
-        onSelectAnnotation={onSelect}
+        selectedAnnotationIds={new Set()}
+        onSelectionChange={onSelect}
         onEditingChange={() => {}}
         dispatch={dispatch}
       />,
@@ -265,8 +265,8 @@ describe("AnnotationInteractionLayer: symbol creation + handles", () => {
         cssH={200}
         figurePxW={200}
         figurePxH={200}
-        selectedAnnotationId={symbol.id}
-        onSelectAnnotation={onSelect}
+        selectedAnnotationIds={new Set([symbol.id])}
+        onSelectionChange={onSelect}
         onEditingChange={() => {}}
         dispatch={dispatch}
       />,
@@ -292,7 +292,7 @@ describe("AnnotationInteractionLayer: symbol creation + handles", () => {
     expect(action.annotation.y).toBe(60);
     expect(action.annotation.sizePx).toBe(60);
     expect(action.annotation.rotationDeg).toBe(0);
-    expect(onSelect).toHaveBeenCalledWith(action.annotation.id);
+    expect(onSelect).toHaveBeenCalledWith(new Set([action.annotation.id]));
   });
 
   it("clicking on an image-bearing panel binds the new symbol to the image", () => {
@@ -476,5 +476,205 @@ describe("AnnotationInteractionLayer: symbol creation + handles", () => {
     // of ~0.12°, so the dispatched rotationDeg lands at ~45.12 — well within
     // tolerance. The broken impl would land near -90° and fail loudly.
     expect(action.patch.rotationDeg).toBeCloseTo(45, 0);
+  });
+});
+
+describe("AnnotationInteractionLayer: multi-select gestures", () => {
+  /** Two annos placed at known positions so hit-rect coords are predictable. */
+  const FIG_TWO_BOXES: Figure = {
+    ...FIG,
+    annotations: [
+      {
+        id: "b1",
+        kind: "box",
+        z: 1,
+        x: 10,
+        y: 10,
+        w: 30,
+        h: 30,
+        stroke: "#FF0000",
+        strokeWidthPx: 1,
+      },
+      {
+        id: "b2",
+        kind: "box",
+        z: 1,
+        x: 100,
+        y: 100,
+        w: 40,
+        h: 40,
+        stroke: "#00FF00",
+        strokeWidthPx: 1,
+      },
+    ],
+  };
+
+  function setupSelectMode(opts?: {
+    selectedIds?: ReadonlySet<string>;
+    figure?: Figure;
+  }): {
+    dispatch: ReturnType<typeof vi.fn>;
+    onSelectionChange: ReturnType<typeof vi.fn>;
+  } {
+    const dispatch = vi.fn();
+    const onSelectionChange = vi.fn();
+    render(
+      <AnnotationInteractionLayer
+        activeTool="select"
+        figure={opts?.figure ?? FIG_TWO_BOXES}
+        panelRectsById={new Map()}
+        imagesById={new Map()}
+        cssW={200}
+        cssH={200}
+        figurePxW={200}
+        figurePxH={200}
+        selectedAnnotationIds={opts?.selectedIds ?? new Set()}
+        onSelectionChange={onSelectionChange}
+        onEditingChange={() => {}}
+        dispatch={dispatch}
+      />,
+    );
+    return { dispatch, onSelectionChange };
+  }
+
+  it("plain click on an anno replaces the selection with just that id", () => {
+    const { onSelectionChange } = setupSelectMode({
+      selectedIds: new Set(["b2"]),
+    });
+    fireEvent.pointerDown(screen.getByTestId("anno-hit-b1"), {
+      button: 0,
+      clientX: 20,
+      clientY: 20,
+    });
+    expect(onSelectionChange).toHaveBeenCalledWith(new Set(["b1"]));
+  });
+
+  it("shift-click on an unselected anno adds it to the selection", () => {
+    const { onSelectionChange } = setupSelectMode({
+      selectedIds: new Set(["b2"]),
+    });
+    fireEvent.pointerDown(screen.getByTestId("anno-hit-b1"), {
+      button: 0,
+      clientX: 20,
+      clientY: 20,
+      shiftKey: true,
+    });
+    expect(onSelectionChange).toHaveBeenCalledWith(new Set(["b2", "b1"]));
+  });
+
+  it("shift-click on an already-selected anno removes it from the selection", () => {
+    const { onSelectionChange } = setupSelectMode({
+      selectedIds: new Set(["b1", "b2"]),
+    });
+    fireEvent.pointerDown(screen.getByTestId("anno-hit-b1"), {
+      button: 0,
+      clientX: 20,
+      clientY: 20,
+      shiftKey: true,
+    });
+    expect(onSelectionChange).toHaveBeenCalledWith(new Set(["b2"]));
+  });
+
+  it("clicking an already-selected anno (multi-select) does NOT collapse to single-select", () => {
+    const { onSelectionChange } = setupSelectMode({
+      selectedIds: new Set(["b1", "b2"]),
+    });
+    fireEvent.pointerDown(screen.getByTestId("anno-hit-b1"), {
+      button: 0,
+      clientX: 20,
+      clientY: 20,
+    });
+    // The hit-rect handler keeps the existing set so a body drag operates
+    // on the whole group; it should not have called onSelectionChange.
+    expect(onSelectionChange).not.toHaveBeenCalled();
+  });
+
+  it("renders chrome for every selected annotation when > 1 is selected", () => {
+    setupSelectMode({ selectedIds: new Set(["b1", "b2"]) });
+    expect(screen.queryByTestId("anno-selection-chrome-b1")).not.toBeNull();
+    expect(screen.queryByTestId("anno-selection-chrome-b2")).not.toBeNull();
+    expect(screen.queryByTestId("anno-group-bbox")).not.toBeNull();
+  });
+
+  it("does not render the group bbox when only one is selected", () => {
+    setupSelectMode({ selectedIds: new Set(["b1"]) });
+    expect(screen.queryByTestId("anno-group-bbox")).toBeNull();
+    expect(screen.queryByTestId("anno-selection-chrome-b1")).not.toBeNull();
+  });
+
+  it("dragging one of N selected annos translates every selected anno by the same delta", () => {
+    const { dispatch } = setupSelectMode({
+      selectedIds: new Set(["b1", "b2"]),
+    });
+    fireEvent.pointerDown(screen.getByTestId("anno-hit-b1"), {
+      button: 0,
+      clientX: 20,
+      clientY: 20,
+    });
+    fireEvent.pointerMove(screen.getByTestId("anno-hit-b1"), {
+      clientX: 35,
+      clientY: 30,
+    });
+    // Two UPDATE_ANNOTATION calls, one per selected anno, with matching delta (15, 10).
+    const updates = dispatch.mock.calls
+      .map(([a]) => a as { type: string; annotationId?: string; patch?: { x?: number; y?: number } })
+      .filter((a) => a.type === "UPDATE_ANNOTATION");
+    expect(updates).toHaveLength(2);
+    const byId = new Map(updates.map((u) => [u.annotationId, u.patch]));
+    expect(byId.get("b1")).toMatchObject({ x: 25, y: 20 });
+    expect(byId.get("b2")).toMatchObject({ x: 115, y: 110 });
+  });
+
+  it("clicking empty backdrop with no movement clears the selection", () => {
+    const { onSelectionChange } = setupSelectMode({
+      selectedIds: new Set(["b1", "b2"]),
+    });
+    const backdrop = screen.getByTestId("annotation-backdrop");
+    fireEvent.pointerDown(backdrop, { button: 0, clientX: 5, clientY: 5 });
+    fireEvent.pointerUp(backdrop, { clientX: 5, clientY: 5 });
+    expect(onSelectionChange).toHaveBeenCalledWith(new Set());
+  });
+
+  it("shift-click on empty backdrop preserves the existing selection", () => {
+    const { onSelectionChange } = setupSelectMode({
+      selectedIds: new Set(["b1", "b2"]),
+    });
+    const backdrop = screen.getByTestId("annotation-backdrop");
+    fireEvent.pointerDown(backdrop, {
+      button: 0,
+      clientX: 5,
+      clientY: 5,
+      shiftKey: true,
+    });
+    fireEvent.pointerUp(backdrop, { clientX: 5, clientY: 5, shiftKey: true });
+    expect(onSelectionChange).not.toHaveBeenCalled();
+  });
+
+  it("dragging a marquee from empty space selects every annotation crossed by the rect", () => {
+    const { onSelectionChange } = setupSelectMode();
+    const backdrop = screen.getByTestId("annotation-backdrop");
+    // Start at (5,5), drag to (160,160) so both b1 (10..40) and b2 (100..140) are crossed.
+    fireEvent.pointerDown(backdrop, { button: 0, clientX: 5, clientY: 5 });
+    fireEvent.pointerMove(backdrop, { clientX: 160, clientY: 160 });
+    fireEvent.pointerUp(backdrop, { clientX: 160, clientY: 160 });
+    expect(onSelectionChange).toHaveBeenCalledWith(new Set(["b1", "b2"]));
+  });
+
+  it("shift-marquee unions with existing selection instead of replacing it", () => {
+    const { onSelectionChange } = setupSelectMode({
+      selectedIds: new Set(["b2"]),
+    });
+    const backdrop = screen.getByTestId("annotation-backdrop");
+    // Marquee covers only b1 (10..40). Without shift this would replace
+    // selection with {b1}; with shift we expect {b1, b2}.
+    fireEvent.pointerDown(backdrop, {
+      button: 0,
+      clientX: 5,
+      clientY: 5,
+      shiftKey: true,
+    });
+    fireEvent.pointerMove(backdrop, { clientX: 50, clientY: 50, shiftKey: true });
+    fireEvent.pointerUp(backdrop, { clientX: 50, clientY: 50, shiftKey: true });
+    expect(onSelectionChange).toHaveBeenCalledWith(new Set(["b2", "b1"]));
   });
 });
