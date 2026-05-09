@@ -20,7 +20,7 @@ export const SYMBOL_CATEGORIES: readonly SymbolCategory[] = [
   "shape",
   "marker",
   "bracket",
-] as const;
+];
 
 export interface SymbolDef {
   /** Stable id; persisted in `.mosaic` files. */
@@ -214,7 +214,7 @@ export const SYMBOL_LIBRARY: readonly SymbolDef[] = [
     fill: false,
     pathD: "M 30 15 L 70 50 L 30 85",
   },
-] as const;
+];
 
 export const SYMBOL_LIBRARY_BY_ID: ReadonlyMap<string, SymbolDef> = new Map(
   SYMBOL_LIBRARY.map((d) => [d.id, d]),

@@ -65,6 +65,7 @@ describe("SYMBOL_LIBRARY", () => {
       expect(typeof ok.label).toBe("string");
       expect(typeof ok.pathD).toBe("string");
       expect(typeof ok.fill).toBe("boolean");
+      expect(SYMBOL_CATEGORIES).toContain(ok.category);
     }
   });
 });
