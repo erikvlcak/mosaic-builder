@@ -47,6 +47,12 @@ import {
   restorePanelAt,
   setPanelCrop,
   resetPanelCrop,
+  setTrackWeightAction,
+  resizePanelFreeformAction,
+  resetToUniformGridAction,
+  resizeGrid,
+  mergeCells,
+  unmergePanelAction,
 } from "../../src/renderer/model/figure-actions";
 import {
   findPanelAt,
@@ -1500,5 +1506,252 @@ describe("figureReducer (bulk annotation actions)", () => {
   it("BULK_REMOVE_ANNOS no-ops when no ids match", () => {
     const s0 = withAnnos(textAnno("t1"));
     expect(figureReducer(s0, bulkRemoveAnnos(["ghost1", "ghost2"]))).toBe(s0);
+  });
+});
+
+describe("SET_TRACK_WEIGHT", () => {
+  it("adjusts col weights pairwise and preserves their sum", () => {
+    __resetPanelIdsForTests();
+    const s0 = initialFigureState();
+    const s1 = figureReducer(s0, setTrackWeightAction("col", 0, 0.7));
+    if (s1.layout.kind !== "uniform") throw new Error("unreachable");
+    expect(s1.layout.colWeights).toEqual([0.7, 0.3]);
+    expect(s1.layout.rowWeights).toEqual([0.5, 0.5]);
+  });
+
+  it("returns ===-same state when value is unchanged", () => {
+    const s0 = initialFigureState();
+    const s1 = figureReducer(s0, setTrackWeightAction("col", 0, 0.5));
+    expect(s1).toBe(s0);
+  });
+
+  it("is a no-op when layout is free-form", () => {
+    const s0 = initialFigureState();
+    const free: FigureState = {
+      ...s0,
+      layout: {
+        kind: "free",
+        rects: { x: { x: 0, y: 0, w: 100, h: 100 } },
+      },
+    };
+    const s1 = figureReducer(free, setTrackWeightAction("col", 0, 0.7));
+    expect(s1).toBe(free);
+  });
+
+  it("rejects out-of-range index as a no-op", () => {
+    const s0 = initialFigureState();
+    const s1 = figureReducer(s0, setTrackWeightAction("col", 5, 0.7));
+    expect(s1).toBe(s0);
+  });
+});
+
+describe("RESIZE_PANEL_FREEFORM", () => {
+  // Use outerGutter=false with no gutter so the math is clean: panels are
+  // exactly 400×300 in an 800×600 canvas. Avoids gutter-vs-edge ambiguity.
+  function freshFreeformState(): FigureState {
+    __resetPanelIdsForTests();
+    const s = initialFigureState();
+    return {
+      ...s,
+      gutterPx: 0,
+      outerGutter: false,
+    };
+  }
+
+  it("converts uniform → free with snapshot rects, then applies the cascade", () => {
+    const s0 = freshFreeformState();
+    const s1 = figureReducer(
+      s0,
+      resizePanelFreeformAction("panel-1", "br", 50, 50, {
+        widthPx: 800,
+        heightPx: 600,
+      }),
+    );
+    expect(s1.layout.kind).toBe("free");
+    if (s1.layout.kind !== "free") throw new Error("unreachable");
+    // panel-1 baseline: x=0, y=0, w=400, h=300. After dx=+50, dy=+50: w=450, h=350.
+    expect(s1.layout.rects["panel-1"]).toEqual({ x: 0, y: 0, w: 450, h: 350 });
+    // panel-2 (top-right) baseline: x=400, y=0, w=400, h=300. left=xEdge=400 →
+    // shifts right by 50, w shrinks. Bottom doesn't share yEdge.
+    expect(s1.layout.rects["panel-2"]).toEqual({
+      x: 450,
+      y: 0,
+      w: 350,
+      h: 300,
+    });
+    // panel-3 (bottom-left): x=0, y=300, w=400, h=300. top=yEdge=300 → shifts
+    // down by 50, h shrinks.
+    expect(s1.layout.rects["panel-3"]).toEqual({
+      x: 0,
+      y: 350,
+      w: 400,
+      h: 250,
+    });
+    // panel-4 (bottom-right): both edges affected.
+    expect(s1.layout.rects["panel-4"]).toEqual({
+      x: 450,
+      y: 350,
+      w: 350,
+      h: 250,
+    });
+  });
+
+  it("subsequent free-form drag updates rects without changing layout.kind", () => {
+    const s0 = freshFreeformState();
+    const s1 = figureReducer(
+      s0,
+      resizePanelFreeformAction("panel-1", "br", 10, 0, {
+        widthPx: 800,
+        heightPx: 600,
+      }),
+    );
+    if (s1.layout.kind !== "free") throw new Error("unreachable");
+    const s2 = figureReducer(
+      s1,
+      resizePanelFreeformAction("panel-1", "br", 5, 0, {
+        widthPx: 800,
+        heightPx: 600,
+      }),
+    );
+    if (s2.layout.kind !== "free") throw new Error("unreachable");
+    expect(s2.layout.rects["panel-1"]!.w).toBe(
+      s1.layout.rects["panel-1"]!.w + 5,
+    );
+  });
+
+  it("is a no-op when target panel is missing", () => {
+    const s0 = freshFreeformState();
+    const s1 = figureReducer(
+      s0,
+      resizePanelFreeformAction("nope", "br", 50, 50, {
+        widthPx: 800,
+        heightPx: 600,
+      }),
+    );
+    expect(s1).toBe(s0);
+  });
+});
+
+describe("RESET_TO_UNIFORM_GRID", () => {
+  it("rebuilds equal weights from current rows/cols and discards rects", () => {
+    __resetPanelIdsForTests();
+    const s0 = {
+      ...initialFigureState(),
+      gutterPx: 0,
+      outerGutter: false,
+    };
+    const s1 = figureReducer(
+      s0,
+      resizePanelFreeformAction("panel-1", "br", 50, 50, {
+        widthPx: 800,
+        heightPx: 600,
+      }),
+    );
+    const s2 = figureReducer(s1, resetToUniformGridAction());
+    expect(s2.layout.kind).toBe("uniform");
+    if (s2.layout.kind !== "uniform") throw new Error("unreachable");
+    expect(s2.layout.colWeights).toEqual([0.5, 0.5]);
+    expect(s2.layout.rowWeights).toEqual([0.5, 0.5]);
+  });
+
+  it("is a ===-no-op when already uniform with equal weights", () => {
+    const s0 = initialFigureState();
+    const s1 = figureReducer(s0, resetToUniformGridAction());
+    expect(s1).toBe(s0);
+  });
+});
+
+describe("layout housekeeping across grid mutations", () => {
+  it("RESIZE_GRID rebuilds uniform weights to the new dims", () => {
+    __resetPanelIdsForTests();
+    const s0 = initialFigureState();
+    const s1 = figureReducer(s0, resizeGrid(3, 4));
+    expect(s1.layout.kind).toBe("uniform");
+    if (s1.layout.kind !== "uniform") throw new Error("unreachable");
+    expect(s1.layout.colWeights.length).toBe(4);
+    expect(s1.layout.rowWeights.length).toBe(3);
+    expect(s1.layout.colWeights.reduce((a, b) => a + b, 0)).toBeCloseTo(1, 10);
+  });
+
+  it("RESIZE_GRID drops free-form layout and reverts to uniform", () => {
+    __resetPanelIdsForTests();
+    const s0 = {
+      ...initialFigureState(),
+      gutterPx: 0,
+      outerGutter: false,
+    };
+    const sFree = figureReducer(
+      s0,
+      resizePanelFreeformAction("panel-1", "br", 50, 50, {
+        widthPx: 800,
+        heightPx: 600,
+      }),
+    );
+    expect(sFree.layout.kind).toBe("free");
+    const sResized = figureReducer(sFree, resizeGrid(3, 3));
+    expect(sResized.layout.kind).toBe("uniform");
+  });
+
+  it("DELETE_PANEL drops the panel's rect from a free layout", () => {
+    __resetPanelIdsForTests();
+    const s0 = {
+      ...initialFigureState(),
+      gutterPx: 0,
+      outerGutter: false,
+    };
+    const sFree = figureReducer(
+      s0,
+      resizePanelFreeformAction("panel-1", "br", 10, 10, {
+        widthPx: 800,
+        heightPx: 600,
+      }),
+    );
+    if (sFree.layout.kind !== "free") throw new Error("unreachable");
+    expect(sFree.layout.rects["panel-2"]).toBeDefined();
+    const sDeleted = figureReducer(sFree, deletePanel("panel-2"));
+    if (sDeleted.layout.kind !== "free") throw new Error("unreachable");
+    expect(sDeleted.layout.rects["panel-2"]).toBeUndefined();
+  });
+
+  it("MERGE_CELLS resets layout to uniform (merged panels invalidate rects)", () => {
+    __resetPanelIdsForTests();
+    const s0 = {
+      ...initialFigureState(),
+      gutterPx: 0,
+      outerGutter: false,
+    };
+    const sFree = figureReducer(
+      s0,
+      resizePanelFreeformAction("panel-1", "br", 10, 10, {
+        widthPx: 800,
+        heightPx: 600,
+      }),
+    );
+    const sMerged = figureReducer(
+      sFree,
+      mergeCells([
+        { row: 0, col: 0 },
+        { row: 0, col: 1 },
+      ]),
+    );
+    expect(sMerged.layout.kind).toBe("uniform");
+  });
+
+  it("UNMERGE_PANEL reverts layout to uniform", () => {
+    __resetPanelIdsForTests();
+    const s0 = initialFigureState();
+    const sMerged = figureReducer(
+      s0,
+      mergeCells([
+        { row: 0, col: 0 },
+        { row: 0, col: 1 },
+      ]),
+    );
+    // After merge, the merged panel has a fresh id. Find it.
+    const merged = sMerged.panels.find((p) => p.colSpan === 2);
+    expect(merged).toBeDefined();
+    if (merged === undefined) return;
+    const sUnmerged = figureReducer(sMerged, unmergePanelAction(merged.id));
+    expect(sUnmerged.layout.kind).toBe("uniform");
   });
 });

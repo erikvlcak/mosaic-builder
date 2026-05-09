@@ -23,6 +23,14 @@ import {
 import type { Annotation, AnnotationKind } from "./annotations";
 import type { GlobalAnnoStyle } from "./global-style";
 import { relocateImageBoundAnnotations } from "./relocate-anno";
+import {
+  setTrackWeight,
+  uniformLayoutFor,
+  resizePanelFreeform,
+  rectsFromUniform,
+  type Corner,
+  type GridLayout,
+} from "./grid-layout";
 
 export type FigureAction =
   | { type: "ADD_TO_POOL"; item: ImagePoolItem }
@@ -76,7 +84,22 @@ export type FigureAction =
   | { type: "DELETE_PANEL"; panelId: string }
   | { type: "RESTORE_PANEL_AT"; row: number; col: number }
   | { type: "RESET_TO_STATE"; state: FigureState }
-  | { type: "RESET_FIGURE" };
+  | { type: "RESET_FIGURE" }
+  | {
+      type: "SET_TRACK_WEIGHT";
+      axis: "row" | "col";
+      index: number;
+      weight: number;
+    }
+  | {
+      type: "RESIZE_PANEL_FREEFORM";
+      panelId: string;
+      corner: Corner;
+      dx: number;
+      dy: number;
+      canvas: { widthPx: number; heightPx: number };
+    }
+  | { type: "RESET_TO_UNIFORM_GRID" };
 
 export const addToPool = (item: ImagePoolItem): FigureAction => ({
   type: "ADD_TO_POOL",
@@ -221,6 +244,28 @@ export const resetToState = (state: FigureState): FigureAction => ({
   state,
 });
 export const resetFigureAction = (): FigureAction => ({ type: "RESET_FIGURE" });
+export const setTrackWeightAction = (
+  axis: "row" | "col",
+  index: number,
+  weight: number,
+): FigureAction => ({ type: "SET_TRACK_WEIGHT", axis, index, weight });
+export const resizePanelFreeformAction = (
+  panelId: string,
+  corner: Corner,
+  dx: number,
+  dy: number,
+  canvas: { widthPx: number; heightPx: number },
+): FigureAction => ({
+  type: "RESIZE_PANEL_FREEFORM",
+  panelId,
+  corner,
+  dx,
+  dy,
+  canvas,
+});
+export const resetToUniformGridAction = (): FigureAction => ({
+  type: "RESET_TO_UNIFORM_GRID",
+});
 
 function isImageInPool(s: FigureState, imageId: string): boolean {
   return s.pool.some((p) => p.id === imageId);
@@ -457,12 +502,16 @@ export function figureReducer(s: FigureState, a: FigureAction): FigureState {
       // Released imageIds simply stay in the pool unplaced — no pool mutation.
       const keptPanelIds = new Set(r.panels.map((p) => p.id));
       const letterOverrides = filterOverrides(s.letterOverrides, keptPanelIds);
+      // Resizing the grid invalidates per-track weights (length changes) and
+      // any free-form rects (some panels may not exist in the new dims).
+      // Easiest correct behavior: revert to a uniform layout.
       return {
         ...s,
         rows,
         cols,
         panels: r.panels,
         letterOverrides,
+        layout: uniformLayoutFor(rows, cols),
       };
     }
 
@@ -510,14 +559,28 @@ export function figureReducer(s: FigureState, a: FigureAction): FigureState {
           letterOverrides = { ...letterOverrides, [merged.id]: tlOverride };
         }
       }
-      return { ...s, panels: nextPanels, letterOverrides };
+      // Merge mints a fresh panel id; any free-form rects keyed by old ids
+      // would dangle. Reverting to uniform is simpler than rect surgery.
+      return {
+        ...s,
+        panels: nextPanels,
+        letterOverrides,
+        layout: uniformLayoutFor(s.rows, s.cols),
+      };
     }
 
     case "UNMERGE_PANEL": {
       const next = unmergePanel(s.panels, a.panelId);
       if (next === s.panels) return s;
       const letterOverrides = deleteOverride(s.letterOverrides, a.panelId);
-      return { ...s, panels: next, letterOverrides };
+      // Same rationale as MERGE_CELLS: unmerged panels have fresh ids; revert
+      // to uniform.
+      return {
+        ...s,
+        panels: next,
+        letterOverrides,
+        layout: uniformLayoutFor(s.rows, s.cols),
+      };
     }
 
     case "SET_PANEL_TRANSFORM": {
@@ -882,7 +945,13 @@ export function figureReducer(s: FigureState, a: FigureAction): FigureState {
       const annotations = s.annotations.filter(
         (an) => an.panelId !== a.panelId,
       );
-      return { ...s, panels, letterOverrides, annotations };
+      // Drop the deleted panel's rect entry from a free layout; uniform
+      // layouts don't need touching.
+      const layout: GridLayout =
+        s.layout.kind === "free" && a.panelId in s.layout.rects
+          ? { kind: "free", rects: omitKey(s.layout.rects, a.panelId) }
+          : s.layout;
+      return { ...s, panels, letterOverrides, annotations, layout };
     }
 
     case "RESTORE_PANEL_AT": {
@@ -910,7 +979,13 @@ export function figureReducer(s: FigureState, a: FigureAction): FigureState {
       const panels = [...s.panels, fresh].sort(
         (p, q) => p.row - q.row || p.col - q.col,
       );
-      return { ...s, panels };
+      // A fresh panel has no entry in a free-form rects map; revert to
+      // uniform so the renderer has something to draw.
+      const layout: GridLayout =
+        s.layout.kind === "free"
+          ? uniformLayoutFor(s.rows, s.cols)
+          : s.layout;
+      return { ...s, panels, layout };
     }
 
     case "RESET_TO_STATE": {
@@ -920,6 +995,71 @@ export function figureReducer(s: FigureState, a: FigureAction): FigureState {
     case "RESET_FIGURE":
       return initialFigureState();
 
+    case "SET_TRACK_WEIGHT": {
+      if (s.layout.kind !== "uniform") return s;
+      const cur =
+        a.axis === "col" ? s.layout.colWeights : s.layout.rowWeights;
+      const next = setTrackWeight(cur, a.index, a.weight);
+      // setTrackWeight returns a copy even on no-op; compare values to keep
+      // the ===-same-state contract for memoization.
+      if (
+        next.length === cur.length &&
+        next.every((v, i) => v === cur[i])
+      ) {
+        return s;
+      }
+      const layout: GridLayout =
+        a.axis === "col"
+          ? { ...s.layout, colWeights: next }
+          : { ...s.layout, rowWeights: next };
+      return { ...s, layout };
+    }
+
+    case "RESIZE_PANEL_FREEFORM": {
+      const target = findPanelById(s.panels, a.panelId);
+      if (target === undefined) return s;
+      const baseRects =
+        s.layout.kind === "free"
+          ? s.layout.rects
+          : rectsFromUniform({
+              widthPx: a.canvas.widthPx,
+              heightPx: a.canvas.heightPx,
+              rows: s.rows,
+              cols: s.cols,
+              gutterPx: s.gutterPx,
+              outerGutter: s.outerGutter,
+              colWeights: s.layout.colWeights,
+              rowWeights: s.layout.rowWeights,
+              panels: s.panels,
+            });
+      const r = resizePanelFreeform(
+        baseRects,
+        a.panelId,
+        a.corner,
+        a.dx,
+        a.dy,
+      );
+      if (r.applied.dx === 0 && r.applied.dy === 0) {
+        // True no-op: preserve ===-same-state. The UI never dispatches
+        // for zero-deltas, so the conversion-to-free isn't needed here.
+        return s;
+      }
+      return { ...s, layout: { kind: "free", rects: r.rects } };
+    }
+
+    case "RESET_TO_UNIFORM_GRID": {
+      const fresh = uniformLayoutFor(s.rows, s.cols);
+      if (
+        s.layout.kind === "uniform" &&
+        fresh.kind === "uniform" &&
+        arraysEqual(s.layout.colWeights, fresh.colWeights) &&
+        arraysEqual(s.layout.rowWeights, fresh.rowWeights)
+      ) {
+        return s;
+      }
+      return { ...s, layout: fresh };
+    }
+
     default: {
       // Exhaustiveness guard: TS errors here if a new FigureAction variant is
       // added to the union but not handled in the switch above.
@@ -927,6 +1067,21 @@ export function figureReducer(s: FigureState, a: FigureAction): FigureState {
       return s;
     }
   }
+}
+
+function arraysEqual(a: readonly number[], b: readonly number[]): boolean {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
+  return true;
+}
+
+function omitKey<T>(
+  map: Record<string, T>,
+  key: string,
+): Record<string, T> {
+  const out: Record<string, T> = {};
+  for (const k in map) if (k !== key) out[k] = map[k]!;
+  return out;
 }
 
 function clampInt(n: number, lo: number, hi: number): number {
