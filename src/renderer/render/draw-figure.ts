@@ -40,8 +40,8 @@ export interface DrawCtx {
   rotate(rad: number): void;
   moveTo(x: number, y: number): void;
   lineTo(x: number, y: number): void;
-  stroke(): void;
-  fill(): void;
+  stroke(path?: Path2D): void;
+  fill(path?: Path2D): void;
 }
 
 const PLACEHOLDER_FILL = "#EEEEEE";

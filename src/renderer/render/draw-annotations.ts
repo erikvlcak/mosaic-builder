@@ -34,6 +34,7 @@ import type { ImagePoolItem } from "../model/pool";
 import type { PanelRect } from "./coords";
 import type { DrawCtx } from "./draw-figure";
 import { scaleBarFigurePx, scaleBarRect } from "./scalebar";
+import { SYMBOL_LIBRARY_BY_ID } from "../symbols/library";
 
 export interface AnnotationDrawDeps {
   /** Index of panel rect by panel id (matches figure.panels order). */
@@ -229,11 +230,30 @@ function drawBox(
   ctx.strokeRect(b.x, b.y, b.w, b.h);
 }
 
-function drawSymbol(_ctx: DrawCtx, _a: SymbolAnnotation): void {
-  // TODO(Task 7): draw symbols — translate→rotate→scale→fill/stroke a Path2D
-  // built from SYMBOL_LIBRARY_BY_ID[a.symbolId].pathD. Stubbed here so the
-  // model swap can land in one bundled commit while rendering follows in
-  // spec 06 Task 7. DrawCtx is intentionally not yet extended for Path2D.
+function drawSymbol(ctx: DrawCtx, a: SymbolAnnotation): void {
+  const def = SYMBOL_LIBRARY_BY_ID.get(a.symbolId);
+  if (def === undefined) return;
+  ctx.save();
+  ctx.translate(a.x, a.y);
+  ctx.rotate((a.rotationDeg * Math.PI) / 180);
+  // Library viewport is 100×100 with center at (50,50). Scale to sizePx,
+  // then translate by -50,-50 so the symbol's center sits where the user
+  // placed it. Order matters: scale BEFORE the -50,-50 translate so the
+  // offset is in the SAME local space as the path coordinates.
+  const scale = a.sizePx / 100;
+  ctx.scale(scale, scale);
+  ctx.translate(-50, -50);
+  const path = new Path2D(def.pathD);
+  if (def.fill) {
+    ctx.fillStyle = a.color;
+    ctx.fill(path);
+  } else {
+    ctx.strokeStyle = a.color;
+    // Keep on-screen stroke width constant in figure-px regardless of sizePx.
+    ctx.lineWidth = a.strokeWidthPx / scale;
+    ctx.stroke(path);
+  }
+  ctx.restore();
 }
 
 function drawScaleBar(

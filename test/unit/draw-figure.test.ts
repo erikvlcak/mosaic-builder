@@ -657,20 +657,8 @@ describe("drawAnnotations", () => {
   });
 
   // -------------------------------------------------------------------------
-  // M6 Task 6: arrow + scale bar.
+  // M6 Task 6: scale bar. Symbol render assertions live in draw-symbol.test.ts.
   // -------------------------------------------------------------------------
-
-  // TODO(Task 7): replace with symbol render assertions. The legacy arrow
-  // rendering tests asserted geometry of the deprecated drawArrow function;
-  // drawSymbol uses a different model (Path2D from SYMBOL_LIBRARY) so the
-  // assertions don't translate directly. Skipped for now.
-  it.skip("arrow with head='filled' records exactly one fill() after a 3-vertex path", () => {
-    /* see TODO above */
-  });
-
-  it.skip("arrow with head='none' records stroke() only and no fill()", () => {
-    /* see TODO above */
-  });
 
   describe("scale bar", () => {
     // 100×100 image with 6.45 src-px/µm calibration. Panel rect 100×100 at
