@@ -40,6 +40,9 @@ import {
   resetFigureAction,
   unplacePanel,
   restorePanelAt,
+  setTrackWeightAction,
+  resizePanelFreeformAction,
+  resetToUniformGridAction,
 } from "./model/figure-actions";
 import { useHistoryReducer } from "./state/use-history-reducer";
 import { applyLoadedProject } from "./state/load-project";
@@ -651,6 +654,10 @@ export function App(): JSX.Element {
               onPanelDoubleClick={onPanelDoubleClick}
               onHoleClick={onHoleClick}
               onPanelCropBadgeClick={setCroppingPanelId}
+              onTrackWeightChange={(axis, index, weight) => {
+                dispatch(setTrackWeightAction(axis, index, weight));
+                history.commit();
+              }}
             />
             {editingIdOf(panelInteraction) !== null &&
               selectedImagePanel !== undefined &&

@@ -1,7 +1,9 @@
-import { useState } from "react";
+import * as React from "react";
+import { useRef, useState } from "react";
 import type { FigureState } from "../../model/figure-state";
 import { cellKey } from "../../model/figure-state";
 import { computeGridLayout, computeCellRect } from "../../render/coords";
+import { rectsFromUniform } from "../../model/grid-layout";
 import { cellsWithoutPanel } from "../../model/panels";
 import {
   type PanelInteraction,
@@ -40,6 +42,17 @@ interface Props {
   onHoleClick: (row: number, col: number) => void;
   /** Click on the crop badge of a panel that has a non-default crop. */
   onPanelCropBadgeClick?: (panelId: string) => void;
+  /**
+   * Spec 11: dispatched when the user drags a track gutter handle. weight is
+   * the new value of `colWeights[index]` (or rowWeights). Only emitted in
+   * uniform layout mode; the parent should ignore it otherwise. The reducer
+   * clamps to MIN_TRACK_WEIGHT, so callers don't need to.
+   */
+  onTrackWeightChange?: (
+    axis: "row" | "col",
+    index: number,
+    weight: number,
+  ) => void;
 }
 
 export function GridCells({
@@ -56,6 +69,7 @@ export function GridCells({
   onPanelDoubleClick,
   onHoleClick,
   onPanelCropBadgeClick,
+  onTrackWeightChange,
 }: Props): JSX.Element {
   const [hoverPanelId, setHoverPanelId] = useState<string | null>(null);
   const [draggingPanelId, setDraggingPanelId] = useState<string | null>(null);
@@ -74,8 +88,27 @@ export function GridCells({
     state.gutterPx,
     state.outerGutter,
   );
-  const rects = state.panels.map((p) =>
-    computeCellRect(layout, p.row, p.col, p.rowSpan, p.colSpan),
+  // Spec 11: when layout.kind === "free", panel rects come from the layout's
+  // rect map. When uniform, route through rectsFromUniform so non-equal
+  // track weights are honored. The legacy cell-grid `layout` still drives
+  // selection/hole math (equal weights) — a deliberate v1 simplification;
+  // non-equal-weight uniform produces minor misalignment for hole chrome only.
+  const panelRectMap: Record<string, { x: number; y: number; w: number; h: number }> =
+    state.layout.kind === "free"
+      ? state.layout.rects
+      : rectsFromUniform({
+          widthPx: figurePxW,
+          heightPx: figurePxH,
+          rows: state.rows,
+          cols: state.cols,
+          gutterPx: state.gutterPx,
+          outerGutter: state.outerGutter,
+          colWeights: state.layout.colWeights,
+          rowWeights: state.layout.rowWeights,
+          panels: state.panels,
+        });
+  const rects = state.panels.map(
+    (p) => panelRectMap[p.id] ?? { x: 0, y: 0, w: 0, h: 0 },
   );
   const holes = cellsWithoutPanel(state.panels, state.rows, state.cols);
 
@@ -153,6 +186,97 @@ export function GridCells({
           </div>
         );
       })}
+
+      {/* Spec 11: track-resize handles. Only rendered for uniform layouts —
+          free-form mode disables track redistribution since track weights
+          no longer drive rect math. */}
+      {state.layout.kind === "uniform" &&
+        onTrackWeightChange !== undefined &&
+        state.cols > 1 &&
+        Array.from({ length: state.cols - 1 }).map((_, i) => {
+          // The pair spans col i + col i+1. Compute their figure-px geometry
+          // from the layout-aware rect map.
+          const colWeights =
+            state.layout.kind === "uniform" ? state.layout.colWeights : [];
+          const leftCellSample = panelRectMap[firstPanelIdInCol(state, i)];
+          const rightCellSample = panelRectMap[firstPanelIdInCol(state, i + 1)];
+          if (leftCellSample === undefined || rightCellSample === undefined) {
+            return null;
+          }
+          const pairLeftFigPx = leftCellSample.x;
+          const pairWidthFigPx =
+            rightCellSample.x + rightCellSample.w - leftCellSample.x;
+          const pairTotalWeight = colWeights[i]! + colWeights[i + 1]!;
+          // Hairline center: between left cell's right edge and right cell's
+          // left edge.
+          const hairlineCenter =
+            (leftCellSample.x + leftCellSample.w + rightCellSample.x) / 2;
+          // Span the full grid height.
+          const top = computeCellRect(layout, 0, 0).y;
+          const bot = computeCellRect(layout, state.rows - 1, 0);
+          const fullH = bot.y + bot.h - top;
+          return (
+            <TrackHandle
+              key={`track-handle-col-${i}`}
+              testId={`track-handle-col-${i}`}
+              axis="col"
+              hairlineCenter={hairlineCenter}
+              crossSize={fullH}
+              crossStart={top}
+              sx={sx}
+              sy={sy}
+              cssW={cssW}
+              cssH={cssH}
+              figurePxW={figurePxW}
+              figurePxH={figurePxH}
+              pairLeftFigPx={pairLeftFigPx}
+              pairWidthFigPx={pairWidthFigPx}
+              pairTotalWeight={pairTotalWeight}
+              onChange={(weight) => onTrackWeightChange("col", i, weight)}
+            />
+          );
+        })}
+      {state.layout.kind === "uniform" &&
+        onTrackWeightChange !== undefined &&
+        state.rows > 1 &&
+        Array.from({ length: state.rows - 1 }).map((_, i) => {
+          const rowWeights =
+            state.layout.kind === "uniform" ? state.layout.rowWeights : [];
+          const topCellSample = panelRectMap[firstPanelIdInRow(state, i)];
+          const botCellSample = panelRectMap[firstPanelIdInRow(state, i + 1)];
+          if (topCellSample === undefined || botCellSample === undefined) {
+            return null;
+          }
+          const pairLeftFigPx = topCellSample.y;
+          const pairWidthFigPx =
+            botCellSample.y + botCellSample.h - topCellSample.y;
+          const pairTotalWeight = rowWeights[i]! + rowWeights[i + 1]!;
+          const hairlineCenter =
+            (topCellSample.y + topCellSample.h + botCellSample.y) / 2;
+          const left = computeCellRect(layout, 0, 0).x;
+          const right = computeCellRect(layout, 0, state.cols - 1);
+          const fullW = right.x + right.w - left;
+          return (
+            <TrackHandle
+              key={`track-handle-row-${i}`}
+              testId={`track-handle-row-${i}`}
+              axis="row"
+              hairlineCenter={hairlineCenter}
+              crossSize={fullW}
+              crossStart={left}
+              sx={sx}
+              sy={sy}
+              cssW={cssW}
+              cssH={cssH}
+              figurePxW={figurePxW}
+              figurePxH={figurePxH}
+              pairLeftFigPx={pairLeftFigPx}
+              pairWidthFigPx={pairWidthFigPx}
+              pairTotalWeight={pairTotalWeight}
+              onChange={(weight) => onTrackWeightChange("row", i, weight)}
+            />
+          );
+        })}
 
       {state.panels.map((panel, i) => {
         const r = rects[i];
@@ -295,5 +419,130 @@ export function GridCells({
         );
       })}
     </div>
+  );
+}
+
+function firstPanelIdInCol(state: FigureState, col: number): string {
+  const p = state.panels.find((q) => q.col === col);
+  return p?.id ?? "";
+}
+
+function firstPanelIdInRow(state: FigureState, row: number): string {
+  const p = state.panels.find((q) => q.row === row);
+  return p?.id ?? "";
+}
+
+interface TrackHandleProps {
+  testId: string;
+  axis: "row" | "col";
+  hairlineCenter: number;
+  crossSize: number;
+  crossStart: number;
+  sx: number;
+  sy: number;
+  cssW: number;
+  cssH: number;
+  figurePxW: number;
+  figurePxH: number;
+  pairLeftFigPx: number;
+  pairWidthFigPx: number;
+  pairTotalWeight: number;
+  onChange: (weight: number) => void;
+}
+
+function TrackHandle({
+  testId,
+  axis,
+  hairlineCenter,
+  crossSize,
+  crossStart,
+  sx,
+  sy,
+  cssW,
+  cssH,
+  figurePxW,
+  figurePxH,
+  pairLeftFigPx,
+  pairWidthFigPx,
+  pairTotalWeight,
+  onChange,
+}: TrackHandleProps): JSX.Element {
+  const ref = useRef<HTMLDivElement | null>(null);
+  const dragRef = useRef<{ pointerId: number } | null>(null);
+  // Hit-strip width in figure-px. Wider than the gutter so the user can grab.
+  const STRIP = 12;
+
+  function handleMove(e: React.PointerEvent<HTMLDivElement>): void {
+    const wrapper = ref.current?.parentElement?.getBoundingClientRect();
+    if (wrapper === undefined) return;
+    if (axis === "col") {
+      const figX = ((e.clientX - wrapper.left) / cssW) * figurePxW;
+      const fraction = (figX - pairLeftFigPx) / pairWidthFigPx;
+      onChange(fraction * pairTotalWeight);
+    } else {
+      const figY = ((e.clientY - wrapper.top) / cssH) * figurePxH;
+      const fraction = (figY - pairLeftFigPx) / pairWidthFigPx;
+      onChange(fraction * pairTotalWeight);
+    }
+  }
+
+  function onPointerDown(e: React.PointerEvent<HTMLDivElement>): void {
+    if (e.button !== 0 || ref.current === null) return;
+    e.stopPropagation();
+    // jsdom (used in tests) doesn't implement pointer capture; guard so unit
+    // tests don't throw when synthesizing pointer events.
+    if (typeof ref.current.setPointerCapture === "function") {
+      ref.current.setPointerCapture(e.pointerId);
+    }
+    dragRef.current = { pointerId: e.pointerId };
+    handleMove(e);
+  }
+  function onPointerMove(e: React.PointerEvent<HTMLDivElement>): void {
+    if (dragRef.current?.pointerId !== e.pointerId) return;
+    handleMove(e);
+  }
+  function onPointerUp(e: React.PointerEvent<HTMLDivElement>): void {
+    if (dragRef.current?.pointerId !== e.pointerId) return;
+    if (
+      ref.current !== null &&
+      typeof ref.current.hasPointerCapture === "function" &&
+      ref.current.hasPointerCapture(e.pointerId)
+    ) {
+      ref.current.releasePointerCapture(e.pointerId);
+    }
+    dragRef.current = null;
+  }
+
+  return (
+    <div
+      ref={ref}
+      data-testid={testId}
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={onPointerUp}
+      onPointerCancel={onPointerUp}
+      className={
+        axis === "col"
+          ? "track-handle track-handle-col"
+          : "track-handle track-handle-row"
+      }
+      style={{
+        position: "absolute",
+        left:
+          axis === "col"
+            ? (hairlineCenter - STRIP / 2) * sx
+            : crossStart * sx,
+        top:
+          axis === "col"
+            ? crossStart * sy
+            : (hairlineCenter - STRIP / 2) * sy,
+        width: axis === "col" ? STRIP * sx : crossSize * sx,
+        height: axis === "col" ? crossSize * sy : STRIP * sy,
+        cursor: axis === "col" ? "col-resize" : "row-resize",
+        pointerEvents: "auto",
+        touchAction: "none",
+        zIndex: 4,
+      }}
+    />
   );
 }

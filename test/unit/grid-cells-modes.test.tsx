@@ -331,3 +331,97 @@ describe("GridCells — hidden panels and holes (spec 02)", () => {
     expect(onHoleClick).toHaveBeenCalledWith(1, 1);
   });
 });
+
+describe("GridCells — track-resize handles (spec 11)", () => {
+  it("renders cols-1 vertical handles and rows-1 horizontal handles in uniform mode", () => {
+    const state = initialFigureState();
+    render(
+      <GridCells
+        state={state}
+        figurePxW={800}
+        figurePxH={600}
+        cssW={800}
+        cssH={600}
+        onDrop={vi.fn()}
+        selection={new Set()}
+        onCellShiftClick={vi.fn()}
+        panelInteraction={null}
+        onPanelClick={vi.fn()}
+        onPanelDoubleClick={vi.fn()}
+        onHoleClick={vi.fn()}
+        onTrackWeightChange={vi.fn()}
+      />,
+    );
+    expect(screen.getByTestId("track-handle-col-0")).toBeTruthy();
+    expect(screen.getByTestId("track-handle-row-0")).toBeTruthy();
+    expect(screen.queryByTestId("track-handle-col-1")).toBeNull();
+  });
+
+  it("does not render track handles in free mode", () => {
+    const state: FigureState = {
+      ...initialFigureState(),
+      layout: {
+        kind: "free",
+        rects: {},
+      },
+    };
+    render(
+      <GridCells
+        state={state}
+        figurePxW={800}
+        figurePxH={600}
+        cssW={800}
+        cssH={600}
+        onDrop={vi.fn()}
+        selection={new Set()}
+        onCellShiftClick={vi.fn()}
+        panelInteraction={null}
+        onPanelClick={vi.fn()}
+        onPanelDoubleClick={vi.fn()}
+        onHoleClick={vi.fn()}
+        onTrackWeightChange={vi.fn()}
+      />,
+    );
+    expect(screen.queryByTestId("track-handle-col-0")).toBeNull();
+  });
+
+  it("dragging a column handle calls onTrackWeightChange with axis col, index 0, and a weight", () => {
+    const onTrackWeightChange = vi.fn();
+    const state = initialFigureState();
+    render(
+      <GridCells
+        state={state}
+        figurePxW={800}
+        figurePxH={600}
+        cssW={800}
+        cssH={600}
+        onDrop={vi.fn()}
+        selection={new Set()}
+        onCellShiftClick={vi.fn()}
+        panelInteraction={null}
+        onPanelClick={vi.fn()}
+        onPanelDoubleClick={vi.fn()}
+        onHoleClick={vi.fn()}
+        onTrackWeightChange={onTrackWeightChange}
+      />,
+    );
+    const handle = screen.getByTestId("track-handle-col-0");
+    fireEvent.pointerDown(handle, {
+      pointerId: 1,
+      clientX: 400,
+      clientY: 300,
+      button: 0,
+    });
+    fireEvent.pointerMove(handle, {
+      pointerId: 1,
+      clientX: 500,
+      clientY: 300,
+    });
+    fireEvent.pointerUp(handle, { pointerId: 1, clientX: 500, clientY: 300 });
+    expect(onTrackWeightChange).toHaveBeenCalled();
+    const call = onTrackWeightChange.mock.calls[0]!;
+    expect(call[0]).toBe("col");
+    expect(call[1]).toBe(0);
+    expect(typeof call[2]).toBe("number");
+  });
+});
