@@ -4,7 +4,6 @@ import type {
   Annotation,
   TextAnnotation,
   SymbolAnnotation,
-  BoxAnnotation,
 } from "../../model/annotations";
 import type { FigureAction } from "../../model/figure-actions";
 import {
@@ -28,20 +27,19 @@ interface Props {
 
 /**
  * Pretty per-kind label used in the header summary.
- *  e.g. ["text", "box"] → "Text, Boxes"
+ *  e.g. ["text", "symbol"] → "Text, Symbols"
  */
 const KIND_LABELS: Record<Annotation["kind"], { singular: string; plural: string }> = {
   text: { singular: "Text", plural: "Text" },
   symbol: { singular: "Symbol", plural: "Symbols" },
-  box: { singular: "Box", plural: "Boxes" },
   scalebar: { singular: "Scale bar", plural: "Scale bars" },
 };
 
 /**
  * Read each anno's "size-ish" knob for the multiplicative size-scale field.
- * Mapping (per spec): text → sizePt, symbol → sizePx, box → strokeWidthPx,
- * scalebar → none (semantic length, not a style scalar). Returns null when
- * a kind has no size-scale knob, so callers know to skip the dispatch.
+ * Mapping (per spec): text → sizePt, symbol → sizePx, scalebar → none
+ * (semantic length, not a style scalar). Returns null when a kind has no
+ * size-scale knob, so callers know to skip the dispatch.
  */
 function readSize(a: Annotation): number | null {
   switch (a.kind) {
@@ -49,8 +47,6 @@ function readSize(a: Annotation): number | null {
       return a.sizePt;
     case "symbol":
       return a.sizePx;
-    case "box":
-      return a.strokeWidthPx;
     case "scalebar":
       return null;
   }
@@ -63,8 +59,6 @@ function sizePatch(a: Annotation, next: number): Partial<Annotation> | null {
       return { sizePt: next } satisfies Partial<TextAnnotation>;
     case "symbol":
       return { sizePx: next } satisfies Partial<SymbolAnnotation>;
-    case "box":
-      return { strokeWidthPx: next } satisfies Partial<BoxAnnotation>;
     case "scalebar":
       return null;
   }
@@ -120,13 +114,11 @@ export function MultiAnnoForm({
   }
 
   function onColorChange(hex: string): void {
-    // The reducer drops keys not allowed for each anno's kind, so passing
-    // BOTH `color` and `stroke` is safe and lets a single dispatch handle
-    // a mixed text/symbol/box selection.
+    // text and symbol both use `color`; scalebar uses globalStyle, so the
+    // reducer drops the patch for scalebar annos.
     dispatch(
       bulkUpdateAnnos(ids, {
         color: hex,
-        stroke: hex,
       } as Partial<Annotation>),
     );
     commit.markDirty();
@@ -200,9 +192,6 @@ export function MultiAnnoForm({
       {homogeneousKind === "symbol" && first?.kind === "symbol" && (
         <SymbolOnlyControls anno={first} ids={ids} dispatch={dispatch} commit={commit} />
       )}
-      {homogeneousKind === "box" && first?.kind === "box" && (
-        <BoxOnlyControls anno={first} ids={ids} dispatch={dispatch} commit={commit} />
-      )}
 
       <button
         type="button"
@@ -220,14 +209,13 @@ export function MultiAnnoForm({
 /**
  * Pull the first defined color across the selection so the swatch isn't
  * stuck on black for a heterogeneous group. Falls back to "#000000" only
- * when no anno has a color/stroke at all (e.g. a scalebar-only selection,
- * which would already have hidden Color in a future iteration).
+ * when no anno has a color at all (e.g. a scalebar-only selection, which
+ * would already have hidden Color in a future iteration).
  */
 function firstColor(annos: Annotation[]): string {
   for (const a of annos) {
     if (a.kind === "text" && a.color !== undefined) return a.color;
     if (a.kind === "symbol" && a.color !== undefined) return a.color;
-    if (a.kind === "box" && a.stroke !== undefined) return a.stroke;
   }
   return "#000000";
 }
@@ -306,24 +294,3 @@ function SymbolOnlyControls({
   );
 }
 
-function BoxOnlyControls({
-  anno,
-  ids,
-  dispatch,
-  commit,
-}: KindOnlyProps<BoxAnnotation>): JSX.Element {
-  function patchAll(p: Partial<BoxAnnotation>): void {
-    dispatch(bulkUpdateAnnos(ids, p as Partial<Annotation>));
-    commit.markDirty();
-  }
-  return (
-    <NumberField
-      label="Stroke width (px)"
-      value={anno.strokeWidthPx}
-      min={0}
-      max={32}
-      onChange={(strokeWidthPx) => patchAll({ strokeWidthPx })}
-      onBlur={commit.flush}
-    />
-  );
-}

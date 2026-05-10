@@ -25,14 +25,12 @@ interface Props {
 const VISIBLE_KINDS: Annotation["kind"][] = [
   "text",
   "symbol",
-  "box",
   "scalebar",
 ];
 
 const KIND_LABELS: Record<Annotation["kind"], string> = {
   text: "Text",
   symbol: "Symbols",
-  box: "Boxes",
   scalebar: "Scale bars",
 };
 

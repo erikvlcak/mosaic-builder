@@ -5,7 +5,6 @@ import { AnnotationOverview } from "../../src/renderer/components/Properties/Ann
 import type {
   Annotation,
   TextAnnotation,
-  BoxAnnotation,
   SymbolAnnotation,
   ScaleBarAnnotation,
 } from "../../src/renderer/model/annotations";
@@ -25,19 +24,6 @@ function textAnno(id: string): TextAnnotation {
     color: "#000",
   };
 }
-function boxAnno(id: string): BoxAnnotation {
-  return {
-    id,
-    kind: "box",
-    z: 0,
-    x: 0,
-    y: 0,
-    w: 1,
-    h: 1,
-    stroke: "#000",
-    strokeWidthPx: 1,
-  };
-}
 function symAnno(id: string): SymbolAnnotation {
   return {
     id,
@@ -50,6 +36,8 @@ function symAnno(id: string): SymbolAnnotation {
     rotationDeg: 0,
     color: "#000",
     strokeWidthPx: 1,
+    fillMode: "filled",
+    strokeStyle: "solid",
   };
 }
 function scalebarAnno(id: string, panelId = "p1"): ScaleBarAnnotation {
@@ -68,8 +56,8 @@ describe("AnnotationOverview", () => {
     const annotations: Annotation[] = [
       textAnno("t1"),
       textAnno("t2"),
-      boxAnno("b1"),
-      // no symbols, no scalebars
+      symAnno("s1"),
+      // no scalebars
     ];
     render(
       <AnnotationOverview
@@ -81,10 +69,9 @@ describe("AnnotationOverview", () => {
     const textRow = screen.getByTestId("anno-overview-row-text");
     expect(textRow.textContent).toContain("Text");
     expect(textRow.textContent).toContain("(2)");
-    expect(screen.getByTestId("anno-overview-row-box").textContent).toContain(
+    expect(screen.getByTestId("anno-overview-row-symbol").textContent).toContain(
       "(1)",
     );
-    expect(screen.queryByTestId("anno-overview-row-symbol")).toBeNull();
     expect(screen.queryByTestId("anno-overview-row-scalebar")).toBeNull();
   });
 
@@ -100,7 +87,7 @@ describe("AnnotationOverview", () => {
   });
 
   it("Select-all replaces the current selection with every id of that kind", () => {
-    const annotations = [boxAnno("b1"), boxAnno("b2"), textAnno("t1")];
+    const annotations = [symAnno("s1"), symAnno("s2"), textAnno("t1")];
     const onSelectionChange = vi.fn();
     render(
       <AnnotationOverview
@@ -109,12 +96,12 @@ describe("AnnotationOverview", () => {
         onSelectionChange={onSelectionChange}
       />,
     );
-    fireEvent.click(screen.getByTestId("anno-overview-select-box"));
-    expect(onSelectionChange).toHaveBeenCalledWith(new Set(["b1", "b2"]));
+    fireEvent.click(screen.getByTestId("anno-overview-select-symbol"));
+    expect(onSelectionChange).toHaveBeenCalledWith(new Set(["s1", "s2"]));
   });
 
   it("Shift-click on Select-all unions with the existing selection", () => {
-    const annotations = [boxAnno("b1"), boxAnno("b2"), textAnno("t1")];
+    const annotations = [symAnno("s1"), symAnno("s2"), textAnno("t1")];
     const onSelectionChange = vi.fn();
     render(
       <AnnotationOverview
@@ -123,10 +110,10 @@ describe("AnnotationOverview", () => {
         onSelectionChange={onSelectionChange}
       />,
     );
-    fireEvent.click(screen.getByTestId("anno-overview-select-box"), {
+    fireEvent.click(screen.getByTestId("anno-overview-select-symbol"), {
       shiftKey: true,
     });
-    expect(onSelectionChange).toHaveBeenCalledWith(new Set(["t1", "b1", "b2"]));
+    expect(onSelectionChange).toHaveBeenCalledWith(new Set(["t1", "s1", "s2"]));
   });
 
   it("Letters do not appear as a row even when present in the figure", () => {

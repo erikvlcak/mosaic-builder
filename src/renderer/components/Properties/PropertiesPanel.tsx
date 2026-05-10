@@ -45,7 +45,6 @@ interface Props {
 const ANNO_TITLES: Record<Annotation["kind"], string> = {
   text: "Text annotation",
   symbol: "Symbol annotation",
-  box: "Box annotation",
   scalebar: "Scale bar",
 };
 
