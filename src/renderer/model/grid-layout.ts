@@ -130,6 +130,114 @@ export function rectsFromUniform(
 
 export type Corner = "tl" | "tr" | "bl" | "br";
 
+export interface UniformResizeResult {
+  colWeights: number[];
+  rowWeights: number[];
+  applied: { dx: number; dy: number };
+}
+
+/**
+ * Drag panel `panel`'s `corner` by (dx, dy) figure-px while staying in uniform
+ * grid mode. Each axis independently translates to a `setTrackWeight` call on
+ * the col/row track adjacent to the dragged corner — so the entire gutter
+ * line moves uniformly across all rows/cols, keeping `gutterPx` invariant
+ * everywhere and avoiding stair-step artifacts.
+ *
+ * Track index per corner:
+ *   br/tr → col index = panel.col + panel.colSpan - 1 (rightmost spanned col)
+ *   bl/tl → col index = panel.col - 1                 (col to the left)
+ *   br/bl → row index = panel.row + panel.rowSpan - 1
+ *   tr/tl → row index = panel.row - 1
+ *
+ * If the computed index is out of range (e.g., tl corner of a panel in col 0
+ * has no track to drag on x), that axis is a no-op. `setTrackWeight` already
+ * handles out-of-range indices defensively, so the function tolerates this.
+ *
+ * Conversion: a pixel delta `dx` corresponds to a weight delta of
+ * `dx / availW` because `availW * weight[i]` is the pixel width of track i
+ * (`rectsFromUniform` uses this same identity). Pass `availW`/`availH` as
+ * computed by the caller from canvas size, gutter, outerGutter, and track
+ * counts — the function doesn't recompute that.
+ *
+ * `applied` reports the pixel delta actually realized after `setTrackWeight`'s
+ * MIN_TRACK_WEIGHT clamp. When both axes are no-ops, the input arrays are
+ * returned reference-equal so the reducer can preserve `===`-state.
+ */
+export function resizePanelUniform(
+  colWeights: readonly number[],
+  rowWeights: readonly number[],
+  panel: { row: number; col: number; rowSpan: number; colSpan: number },
+  corner: Corner,
+  dx: number,
+  dy: number,
+  availW: number,
+  availH: number,
+): UniformResizeResult {
+  const movesRight = corner === "tr" || corner === "br";
+  const movesBottom = corner === "bl" || corner === "br";
+
+  const colIndex = movesRight
+    ? panel.col + panel.colSpan - 1
+    : panel.col - 1;
+  const rowIndex = movesBottom
+    ? panel.row + panel.rowSpan - 1
+    : panel.row - 1;
+
+  const colInRange =
+    colIndex >= 0 && colIndex < colWeights.length - 1 && availW > 0;
+  const rowInRange =
+    rowIndex >= 0 && rowIndex < rowWeights.length - 1 && availH > 0;
+
+  // The dragged track's neighbor differs based on which side of the panel
+  // we're on. For the "right" side (br/tr corner), a positive dx grows
+  // `colWeights[colIndex]` (the panel's last col) and shrinks the next.
+  // For the "left" side (bl/tl), a negative dx grows the panel — meaning
+  // `colWeights[colIndex]` (the col to the panel's LEFT) shrinks. Both
+  // cases collapse to: `target = colWeights[colIndex] + dx / availW`.
+  const nextCol = colInRange
+    ? setTrackWeight(
+        colWeights,
+        colIndex,
+        colWeights[colIndex]! + dx / availW,
+      )
+    : colWeights;
+  const nextRow = rowInRange
+    ? setTrackWeight(
+        rowWeights,
+        rowIndex,
+        rowWeights[rowIndex]! + dy / availH,
+      )
+    : rowWeights;
+
+  // Reconstruct the pixel delta actually applied — `setTrackWeight` clamps
+  // to MIN_TRACK_WEIGHT and rounds to absorb FP noise, so the realized dx
+  // can differ from the requested one. Reading from the result lets us
+  // report a faithful number to the caller (used for telemetry/UX, never
+  // for further math).
+  const appliedDx = colInRange
+    ? (nextCol[colIndex]! - colWeights[colIndex]!) * availW
+    : 0;
+  const appliedDy = rowInRange
+    ? (nextRow[rowIndex]! - rowWeights[rowIndex]!) * availH
+    : 0;
+
+  // Reference-equality short-circuit: when neither axis applied a real
+  // change, return the input arrays so reducers can compare with `===`.
+  const colChanged =
+    colInRange && nextCol.some((v, i) => v !== colWeights[i]);
+  const rowChanged =
+    rowInRange && nextRow.some((v, i) => v !== rowWeights[i]);
+
+  return {
+    colWeights: colChanged ? (nextCol as number[]) : (colWeights as number[]),
+    rowWeights: rowChanged ? (nextRow as number[]) : (rowWeights as number[]),
+    applied: {
+      dx: colChanged ? appliedDx : 0,
+      dy: rowChanged ? appliedDy : 0,
+    },
+  };
+}
+
 export interface FreeformResizeResult {
   rects: Record<string, FreeRect>;
   applied: { dx: number; dy: number };

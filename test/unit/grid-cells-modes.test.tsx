@@ -89,14 +89,19 @@ describe("GridCells — selected vs editing modes", () => {
     expect(onPanelDoubleClick).toHaveBeenCalledWith(p.id);
   });
 
-  it("image panel is HTML5-draggable when no panel is editing", () => {
+  it("image panel is NOT HTML5-draggable when no panel is selected (annotation backdrop owns pointerdown for marquee)", () => {
+    // Drag-to-swap is now armed only after single-click selects the panel:
+    // before selection the AnnotationInteractionLayer's backdrop covers
+    // the panel so the user can rubber-band a marquee over its annotations.
+    // The backdrop carves a hole over the SELECTED panel only — see
+    // annotation-layer-panel-drag-passthrough.test.tsx.
     const { state } = renderGrid({ interaction: null });
     const p = state.panels[0]!;
     const el = screen.getByTestId(`panel-${p.row}-${p.col}`);
-    expect(el.getAttribute("draggable")).toBe("true");
+    expect(el.getAttribute("draggable")).toBe("false");
   });
 
-  it("image panel is HTML5-draggable when it is in selected mode (the bug fix)", () => {
+  it("image panel is HTML5-draggable when it is in selected mode (drag-to-swap is armed)", () => {
     const s = stateWithImage();
     const p = s.panels[0]!;
     render(

@@ -756,3 +756,148 @@ describe("AnnotationInteractionLayer: letter selection (spec 08)", () => {
     );
   });
 });
+
+describe("AnnotationInteractionLayer: alignment guidelines (spec 14)", () => {
+  /**
+   * Two boxes set up so that nudging b1 by ~2px aligns its left edge
+   * with b2's left edge (both at x=100). The drag should snap exactly
+   * (3px → 5px correction), and a guideline should appear.
+   *
+   *   b1: x=10..40, y=10..40
+   *   b2: x=100..150, y=100..150
+   */
+  const FIG_TWO_BOXES_FOR_SNAP: Figure = {
+    canvas: { widthPx: 300, heightPx: 300, background: "#FFF" },
+    grid: { rows: 1, cols: 1, gutterPx: 0, gutterColor: "#FFF" },
+    panels: [],
+    annotations: [
+      {
+        id: "b1",
+        kind: "box",
+        z: 1,
+        x: 10,
+        y: 10,
+        w: 30,
+        h: 30,
+        stroke: "#FF0000",
+        strokeWidthPx: 1,
+      },
+      {
+        id: "b2",
+        kind: "box",
+        z: 1,
+        x: 100,
+        y: 100,
+        w: 100,
+        h: 100,
+        stroke: "#00FF00",
+        strokeWidthPx: 1,
+      },
+    ],
+    globalStyle: LETTERS_OFF,
+  };
+
+  function setupSnap(): {
+    dispatch: ReturnType<typeof vi.fn>;
+  } {
+    const dispatch = vi.fn();
+    render(
+      <AnnotationInteractionLayer
+        activeTool="select"
+        figure={FIG_TWO_BOXES_FOR_SNAP}
+        panelRectsById={new Map()}
+        imagesById={new Map()}
+        cssW={300}
+        cssH={300}
+        figurePxW={300}
+        figurePxH={300}
+        selectedAnnotationIds={new Set(["b1"])}
+        onSelectionChange={() => {}}
+        onEditingChange={() => {}}
+        dispatch={dispatch}
+      />,
+    );
+    return { dispatch };
+  }
+
+  it("dragging b1 near b2's left edge snaps the left edges and shows a guideline", () => {
+    const { dispatch } = setupSnap();
+    // b1 hit-rect is at (10,10,30,30). Pointer-down inside, then move
+    // pointer such that b1's new left = 97 (3px short of b2.x=100).
+    // The drag startFx=20 (anywhere inside the hit), endFx=20+87=107 →
+    // dx = 87 → b1.x = 10+87 = 97. Snap should add +3 → b1.x = 100.
+    fireEvent.pointerDown(screen.getByTestId("anno-hit-b1"), {
+      button: 0,
+      clientX: 20,
+      clientY: 20,
+    });
+    fireEvent.pointerMove(screen.getByTestId("anno-hit-b1"), {
+      clientX: 107,
+      clientY: 20,
+    });
+    const updates = dispatch.mock.calls
+      .map(([a]) => a as { type: string; annotationId?: string; patch?: { x?: number; y?: number } })
+      .filter((a) => a.type === "UPDATE_ANNOTATION" && a.annotationId === "b1");
+    const last = updates[updates.length - 1];
+    expect(last?.patch?.x).toBe(100);
+    // Guideline overlay rendered.
+    expect(screen.queryByTestId("anno-guidelines")).not.toBeNull();
+    const lines = screen.getAllByTestId("anno-guideline");
+    expect(lines.some((l) => l.getAttribute("data-axis") === "x")).toBe(true);
+  });
+
+  it("Shift held during drag disables the snap correction but still renders the guideline", () => {
+    const { dispatch } = setupSnap();
+    fireEvent.pointerDown(screen.getByTestId("anno-hit-b1"), {
+      button: 0,
+      clientX: 20,
+      clientY: 20,
+    });
+    fireEvent.pointerMove(screen.getByTestId("anno-hit-b1"), {
+      clientX: 107,
+      clientY: 20,
+      shiftKey: true,
+    });
+    const updates = dispatch.mock.calls
+      .map(([a]) => a as { type: string; annotationId?: string; patch?: { x?: number; y?: number } })
+      .filter((a) => a.type === "UPDATE_ANNOTATION" && a.annotationId === "b1");
+    const last = updates[updates.length - 1];
+    // No snap → b1.x ends at the raw delta value 97.
+    expect(last?.patch?.x).toBe(97);
+    expect(screen.queryByTestId("anno-guidelines")).not.toBeNull();
+  });
+
+  it("guidelines disappear on pointerup", () => {
+    setupSnap();
+    fireEvent.pointerDown(screen.getByTestId("anno-hit-b1"), {
+      button: 0,
+      clientX: 20,
+      clientY: 20,
+    });
+    fireEvent.pointerMove(screen.getByTestId("anno-hit-b1"), {
+      clientX: 107,
+      clientY: 20,
+    });
+    expect(screen.queryByTestId("anno-guidelines")).not.toBeNull();
+    fireEvent.pointerUp(screen.getByTestId("anno-hit-b1"), {
+      clientX: 107,
+      clientY: 20,
+    });
+    expect(screen.queryByTestId("anno-guidelines")).toBeNull();
+  });
+
+  it("dragging far from any other anno produces no guidelines", () => {
+    setupSnap();
+    fireEvent.pointerDown(screen.getByTestId("anno-hit-b1"), {
+      button: 0,
+      clientX: 20,
+      clientY: 20,
+    });
+    // Move b1 to (200, 200) — well clear of b2 (100..150).
+    fireEvent.pointerMove(screen.getByTestId("anno-hit-b1"), {
+      clientX: 220,
+      clientY: 220,
+    });
+    expect(screen.queryByTestId("anno-guidelines")).toBeNull();
+  });
+});

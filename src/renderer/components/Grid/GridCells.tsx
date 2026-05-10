@@ -339,10 +339,13 @@ export function GridCells({
 
         // Drag rules:
         //   editing → never draggable (PanelInteractionLayer owns gestures)
-        //   selected or no-mode → draggable iff occupied
-        // The selected-stays-draggable case is the bug fix: today, any focus
-        // disables drag, so single-click eats the drag-to-swap gesture.
-        const draggable = occupied && !isEditing;
+        //   selected → draggable iff occupied (drag-to-swap)
+        //   no-mode → never draggable; the annotation backdrop owns
+        //     pointerdown here so the user can rubber-band a marquee over
+        //     the panel's annotations. To move the image the user must
+        //     first single-click to select (green border + grab cursor),
+        //     which arms drag-to-swap on the next gesture.
+        const draggable = occupied && isSelected;
 
         // editing: no outline here — PanelInteractionLayer owns editing-mode chrome.
         const outline =
@@ -358,9 +361,11 @@ export function GridCells({
 
         // Cursor rules:
         //   editing → default (PanelInteractionLayer sits on top with its own)
-        //   occupied → grab (selectable / draggable)
+        //   selected + occupied → grab (drag-to-swap is armed)
+        //   occupied unselected → default (annotation backdrop owns pointer)
         //   empty → default
-        const cursor = isEditing ? "default" : occupied ? "grab" : "default";
+        const cursor =
+          isEditing ? "default" : isSelected && occupied ? "grab" : "default";
 
         return (
           <div

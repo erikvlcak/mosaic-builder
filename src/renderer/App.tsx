@@ -20,6 +20,7 @@ import {
   type PanelInteraction,
   editingIdOf,
   focusedIdOf,
+  selectedIdOf,
 } from "./model/panel-interaction";
 import { initialFigureState, type FigureState } from "./model/figure-state";
 import {
@@ -707,6 +708,17 @@ export function App(): JSX.Element {
               onSelectionChange={setSelectedAnnotationIds}
               onEditingChange={setAnnotationEditing}
               dispatch={dispatch}
+              onTrayDrop={onDrop}
+              onPanelDoubleClick={onPanelDoubleClick}
+              onPanelClick={onPanelSingleClick}
+              {...(() => {
+                const sid = selectedIdOf(panelInteraction);
+                return sid !== null ? { selectedPanelId: sid } : {};
+              })()}
+              {...(editingIdOf(panelInteraction) !== null &&
+              focusedPanelRect !== null
+                ? { editingPanelRect: focusedPanelRect }
+                : {})}
             />
             {spacebarHeld && activeTool !== "select" && (
               <div

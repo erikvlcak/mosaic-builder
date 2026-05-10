@@ -48,6 +48,8 @@ import {
   removeAnnotation,
 } from "../../model/figure-actions";
 import { figureToSource, type PanelRect } from "../../render/coords";
+import { snapDelta, type Guideline, type SnapRect } from "../../render/snap";
+import { DRAG_MIME, parseDrag } from "../../dnd/drag-payload";
 import type { ImagePoolItem } from "../../model/pool";
 import type { Tool } from "../Toolbar/AnnotationToolbar";
 import { DEFAULT_SYMBOL_ID } from "../../symbols/library";
@@ -98,6 +100,52 @@ interface Props {
   /** When the text-input is open we need to suppress the global Delete shortcut. */
   onEditingChange?: (editing: boolean) => void;
   dispatch: Dispatch<FigureAction>;
+  /**
+   * Forward HTML5 tray drops that land on this layer to the panel
+   * underneath. The layer sits at zIndex 3 above the GridCells panels and
+   * intercepts drag events; without this passthrough, dragging a thumbnail
+   * onto the canvas is silently ignored. Hit-testing uses `panelRectsById`.
+   * Same payload shape as GridCells's `DropEvent`.
+   */
+  onTrayDrop?: (e: {
+    from:
+      | { kind: "tray"; imageId: string }
+      | { kind: "panel"; panelId: string };
+    targetPanelId: string;
+  }) => void;
+  /**
+   * Forward native dblclick to a panel hit-tested via panelRectsById.
+   * Without this, GridCells's per-panel onDoubleClick never fires in
+   * select mode because the layer's backdrop (pointerEvents: auto) is
+   * the topmost hit-target and dblclick doesn't bubble between siblings.
+   */
+  onPanelDoubleClick?: (panelId: string) => void;
+  /**
+   * Forward a backdrop click (no movement past MARQUEE_MIN_PX) to a
+   * panel hit-tested via panelRectsById. Mirrors `onPanelDoubleClick`.
+   * Needed because the backdrop covers unselected occupied panels (so
+   * marquee selection of annotations works there); without this
+   * forward, single-click would never reach GridCells's per-panel
+   * onClick to select the panel.
+   */
+  onPanelClick?: (panelId: string) => void;
+  /**
+   * Id of the currently selected occupied panel, if any. The backdrop
+   * carves a hole over its rect so HTML5 dragstart on GridCells's
+   * `<div draggable>` can fire and the user can drag-to-swap. Empty,
+   * unselected, or no panel selected → no carve from this prop.
+   */
+  selectedPanelId?: string;
+  /**
+   * When set (figure-px rect of the panel currently in editing mode), the
+   * select-mode backdrop carves an additional hole over the rect. This
+   * lets pointer events inside the rect reach PanelInteractionLayer's
+   * pan-drag area and the corner-resize handles, which would otherwise
+   * be eclipsed by the always-on backdrop (zIndex 3 above PIL's zIndex 2).
+   * Marquee selection and click-to-clear still work on the strips
+   * outside the editing panel.
+   */
+  editingPanelRect?: PanelRect;
 }
 
 interface DragState {
@@ -150,6 +198,19 @@ interface DragState {
   startGripAngleRad?: number;
   /** Marquee gesture only: shift held when the gesture began (additive marquee). */
   shiftKey?: boolean;
+  /**
+   * For "move" only: the bbox (figure-px) of the moving anno (or union
+   * for a bulk drag) at drag-start. Used to compute the snap-source rect
+   * each pointermove without querying the live (already-translated)
+   * annotation state.
+   */
+  startBbox?: { x: number; y: number; w: number; h: number };
+  /**
+   * For "move" only: ids excluded from the snap-candidate list (the
+   * moving anno, plus all bulk-selected siblings). Letters are kept as
+   * candidates per spec — alignment targets but never moved.
+   */
+  excludeIds?: ReadonlySet<string>;
 }
 
 interface PendingScalebar {
@@ -211,6 +272,71 @@ const SCALEBAR_ERROR_TTL_MS = 2500;
 
 function newAnnoId(): string {
   return crypto.randomUUID();
+}
+
+/**
+ * Decompose `cssW × cssH` minus a set of axis-aligned holes into a list
+ * of horizontal strips that tile the complement. Used for the select-mode
+ * backdrop: holes are occupied-panel rects (so HTML5 dragstart on a
+ * `<div draggable>` panel reaches GridCells underneath) plus the editing
+ * panel rect (so PanelInteractionLayer's pan/resize handles aren't
+ * eclipsed). Strips outside any hole keep `pointerEvents: auto` so
+ * marquee selection and click-to-clear continue to work on gutters and
+ * empty panels.
+ *
+ * Algorithm: horizontal-band sweep. The y-axis is split at every hole's
+ * top/bottom edge; each band emits the x-complement of the holes that
+ * overlap it. A single hole produces 4 strips (top/bottom/left/right) —
+ * matches the legacy editing-rect "donut" exactly. No holes → one
+ * full-coverage strip.
+ */
+interface BackdropRect {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+function carveBackdropStrips(
+  cssW: number,
+  cssH: number,
+  holes: ReadonlyArray<BackdropRect>,
+): BackdropRect[] {
+  if (holes.length === 0) {
+    return [{ x: 0, y: 0, w: cssW, h: cssH }];
+  }
+  const ys = new Set<number>([0, cssH]);
+  for (const h of holes) {
+    ys.add(Math.max(0, Math.min(cssH, h.y)));
+    ys.add(Math.max(0, Math.min(cssH, h.y + h.h)));
+  }
+  const sortedYs = Array.from(ys).sort((a, b) => a - b);
+  const out: BackdropRect[] = [];
+  for (let i = 0; i < sortedYs.length - 1; i++) {
+    const yTop = sortedYs[i] as number;
+    const yBot = sortedYs[i + 1] as number;
+    if (yBot <= yTop) continue;
+    // Holes that fully span this band on the y-axis carve x-intervals.
+    const bandHoles = holes
+      .filter((h) => h.y <= yTop && h.y + h.h >= yBot)
+      .map((h) => ({
+        x0: Math.max(0, Math.min(cssW, h.x)),
+        x1: Math.max(0, Math.min(cssW, h.x + h.w)),
+      }))
+      .filter((iv) => iv.x1 > iv.x0)
+      .sort((a, b) => a.x0 - b.x0);
+    // Walk left → right, emitting strips between hole intervals.
+    let cursor = 0;
+    for (const iv of bandHoles) {
+      if (iv.x0 > cursor) {
+        out.push({ x: cursor, y: yTop, w: iv.x0 - cursor, h: yBot - yTop });
+      }
+      cursor = Math.max(cursor, iv.x1);
+    }
+    if (cursor < cssW) {
+      out.push({ x: cursor, y: yTop, w: cssW - cursor, h: yBot - yTop });
+    }
+  }
+  return out;
 }
 
 /**
@@ -309,10 +435,7 @@ function rectsIntersect(
   b: { x: number; y: number; w: number; h: number },
 ): boolean {
   return (
-    a.x <= b.x + b.w &&
-    a.x + a.w >= b.x &&
-    a.y <= b.y + b.h &&
-    a.y + a.h >= b.y
+    a.x <= b.x + b.w && a.x + a.w >= b.x && a.y <= b.y + b.h && a.y + a.h >= b.y
   );
 }
 
@@ -366,6 +489,11 @@ export function AnnotationInteractionLayer({
   onSelectionChange,
   onEditingChange,
   dispatch,
+  onTrayDrop,
+  onPanelDoubleClick,
+  onPanelClick,
+  selectedPanelId,
+  editingPanelRect,
 }: Props): JSX.Element {
   // Single-select id (null when 0 or > 1 selected). Reused throughout
   // chrome/handles/effects so existing single-select code paths are
@@ -381,6 +509,19 @@ export function AnnotationInteractionLayer({
    */
   const lastSymbolIdRef = useRef<string>(DEFAULT_SYMBOL_ID);
   const [drag, setDrag] = useState<DragState | null>(null);
+  /**
+   * Active alignment guidelines (spec 14). Set during a "move" drag and
+   * cleared on pointerup. Re-rendered as faint SVG lines inside the
+   * layer overlay below.
+   */
+  const [guidelines, setGuidelines] = useState<readonly Guideline[]>([]);
+  /**
+   * Last bucketed (integer figure-px) translation we recomputed snap
+   * for. Pointermove can fire ~120Hz with sub-pixel deltas, so we
+   * short-circuit when the rounded delta hasn't changed — same idea as
+   * dirty-checking on int coordinates.
+   */
+  const lastSnapBucketRef = useRef<{ dx: number; dy: number } | null>(null);
   const [pendingScalebar, setPendingScalebar] =
     useState<PendingScalebar | null>(null);
   const [pendingText, setPendingText] = useState<PendingText | null>(null);
@@ -446,6 +587,8 @@ export function AnnotationInteractionLayer({
     setDrag(null);
     setPendingScalebar(null);
     setPendingText(null);
+    setGuidelines([]);
+    lastSnapBucketRef.current = null;
   }, [activeTool]);
 
   // Sync the persisted symbol-id with whatever the user has selected in the
@@ -685,7 +828,11 @@ export function AnnotationInteractionLayer({
   }
 
   function onBackdropPointerMove(e: React.PointerEvent<HTMLDivElement>): void {
-    if (drag === null || drag.kind !== "marquee" || drag.pointerId !== e.pointerId)
+    if (
+      drag === null ||
+      drag.kind !== "marquee" ||
+      drag.pointerId !== e.pointerId
+    )
       return;
     const c = clientToFigure(e);
     if (c === null) return;
@@ -693,7 +840,11 @@ export function AnnotationInteractionLayer({
   }
 
   function onBackdropPointerUp(e: React.PointerEvent<HTMLDivElement>): void {
-    if (drag === null || drag.kind !== "marquee" || drag.pointerId !== e.pointerId)
+    if (
+      drag === null ||
+      drag.kind !== "marquee" ||
+      drag.pointerId !== e.pointerId
+    )
       return;
     if (e.currentTarget.hasPointerCapture(e.pointerId)) {
       e.currentTarget.releasePointerCapture(e.pointerId);
@@ -711,10 +862,20 @@ export function AnnotationInteractionLayer({
     const dyCss = (endFy - drag.startFy) * figToCssY;
     const moved = Math.hypot(dxCss, dyCss) >= MARQUEE_MIN_PX;
     if (!moved) {
-      // Treat as a click on empty space.
+      // Treat as a click on the backdrop.
       // Shift-click on empty preserves selection; plain click clears it.
       if (drag.shiftKey !== true) {
         onSelectionChange(clearSelection());
+      }
+      // Forward the click to the panel underneath if the cursor is over
+      // one. Mirrors the dblclick passthrough: GridCells's onClick never
+      // fires here because the backdrop is the topmost hit-target. The
+      // user's mental model is "click a panel to select it", and the
+      // backdrop covers unselected panels by design (so marquee works
+      // there) — we have to bridge that gap explicitly.
+      if (onPanelClick !== undefined) {
+        const targetPanelId = panelAt(panelRectsById, endFx, endFy);
+        if (targetPanelId !== null) onPanelClick(targetPanelId);
       }
       setDrag(null);
       return;
@@ -788,6 +949,37 @@ export function AnnotationInteractionLayer({
         if (ann !== undefined) bulkSnapshots.set(id, ann);
       }
     }
+    // Snap-source bbox: union of all moving rects (single or bulk).
+    // Letters never participate in drag, so excludeIds == the moving
+    // anno + its bulk siblings only.
+    let startBbox: { x: number; y: number; w: number; h: number } | undefined;
+    let excludeIds: ReadonlySet<string> | undefined;
+    if (bulkSnapshots !== undefined) {
+      let minX = Infinity;
+      let minY = Infinity;
+      let maxX = -Infinity;
+      let maxY = -Infinity;
+      const ids = new Set<string>();
+      for (const [id, snap] of bulkSnapshots) {
+        ids.add(id);
+        const b = annoBounds(snap, panelRectsById);
+        if (b === null) continue;
+        if (b.x < minX) minX = b.x;
+        if (b.y < minY) minY = b.y;
+        if (b.x + b.w > maxX) maxX = b.x + b.w;
+        if (b.y + b.h > maxY) maxY = b.y + b.h;
+      }
+      if (Number.isFinite(minX)) {
+        startBbox = { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
+      }
+      excludeIds = ids;
+    } else {
+      const b = annoBounds(a, panelRectsById);
+      if (b !== null) startBbox = b;
+      excludeIds = new Set([a.id]);
+    }
+    lastSnapBucketRef.current = null;
+    setGuidelines([]);
     setDrag({
       pointerId: e.pointerId,
       kind: "move",
@@ -798,7 +990,61 @@ export function AnnotationInteractionLayer({
       movingId: a.id,
       startAnno: a,
       ...(bulkSnapshots !== undefined ? { bulkSnapshots } : {}),
+      ...(startBbox !== undefined ? { startBbox } : {}),
+      ...(excludeIds !== undefined ? { excludeIds } : {}),
     });
+  }
+
+  /**
+   * Build a SnapRect list from the figure for spec-14 alignment
+   * guidelines. Includes user-annos AND derived letters (letters are
+   * valid alignment targets — see spec 14 "What snaps to what"), but
+   * excludes any id in `excludeIds` (the moving anno + its
+   * bulk-selection siblings).
+   */
+  function buildSnapCandidates(excludeIds: ReadonlySet<string>): SnapRect[] {
+    const out: SnapRect[] = [];
+    for (const a of figure.annotations) {
+      if (excludeIds.has(a.id)) continue;
+      if (isUserAnno(a)) {
+        const b = annoBounds(a, panelRectsById);
+        if (b !== null) out.push({ id: a.id, ...b });
+        continue;
+      }
+      // Letters: derived; mirror the corner-anchor math from `letterHits` below.
+      if (a.kind !== "letter") continue;
+      if (!figure.globalStyle.letters.enabled) continue;
+      const rect = panelRectsById.get(a.panelId);
+      if (rect === undefined) continue;
+      const styleOverride = figure.letterOverrides?.[a.panelId]?.style;
+      const sizePt = styleOverride?.sizePt ?? figure.globalStyle.letters.sizePt;
+      const padding = figure.globalStyle.letters.paddingPx;
+      const corner = figure.globalStyle.letters.corner;
+      const w = Math.max(MIN_HIT_PX, a.text.length * sizePt * 0.6);
+      const h = sizePt * 1.2;
+      let x: number;
+      let y: number;
+      switch (corner) {
+        case "tl":
+          x = rect.x + padding;
+          y = rect.y + padding;
+          break;
+        case "tr":
+          x = rect.x + rect.w - padding - w;
+          y = rect.y + padding;
+          break;
+        case "bl":
+          x = rect.x + padding;
+          y = rect.y + rect.h - padding - h;
+          break;
+        case "br":
+          x = rect.x + rect.w - padding - w;
+          y = rect.y + rect.h - padding - h;
+          break;
+      }
+      out.push({ id: a.id, x, y, w, h });
+    }
+    return out;
   }
 
   /**
@@ -898,8 +1144,41 @@ export function AnnotationInteractionLayer({
       return;
     const c = clientToFigure(e);
     if (c === null) return;
-    const dx = c.fx - drag.startFx;
-    const dy = c.fy - drag.startFy;
+    const rawDx = c.fx - drag.startFx;
+    const rawDy = c.fy - drag.startFy;
+    // Spec 14: alignment guidelines + soft snap. We always compute the
+    // snap correction (cheap pure math); Shift-held disables the
+    // correction but still surfaces alignment lines so the user sees
+    // what's near.
+    let dx = rawDx;
+    let dy = rawDy;
+    if (drag.startBbox !== undefined && drag.excludeIds !== undefined) {
+      const movingRect: SnapRect = {
+        id: drag.movingId ?? "__moving__",
+        x: drag.startBbox.x + rawDx,
+        y: drag.startBbox.y + rawDy,
+        w: drag.startBbox.w,
+        h: drag.startBbox.h,
+      };
+      const candidates = buildSnapCandidates(drag.excludeIds);
+      const result = snapDelta(movingRect, candidates, {
+        disabled: e.shiftKey,
+      });
+      dx = rawDx + result.dx;
+      dy = rawDy + result.dy;
+      // Spec 14 perf hint: only push guideline state through React when
+      // the bucketed (integer figure-px) translation changes. The snap
+      // math itself runs on every pointermove (cheap pure arithmetic);
+      // this gate just spares React a re-render of the SVG overlay on
+      // sub-pixel cursor jitter.
+      const bucketDx = Math.round(rawDx);
+      const bucketDy = Math.round(rawDy);
+      const last = lastSnapBucketRef.current;
+      if (last === null || last.dx !== bucketDx || last.dy !== bucketDy) {
+        lastSnapBucketRef.current = { dx: bucketDx, dy: bucketDy };
+        setGuidelines(result.guidelines);
+      }
+    }
     if (drag.bulkSnapshots !== undefined) {
       // Bulk drag: dispatch one UPDATE_ANNOTATION per selected anno using
       // its own snapshot. Per-anno re-anchoring still happens inside
@@ -925,6 +1204,8 @@ export function AnnotationInteractionLayer({
       e.currentTarget.releasePointerCapture(e.pointerId);
     }
     setDrag(null);
+    setGuidelines([]);
+    lastSnapBucketRef.current = null;
   }
 
   // -------------------------------------------------------------------
@@ -1135,7 +1416,9 @@ export function AnnotationInteractionLayer({
     dispatch(updateAnnotation(drag.movingId, patch));
   }
 
-  function onSymbolCornerPointerUp(e: React.PointerEvent<HTMLDivElement>): void {
+  function onSymbolCornerPointerUp(
+    e: React.PointerEvent<HTMLDivElement>,
+  ): void {
     if (
       drag === null ||
       drag.kind !== "symbol-corner" ||
@@ -1211,7 +1494,9 @@ export function AnnotationInteractionLayer({
     dispatch(updateAnnotation(drag.movingId, patch));
   }
 
-  function onSymbolRotatePointerUp(e: React.PointerEvent<HTMLDivElement>): void {
+  function onSymbolRotatePointerUp(
+    e: React.PointerEvent<HTMLDivElement>,
+  ): void {
     if (
       drag === null ||
       drag.kind !== "symbol-rotate" ||
@@ -1319,7 +1604,8 @@ export function AnnotationInteractionLayer({
   const selectedList: UserAnno[] = [];
   if (selectedAnnotationIds.size > 0) {
     for (const a of figure.annotations) {
-      if (selectedAnnotationIds.has(a.id) && isUserAnno(a)) selectedList.push(a);
+      if (selectedAnnotationIds.has(a.id) && isUserAnno(a))
+        selectedList.push(a);
     }
   }
   const selectedBoundsList = selectedList.flatMap((a) => {
@@ -1328,8 +1614,7 @@ export function AnnotationInteractionLayer({
   });
   // Group bbox shown only when > 1 annotation is selected. Aggregates the
   // per-anno bounds into a single rectangle in figure-px.
-  let groupBounds: { x: number; y: number; w: number; h: number } | null =
-    null;
+  let groupBounds: { x: number; y: number; w: number; h: number } | null = null;
   if (selectedBoundsList.length > 1) {
     let minX = Infinity;
     let minY = Infinity;
@@ -1433,6 +1718,73 @@ export function AnnotationInteractionLayer({
     }
   }
 
+  // -------------------------------------------------------------------
+  // TRAY-DROP PASSTHROUGH
+  // -------------------------------------------------------------------
+  // The layer sits on top of GridCells (zIndex: 3) and is the topmost
+  // hit-target across the canvas. Without explicit drag handlers the
+  // browser rejects drops here (no preventDefault on dragover) and the
+  // panel underneath never sees them. Forward by hit-testing
+  // panelRectsById against the cursor in figure-px.
+  function clientToFigurePoint(
+    e: React.DragEvent<HTMLDivElement>,
+  ): { fx: number; fy: number } | null {
+    const el = ref.current;
+    if (el === null) return null;
+    const r = el.getBoundingClientRect();
+    return {
+      fx: (e.clientX - r.left) * cssToFigX,
+      fy: (e.clientY - r.top) * cssToFigY,
+    };
+  }
+  function panelAtFigurePoint(fx: number, fy: number): string | null {
+    for (const [id, rect] of panelRectsById) {
+      if (
+        fx >= rect.x &&
+        fx <= rect.x + rect.w &&
+        fy >= rect.y &&
+        fy <= rect.y + rect.h
+      ) {
+        return id;
+      }
+    }
+    return null;
+  }
+  function onLayerDragOver(e: React.DragEvent<HTMLDivElement>): void {
+    if (onTrayDrop === undefined) return;
+    if (!e.dataTransfer.types.includes(DRAG_MIME)) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+  }
+  function onLayerDrop(e: React.DragEvent<HTMLDivElement>): void {
+    if (onTrayDrop === undefined) return;
+    if (!e.dataTransfer.types.includes(DRAG_MIME)) return;
+    e.preventDefault();
+    const from = parseDrag(e.dataTransfer.getData(DRAG_MIME));
+    if (from === null) return;
+    const pt = clientToFigurePoint(e);
+    if (pt === null) return;
+    const targetPanelId = panelAtFigurePoint(pt.fx, pt.fy);
+    if (targetPanelId === null) return;
+    onTrayDrop({ from, targetPanelId });
+  }
+
+  // Same passthrough idea, for native dblclick: GridCells's per-panel
+  // onDoubleClick is bypassed because this layer (or its select-mode
+  // backdrop) is the topmost hit-target. Hit-test against panelRectsById
+  // and forward to the parent.
+  function onLayerDoubleClick(e: React.MouseEvent<HTMLDivElement>): void {
+    if (onPanelDoubleClick === undefined) return;
+    const el = ref.current;
+    if (el === null) return;
+    const r = el.getBoundingClientRect();
+    const fx = (e.clientX - r.left) * cssToFigX;
+    const fy = (e.clientY - r.top) * cssToFigY;
+    const targetPanelId = panelAtFigurePoint(fx, fy);
+    if (targetPanelId === null) return;
+    onPanelDoubleClick(targetPanelId);
+  }
+
   return (
     <div
       ref={ref}
@@ -1442,6 +1794,9 @@ export function AnnotationInteractionLayer({
       onPointerMove={onLayerPointerMove}
       onPointerUp={onLayerPointerUp}
       onPointerCancel={onLayerPointerUp}
+      onDragOver={onLayerDragOver}
+      onDrop={onLayerDrop}
+      onDoubleClick={onLayerDoubleClick}
       style={{
         position: "absolute",
         inset: 0,
@@ -1458,28 +1813,101 @@ export function AnnotationInteractionLayer({
       }}
     >
       {/* Backdrop in select mode: pointerdown starts a marquee. On
-          pointerup, a "click" (no movement past MARQUEE_MIN_PX) clears the
-          selection (or preserves it on shift); a real drag commits the
-          marquee selection. The backdrop is mounted whenever the layer is
-          in select mode — it has to be live BEFORE anything is selected so
-          the user can drag-select on an empty canvas. */}
-      {activeTool === "select" && (
-        <div
-          data-testid="annotation-backdrop"
-          onPointerDown={onBackdropPointerDown}
-          onPointerMove={onBackdropPointerMove}
-          onPointerUp={onBackdropPointerUp}
-          onPointerCancel={onBackdropPointerUp}
-          style={{
-            position: "absolute",
-            inset: 0,
-            // Transparent capture surface; sits BELOW the hit-rects in DOM order.
-            pointerEvents: "auto",
-            background: "transparent",
-            cursor: "default",
-          }}
-        />
-      )}
+          pointerup, a "click" (no movement past MARQUEE_MIN_PX) clears
+          the annotation selection (or preserves it on shift) and
+          forwards the click to onPanelClick when over a panel; a real
+          drag commits the marquee selection. The backdrop is mounted
+          whenever the layer is in select mode — it has to be live
+          BEFORE anything is selected so the user can drag-select on an
+          empty canvas.
+
+          The backdrop carves holes over (a) the SELECTED occupied
+          panel, so GridCells's `<div draggable>` receives the mousedown
+          that starts a native HTML5 panel-to-panel drag, and (b) the
+          editing panel, so PanelInteractionLayer (zIndex 2) receives
+          pan-drag and corner-resize handle events. Unselected occupied
+          panels, empty panels, and gutters keep backdrop coverage so
+          the user can rubber-band a marquee over their annotations
+          (and a single click forwards through onPanelClick).
+
+          When no holes exist (no panel selected, no panel editing) the
+          backdrop is one full-coverage div with the legacy testid. */}
+      {(() => {
+        if (activeTool !== "select") return null;
+        const stripStyle = {
+          position: "absolute" as const,
+          pointerEvents: "auto" as const,
+          background: "transparent",
+          cursor: "default",
+        };
+        const handlers = {
+          onPointerDown: onBackdropPointerDown,
+          onPointerMove: onBackdropPointerMove,
+          onPointerUp: onBackdropPointerUp,
+          onPointerCancel: onBackdropPointerUp,
+        };
+        const holes: BackdropRect[] = [];
+        // Carve a hole over the selected occupied panel so HTML5
+        // dragstart on GridCells's `<div draggable>` reaches the panel
+        // for drag-to-swap. Unselected occupied panels stay covered so
+        // the user can rubber-band a marquee over their annotations.
+        if (selectedPanelId !== undefined) {
+          const selPanel = figure.panels.find(
+            (p) => p.panelId === selectedPanelId && p.kind === "image",
+          );
+          const selRect = panelRectsById.get(selectedPanelId);
+          if (selPanel !== undefined && selRect !== undefined) {
+            holes.push({
+              x: selRect.x * figToCssX,
+              y: selRect.y * figToCssY,
+              w: selRect.w * figToCssX,
+              h: selRect.h * figToCssY,
+            });
+          }
+        }
+        if (editingPanelRect !== undefined) {
+          holes.push({
+            x: editingPanelRect.x * figToCssX,
+            y: editingPanelRect.y * figToCssY,
+            w: editingPanelRect.w * figToCssX,
+            h: editingPanelRect.h * figToCssY,
+          });
+        }
+        if (holes.length === 0) {
+          return (
+            <div
+              data-testid="annotation-backdrop"
+              {...handlers}
+              style={{
+                position: "absolute",
+                inset: 0,
+                pointerEvents: "auto",
+                background: "transparent",
+                cursor: "default",
+              }}
+            />
+          );
+        }
+        const strips = carveBackdropStrips(cssW, cssH, holes);
+        return (
+          <>
+            {strips.map((s, i) => (
+              <div
+                key={i}
+                data-testid={`annotation-backdrop-strip-${i}`}
+                {...handlers}
+                style={{
+                  ...stripStyle,
+                  left: s.x,
+                  top: s.y,
+                  width: s.w,
+                  height: s.h,
+                }}
+              />
+            ))}
+          </>
+        );
+      })()}
 
       {/* Marquee preview rectangle while a drag is in flight. The threshold
           check matches onBackdropPointerUp's drag-vs-click detection — under
@@ -1597,6 +2025,57 @@ export function AnnotationInteractionLayer({
           }}
         />
       ))}
+
+      {/* Alignment guidelines (spec 14). Rendered as a single SVG that
+          sits above all annotation chrome but never captures pointer
+          events. Lines disappear at pointerup (state cleared in
+          onHitPointerUp). Coordinates are figure-px translated to CSS
+          via figToCssX/Y. */}
+      {guidelines.length > 0 && (
+        <svg
+          data-testid="anno-guidelines"
+          width={cssW}
+          height={cssH}
+          style={{
+            position: "absolute",
+            inset: 0,
+            pointerEvents: "none",
+            zIndex: 7,
+            overflow: "visible",
+          }}
+        >
+          {guidelines.map((g, i) => {
+            if (g.axis === "x") {
+              const x = g.pos * figToCssX;
+              return (
+                <line
+                  key={`gl-x-${g.otherId}-${String(g.pos)}-${String(i)}`}
+                  className="anno-guideline"
+                  data-testid="anno-guideline"
+                  data-axis="x"
+                  x1={x}
+                  x2={x}
+                  y1={g.start * figToCssY}
+                  y2={g.end * figToCssY}
+                />
+              );
+            }
+            const y = g.pos * figToCssY;
+            return (
+              <line
+                key={`gl-y-${g.otherId}-${String(g.pos)}-${String(i)}`}
+                className="anno-guideline"
+                data-testid="anno-guideline"
+                data-axis="y"
+                x1={g.start * figToCssX}
+                x2={g.end * figToCssX}
+                y1={y}
+                y2={y}
+              />
+            );
+          })}
+        </svg>
+      )}
 
       {/* Group bbox — shown only when more than one annotation is selected.
           A faint accent stroke around the union of all selected anno bounds.

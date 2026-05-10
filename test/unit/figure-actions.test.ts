@@ -1558,7 +1558,7 @@ describe("RESIZE_PANEL_FREEFORM", () => {
     };
   }
 
-  it("converts uniform → free with snapshot rects, then applies the cascade", () => {
+  it("uniform corner-drag adjusts col/row weights — layout stays uniform", () => {
     const s0 = freshFreeformState();
     const s1 = figureReducer(
       s0,
@@ -1567,36 +1567,18 @@ describe("RESIZE_PANEL_FREEFORM", () => {
         heightPx: 600,
       }),
     );
-    expect(s1.layout.kind).toBe("free");
-    if (s1.layout.kind !== "free") throw new Error("unreachable");
-    // panel-1 baseline: x=0, y=0, w=400, h=300. After dx=+50, dy=+50: w=450, h=350.
-    expect(s1.layout.rects["panel-1"]).toEqual({ x: 0, y: 0, w: 450, h: 350 });
-    // panel-2 (top-right) baseline: x=400, y=0, w=400, h=300. left=xEdge=400 →
-    // shifts right by 50, w shrinks. Bottom doesn't share yEdge.
-    expect(s1.layout.rects["panel-2"]).toEqual({
-      x: 450,
-      y: 0,
-      w: 350,
-      h: 300,
-    });
-    // panel-3 (bottom-left): x=0, y=300, w=400, h=300. top=yEdge=300 → shifts
-    // down by 50, h shrinks.
-    expect(s1.layout.rects["panel-3"]).toEqual({
-      x: 0,
-      y: 350,
-      w: 400,
-      h: 250,
-    });
-    // panel-4 (bottom-right): both edges affected.
-    expect(s1.layout.rects["panel-4"]).toEqual({
-      x: 450,
-      y: 350,
-      w: 350,
-      h: 250,
-    });
+    expect(s1.layout.kind).toBe("uniform");
+    if (s1.layout.kind !== "uniform") throw new Error("unreachable");
+    // gutter=0, outerGutter=false → availW=800, availH=600.
+    // dx=50 → ∆weight=50/800=0.0625 transferred from col 1 to col 0.
+    expect(s1.layout.colWeights[0]).toBeCloseTo(0.5 + 50 / 800, 10);
+    expect(s1.layout.colWeights[1]).toBeCloseTo(0.5 - 50 / 800, 10);
+    // dy=50 → ∆weight=50/600 transferred from row 1 to row 0.
+    expect(s1.layout.rowWeights[0]).toBeCloseTo(0.5 + 50 / 600, 10);
+    expect(s1.layout.rowWeights[1]).toBeCloseTo(0.5 - 50 / 600, 10);
   });
 
-  it("subsequent free-form drag updates rects without changing layout.kind", () => {
+  it("subsequent corner-drag accumulates into the same uniform weights", () => {
     const s0 = freshFreeformState();
     const s1 = figureReducer(
       s0,
@@ -1605,7 +1587,8 @@ describe("RESIZE_PANEL_FREEFORM", () => {
         heightPx: 600,
       }),
     );
-    if (s1.layout.kind !== "free") throw new Error("unreachable");
+    if (s1.layout.kind !== "uniform") throw new Error("unreachable");
+    const w1 = s1.layout.colWeights[0]!;
     const s2 = figureReducer(
       s1,
       resizePanelFreeformAction("panel-1", "br", 5, 0, {
@@ -1613,10 +1596,9 @@ describe("RESIZE_PANEL_FREEFORM", () => {
         heightPx: 600,
       }),
     );
-    if (s2.layout.kind !== "free") throw new Error("unreachable");
-    expect(s2.layout.rects["panel-1"]!.w).toBe(
-      s1.layout.rects["panel-1"]!.w + 5,
-    );
+    if (s2.layout.kind !== "uniform") throw new Error("unreachable");
+    // Each drag adds dx/availW to col 0's weight.
+    expect(s2.layout.colWeights[0]).toBeCloseTo(w1 + 5 / 800, 10);
   });
 
   it("is a no-op when target panel is missing", () => {
@@ -1675,37 +1657,43 @@ describe("layout housekeeping across grid mutations", () => {
 
   it("RESIZE_GRID drops free-form layout and reverts to uniform", () => {
     __resetPanelIdsForTests();
-    const s0 = {
+    // Build a free-form state directly. Corner-drag no longer produces free
+    // mode — only legacy saved projects can — so we construct one here.
+    const sFree: FigureState = {
       ...initialFigureState(),
       gutterPx: 0,
       outerGutter: false,
+      layout: {
+        kind: "free",
+        rects: {
+          "panel-1": { x: 0, y: 0, w: 450, h: 350 },
+          "panel-2": { x: 450, y: 0, w: 350, h: 300 },
+          "panel-3": { x: 0, y: 350, w: 400, h: 250 },
+          "panel-4": { x: 450, y: 350, w: 350, h: 250 },
+        },
+      },
     };
-    const sFree = figureReducer(
-      s0,
-      resizePanelFreeformAction("panel-1", "br", 50, 50, {
-        widthPx: 800,
-        heightPx: 600,
-      }),
-    );
-    expect(sFree.layout.kind).toBe("free");
     const sResized = figureReducer(sFree, resizeGrid(3, 3));
     expect(sResized.layout.kind).toBe("uniform");
   });
 
   it("DELETE_PANEL drops the panel's rect from a free layout", () => {
     __resetPanelIdsForTests();
-    const s0 = {
+    const sFree: FigureState = {
       ...initialFigureState(),
       gutterPx: 0,
       outerGutter: false,
+      layout: {
+        kind: "free",
+        rects: {
+          "panel-1": { x: 0, y: 0, w: 410, h: 310 },
+          "panel-2": { x: 410, y: 0, w: 390, h: 300 },
+          "panel-3": { x: 0, y: 310, w: 400, h: 290 },
+          "panel-4": { x: 410, y: 310, w: 390, h: 290 },
+        },
+      },
     };
-    const sFree = figureReducer(
-      s0,
-      resizePanelFreeformAction("panel-1", "br", 10, 10, {
-        widthPx: 800,
-        heightPx: 600,
-      }),
-    );
+    expect(sFree.layout.kind).toBe("free");
     if (sFree.layout.kind !== "free") throw new Error("unreachable");
     expect(sFree.layout.rects["panel-2"]).toBeDefined();
     const sDeleted = figureReducer(sFree, deletePanel("panel-2"));

@@ -27,7 +27,7 @@ import {
   setTrackWeight,
   uniformLayoutFor,
   resizePanelFreeform,
-  rectsFromUniform,
+  resizePanelUniform,
   type Corner,
   type GridLayout,
 } from "./grid-layout";
@@ -1018,30 +1018,57 @@ export function figureReducer(s: FigureState, a: FigureAction): FigureState {
     case "RESIZE_PANEL_FREEFORM": {
       const target = findPanelById(s.panels, a.panelId);
       if (target === undefined) return s;
-      const baseRects =
-        s.layout.kind === "free"
-          ? s.layout.rects
-          : rectsFromUniform({
-              widthPx: a.canvas.widthPx,
-              heightPx: a.canvas.heightPx,
-              rows: s.rows,
-              cols: s.cols,
-              gutterPx: s.gutterPx,
-              outerGutter: s.outerGutter,
-              colWeights: s.layout.colWeights,
-              rowWeights: s.layout.rowWeights,
-              panels: s.panels,
-            });
+
+      // Uniform mode: corner-drag adjusts the col/row track weights so the
+      // entire gutter line moves uniformly across the figure. Stair-step
+      // layouts and gutter invasion are impossible by construction — every
+      // gutter stays at the configured `gutterPx`. This is the common path
+      // for new projects and the only path users hit going forward.
+      if (s.layout.kind === "uniform") {
+        const availW =
+          a.canvas.widthPx -
+          s.gutterPx * ((s.outerGutter ? 2 : 0) + (s.cols - 1));
+        const availH =
+          a.canvas.heightPx -
+          s.gutterPx * ((s.outerGutter ? 2 : 0) + (s.rows - 1));
+        const r = resizePanelUniform(
+          s.layout.colWeights,
+          s.layout.rowWeights,
+          target,
+          a.corner,
+          a.dx,
+          a.dy,
+          availW,
+          availH,
+        );
+        if (
+          r.colWeights === s.layout.colWeights &&
+          r.rowWeights === s.layout.rowWeights
+        ) {
+          return s;
+        }
+        return {
+          ...s,
+          layout: {
+            kind: "uniform",
+            colWeights: r.colWeights,
+            rowWeights: r.rowWeights,
+          },
+        };
+      }
+
+      // Legacy free-form layouts (saved from the brief window where corner-
+      // drag converted to free): keep the rect-cascade behavior so the user
+      // can still adjust those projects. New corner-drags from uniform stay
+      // uniform per the branch above.
       const r = resizePanelFreeform(
-        baseRects,
+        s.layout.rects,
         a.panelId,
         a.corner,
         a.dx,
         a.dy,
       );
       if (r.applied.dx === 0 && r.applied.dy === 0) {
-        // True no-op: preserve ===-same-state. The UI never dispatches
-        // for zero-deltas, so the conversion-to-free isn't needed here.
         return s;
       }
       return { ...s, layout: { kind: "free", rects: r.rects } };
