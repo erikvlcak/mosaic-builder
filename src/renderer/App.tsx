@@ -24,6 +24,10 @@ import {
 } from "./model/panel-interaction";
 import { initialFigureState, type FigureState } from "./model/figure-state";
 import {
+  type DefaultSymbolStyle,
+  initialDefaultSymbolStyle,
+} from "./model/default-symbol-style";
+import {
   addToPool,
   resizeGrid,
   setGutterPx,
@@ -82,6 +86,8 @@ export function App(): JSX.Element {
     useState<PanelInteraction>(null);
   const focusedPanelId = focusedIdOf(panelInteraction);
   const [activeTool, setActiveTool] = useState<Tool>("select");
+  const [defaultSymbolStyle, setDefaultSymbolStyle] =
+    useState<DefaultSymbolStyle>(initialDefaultSymbolStyle);
   const [spacebarHeld, setSpacebarHeld] = useState<boolean>(false);
   const [projectPath, setProjectPath] = useState<string | null>(null);
   const [missingImages, setMissingImages] = useState<
@@ -743,6 +749,9 @@ export function App(): JSX.Element {
           onMultiBulkRemove={() => setSelectedAnnotationIds(emptySelection())}
           selectedAnnotationIds={selectedAnnotationIds}
           onSelectionChange={setSelectedAnnotationIds}
+          activeTool={activeTool}
+          defaultSymbolStyle={defaultSymbolStyle}
+          onDefaultSymbolStyleChange={setDefaultSymbolStyle}
           dispatch={dispatch}
           commit={fieldCommit}
           onCalibrate={onCalibrate}

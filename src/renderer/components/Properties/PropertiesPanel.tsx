@@ -5,7 +5,9 @@ import { setPanelHidden, deletePanel } from "../../model/figure-actions";
 import type { Annotation } from "../../model/annotations";
 import type { Panel, PanelTransform } from "../../model/panels";
 import type { FieldCommit } from "../../hooks/useFieldCommit";
+import type { DefaultSymbolStyle } from "../../model/default-symbol-style";
 import { labelForPattern } from "../../render/letters";
+import type { Tool } from "../Toolbar/AnnotationToolbar";
 import { CanvasAndGlobalStyleForm } from "./CanvasAndGlobalStyleForm";
 import { AnnotationOverview } from "./AnnotationOverview";
 import { AnnotationPropertiesForm } from "./AnnotationPropertiesForm";
@@ -13,6 +15,7 @@ import { LetterAnnoForm } from "./LetterAnnoForm";
 import { MultiAnnoForm } from "./MultiAnnoForm";
 import { PanelPropertiesForm } from "./PanelPropertiesForm";
 import { EmptyPanelForm } from "./EmptyPanelForm";
+import { SymbolPickerPanel } from "./SymbolPickerPanel";
 
 interface Props {
   state: FigureState;
@@ -36,6 +39,15 @@ interface Props {
    *  AnnotationOverview so its "Select all" buttons can populate the set. */
   selectedAnnotationIds?: ReadonlySet<string>;
   onSelectionChange?: (next: ReadonlySet<string>) => void;
+  /**
+   * The active annotation tool. When `"symbol"` and nothing is selected,
+   * the panel routes to `<SymbolPickerPanel>` instead of the global-style
+   * fallback so the user can pick shape + style BEFORE clicking the canvas.
+   */
+  activeTool?: Tool;
+  /** Picker state (session-only — not in FigureState, not undoable). */
+  defaultSymbolStyle?: DefaultSymbolStyle;
+  onDefaultSymbolStyleChange?: (next: DefaultSymbolStyle) => void;
   dispatch: Dispatch<FigureAction>;
   commit: FieldCommit;
   onCalibrate: () => void;
@@ -57,6 +69,9 @@ export function PropertiesPanel({
   onMultiBulkRemove,
   selectedAnnotationIds,
   onSelectionChange,
+  activeTool,
+  defaultSymbolStyle,
+  onDefaultSymbolStyleChange,
   dispatch,
   commit,
   onCalibrate,
@@ -175,6 +190,23 @@ export function PropertiesPanel({
           dispatch(deletePanel(focusedPanel.id));
           commit.flush();
         }}
+      />
+    );
+  } else if (
+    activeTool === "symbol" &&
+    defaultSymbolStyle !== undefined &&
+    onDefaultSymbolStyleChange !== undefined
+  ) {
+    // Symbol tool active with no selection: show the picker so the user
+    // configures shape + style BEFORE clicking the canvas to place. The
+    // selection branches above run first, so a selected symbol still routes
+    // to its edit form.
+    title = "Symbol";
+    subtitle = "Pick a symbol — click canvas to place";
+    body = (
+      <SymbolPickerPanel
+        value={defaultSymbolStyle}
+        onChange={onDefaultSymbolStyleChange}
       />
     );
   } else {
