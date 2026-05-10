@@ -4,7 +4,10 @@ import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { SymbolPickerPanel } from "../../src/renderer/components/Properties/SymbolPickerPanel";
-import { initialDefaultSymbolStyle } from "../../src/renderer/model/default-symbol-style";
+import {
+  initialDefaultSymbolStyle,
+  type DefaultSymbolStyle,
+} from "../../src/renderer/model/default-symbol-style";
 
 describe("<SymbolPickerPanel>", () => {
   it("clicking a shape in the grid updates the picker style", async () => {
@@ -17,7 +20,7 @@ describe("<SymbolPickerPanel>", () => {
       />,
     );
     await user.click(screen.getByTestId("symbol-grid-cell-shape-circle"));
-    const calls = onChange.mock.calls.map((c) => c[0]);
+    const calls = onChange.mock.calls.map(([c]) => c as DefaultSymbolStyle);
     expect(calls.some((p) => p.symbolId === "shape-circle")).toBe(true);
   });
 
@@ -103,7 +106,7 @@ describe("<SymbolPickerPanel>", () => {
       />,
     );
     await user.click(screen.getByTestId("symbol-fill-mode-outlined"));
-    const calls = onChange.mock.calls.map((c) => c[0]);
+    const calls = onChange.mock.calls.map(([c]) => c as DefaultSymbolStyle);
     expect(calls.some((p) => p.fillMode === "outlined")).toBe(true);
   });
 });

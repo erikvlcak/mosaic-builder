@@ -8,7 +8,6 @@ import type {
   Annotation,
   TextAnnotation,
   SymbolAnnotation,
-  BoxAnnotation,
   ScaleBarAnnotation,
 } from "../../src/renderer/model/annotations";
 
@@ -104,18 +103,8 @@ const SYMBOL: SymbolAnnotation = {
   rotationDeg: 0,
   color: "#000000",
   strokeWidthPx: 2,
-};
-
-const BOX: BoxAnnotation = {
-  id: "b1",
-  kind: "box",
-  z: 1,
-  x: 50,
-  y: 60,
-  w: 100,
-  h: 200,
-  stroke: "#000000",
-  strokeWidthPx: 1,
+  fillMode: "filled",
+  strokeStyle: "solid",
 };
 
 const SCALE: ScaleBarAnnotation = {
@@ -129,7 +118,7 @@ const SCALE: ScaleBarAnnotation = {
 
 describe("scaleAnnotations", () => {
   it("returns the same array reference when sx and sy are both 1", () => {
-    const arr: Annotation[] = [TEXT, SYMBOL, BOX, SCALE];
+    const arr: Annotation[] = [TEXT, SYMBOL, SCALE];
     const out = scaleAnnotations(arr, 1, 1);
     expect(out).toBe(arr);
   });
@@ -150,16 +139,6 @@ describe("scaleAnnotations", () => {
     expect(a.sizePx).toBe(60); // unchanged — visual size, not figure coordinate
     expect(a.rotationDeg).toBe(0); // unchanged
     expect(a.strokeWidthPx).toBe(2); // unchanged
-  });
-
-  it("scales box position and size", () => {
-    const out = scaleAnnotations([BOX], 2, 3);
-    const b = out[0] as BoxAnnotation;
-    expect(b.x).toBe(100);
-    expect(b.y).toBe(180);
-    expect(b.w).toBe(200);
-    expect(b.h).toBe(600);
-    expect(b.strokeWidthPx).toBe(1); // unchanged
   });
 
   it("leaves scalebar unchanged (corner-anchored, no figure-px coords)", () => {

@@ -15,6 +15,9 @@ import { AnnotationInteractionLayer } from "../../src/renderer/components/Annota
 import type { Figure } from "../../src/renderer/model/types";
 import { DEFAULT_GLOBAL_STYLE } from "../../src/renderer/model/global-style";
 import type { PanelRect } from "../../src/renderer/render/coords";
+import { initialDefaultSymbolStyle } from "../../src/renderer/model/default-symbol-style";
+
+const DEFAULT_PICKER = initialDefaultSymbolStyle();
 
 beforeAll(() => {
   if (typeof window !== "undefined" && !("PointerEvent" in window)) {
@@ -50,13 +53,14 @@ const PANEL_RECTS: Map<string, PanelRect> = new Map([
   [PANEL_ID, { x: 0, y: 0, w: 200, h: 200 }],
 ]);
 
-function setup(activeTool: "select" | "text" | "box" = "select"): {
+function setup(activeTool: "select" | "text" = "select"): {
   onPanelDoubleClick: ReturnType<typeof vi.fn>;
 } {
   const onPanelDoubleClick = vi.fn();
   render(
     <AnnotationInteractionLayer
       activeTool={activeTool}
+      defaultSymbolStyle={DEFAULT_PICKER}
       figure={FIG}
       panelRectsById={PANEL_RECTS}
       imagesById={new Map()}
@@ -119,6 +123,7 @@ describe("AnnotationInteractionLayer: dblclick passthrough", () => {
     render(
       <AnnotationInteractionLayer
         activeTool="select"
+        defaultSymbolStyle={DEFAULT_PICKER}
         figure={FIG}
         panelRectsById={tightRects}
         imagesById={new Map()}

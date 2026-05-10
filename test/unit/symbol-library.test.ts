@@ -7,7 +7,6 @@ import {
   DEFAULT_STROKE_STYLE,
   DEFAULT_SYMBOL_COLOR,
   DEFAULT_SYMBOL_STROKE,
-  type SymbolDef,
 } from "../../src/renderer/symbols/library";
 
 describe("symbol library", () => {
@@ -61,7 +60,7 @@ describe("symbol library", () => {
   });
 
   it("every entry has a `geometry` of 'closed' or 'stroke-only' and no legacy `category` or `fill` fields", () => {
-    for (const def of SYMBOL_LIBRARY as readonly SymbolDef[]) {
+    for (const def of SYMBOL_LIBRARY) {
       expect(def.geometry === "closed" || def.geometry === "stroke-only").toBe(
         true,
       );

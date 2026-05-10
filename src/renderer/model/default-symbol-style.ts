@@ -1,17 +1,15 @@
 import type { FillMode, StrokeStyle } from "./annotations";
-import {
-  DEFAULT_SYMBOL_ID,
-  DEFAULT_FILL_MODE,
-  DEFAULT_STROKE_STYLE,
-  DEFAULT_SYMBOL_COLOR,
-  DEFAULT_SYMBOL_STROKE,
-} from "../symbols/library";
 
 /**
  * Picker state: the style/shape pair that `AnnotationInteractionLayer` reads
  * when the user clicks the canvas in `symbol` tool mode. Lives in App-level
  * React state — not in `FigureState` — because it's session-only UI state
  * (not undoable, not serialized).
+ *
+ * The default values here are duplicated from `src/renderer/symbols/library.ts`
+ * (DEFAULT_SYMBOL_ID etc.) because this module sits in `model/` so it can be
+ * imported from main/preload tsconfigs that don't include `renderer/symbols/`.
+ * If the library defaults change, update both sites.
  */
 export interface DefaultSymbolStyle {
   symbolId: string;
@@ -23,10 +21,10 @@ export interface DefaultSymbolStyle {
 
 export function initialDefaultSymbolStyle(): DefaultSymbolStyle {
   return {
-    symbolId: DEFAULT_SYMBOL_ID,
-    fillMode: DEFAULT_FILL_MODE,
-    strokeStyle: DEFAULT_STROKE_STYLE,
-    strokeWidthPx: DEFAULT_SYMBOL_STROKE,
-    color: DEFAULT_SYMBOL_COLOR,
+    symbolId: "arrow-filled-right",
+    fillMode: "filled",
+    strokeStyle: "solid",
+    strokeWidthPx: 2,
+    color: "#FF0000",
   };
 }

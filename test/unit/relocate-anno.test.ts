@@ -3,7 +3,6 @@ import type { ImagePoolItem } from "../../src/renderer/model/pool";
 import type {
   TextAnnotation,
   SymbolAnnotation,
-  BoxAnnotation,
 } from "../../src/renderer/model/annotations";
 import {
   initialFigureState,
@@ -253,34 +252,36 @@ describe("figureReducer image-bound annotation behavior", () => {
   it("FLIP_PANEL_H/V: image-bound anchor preserved; coords re-projected", () => {
     let s = setupTwoImagesPlaced();
     const pidA = panelIdAt(s, 0, 0);
-    const box: BoxAnnotation = {
+    const sym: SymbolAnnotation = {
       id: "b1",
-      kind: "box",
+      kind: "symbol",
       z: 1,
+      symbolId: "shape-square",
       x: 100,
       y: 100,
-      w: 50,
-      h: 50,
-      stroke: "#FF0000",
+      sizePx: 50,
+      rotationDeg: 0,
+      color: "#FF0000",
       strokeWidthPx: 2,
+      fillMode: "outlined",
+      strokeStyle: "solid",
       imageId: "a",
       panelId: pidA,
-      anchor1: { imgU: 0.25, imgV: 0.25 },
-      anchor2: { imgU: 0.5, imgV: 0.5 },
+      anchor: { imgU: 0.25, imgV: 0.25 },
     };
-    s = figureReducer(s, addAnnotation(box));
-    const beforeH = s.annotations.find((a) => a.id === "b1") as BoxAnnotation;
+    s = figureReducer(s, addAnnotation(sym));
+    const beforeH = s.annotations.find((a) => a.id === "b1") as SymbolAnnotation;
 
     s = figureReducer(s, flipPanelH(pidA));
-    const afterH = s.annotations.find((a) => a.id === "b1") as BoxAnnotation;
-    expect(afterH.anchor1).toEqual({ imgU: 0.25, imgV: 0.25 });
+    const afterH = s.annotations.find((a) => a.id === "b1") as SymbolAnnotation;
+    expect(afterH.anchor).toEqual({ imgU: 0.25, imgV: 0.25 });
     // Coords re-projected.
     expect(afterH.x === beforeH.x).toBe(false);
 
-    const beforeV = s.annotations.find((a) => a.id === "b1") as BoxAnnotation;
+    const beforeV = s.annotations.find((a) => a.id === "b1") as SymbolAnnotation;
     s = figureReducer(s, flipPanelV(pidA));
-    const afterV = s.annotations.find((a) => a.id === "b1") as BoxAnnotation;
-    expect(afterV.anchor2).toEqual({ imgU: 0.5, imgV: 0.5 });
+    const afterV = s.annotations.find((a) => a.id === "b1") as SymbolAnnotation;
+    expect(afterV.anchor).toEqual({ imgU: 0.25, imgV: 0.25 });
     expect(afterV.y === beforeV.y).toBe(false);
   });
 

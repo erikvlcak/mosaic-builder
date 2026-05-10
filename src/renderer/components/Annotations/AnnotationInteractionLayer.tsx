@@ -8,7 +8,7 @@
  *    annotation has a small invisible hit-rect with `pointer-events: auto`.
  *    A trailing transparent backdrop (also auto) catches "clicked nothing"
  *    and clears the current selection.
- *  - In any creation tool (`text`/`symbol`/`box`/`scalebar`), the layer is
+ *  - In any creation tool (`text`/`symbol`/`scalebar`), the layer is
  *    `pointer-events: auto` so it captures every click and the underlying
  *    GridCells layer cannot steal the gesture.
  *
@@ -25,7 +25,7 @@
  * conflicts, the annotation layer is `pointer-events: none` whenever the
  * `select` tool is active over empty space — clicks pass through to the
  * panel layer below. When a creation tool is active, the annotation layer
- * captures all clicks (this is the user's expectation: switching to "Box"
+ * captures all clicks (this is the user's expectation: switching to "Symbol"
  * disables panel-layer click/drag until they switch back to Select), while
  * wheel events still reach the panel layer underneath naturally.
  */
@@ -37,7 +37,6 @@ import type {
   Annotation,
   ImageAnchor,
   TextAnnotation,
-  BoxAnnotation,
   ScaleBarAnnotation,
   SymbolAnnotation,
 } from "../../model/annotations";
@@ -52,7 +51,7 @@ import { snapDelta, type Guideline, type SnapRect } from "../../render/snap";
 import { DRAG_MIME, parseDrag } from "../../dnd/drag-payload";
 import type { ImagePoolItem } from "../../model/pool";
 import type { Tool } from "../Toolbar/AnnotationToolbar";
-import { DEFAULT_SYMBOL_ID } from "../../symbols/library";
+import type { DefaultSymbolStyle } from "../../model/default-symbol-style";
 import {
   addToSelection,
   clearSelection,
@@ -77,6 +76,13 @@ function isUserAnno(a: ResolvedAnnotation): a is UserAnno {
 
 interface Props {
   activeTool: Tool;
+  /**
+   * Picker state. The Symbol-tool click-to-place reads symbolId/fillMode/
+   * strokeStyle/color/strokeWidthPx from this so the user's picker selection
+   * survives canvas placement (no auto-select after placement either, so
+   * the user can keep stamping more symbols of the same style).
+   */
+  defaultSymbolStyle: DefaultSymbolStyle;
   figure: Figure;
   /** Panel rects in FIGURE-PX, keyed by panel id. */
   panelRectsById: Map<string, PanelRect>;
@@ -151,11 +157,9 @@ interface Props {
 interface DragState {
   pointerId: number;
   /**
-   * - "create-box": rubber-band drag to create a new box.
    * - "move": translate whole annotation (body hit-rect drag). When the
    *   selection set has > 1 member and the dragged anno is in it, every
    *   selected anno translates by the same delta — see `bulkSnapshots`.
-   * - "box-corner": drag one corner of a box (resize from that corner).
    * - "symbol-corner": drag one corner of a selected symbol (center-anchored
    *   resize — see onSymbolCornerPointerMove).
    * - "symbol-rotate": drag the rotation grip above a selected symbol.
@@ -163,9 +167,7 @@ interface DragState {
    *   every annotation whose bounds intersect the drag rect on pointerup.
    */
   kind:
-    | "create-box"
     | "move"
-    | "box-corner"
     | "symbol-corner"
     | "symbol-rotate"
     | "marquee";
@@ -175,9 +177,9 @@ interface DragState {
   /** Current pointer in figure-px (updated as we move). */
   curFx: number;
   curFy: number;
-  /** Annotation being moved/resized (for "move", "box-corner", "symbol-*"). */
+  /** Annotation being moved/resized (for "move", "symbol-*"). */
   movingId?: string;
-  /** Original annotation snapshot (for "move", "box-corner", "symbol-*"). */
+  /** Original annotation snapshot (for "move", "symbol-*"). */
   startAnno?: UserAnno;
   /**
    * Per-anno snapshots for a bulk "move" drag. Keyed by annotation id and
@@ -185,7 +187,7 @@ interface DragState {
    * pointermove patches every entry by the same dx/dy.
    */
   bulkSnapshots?: Map<string, UserAnno>;
-  /** Which box corner is being dragged ("box-corner" only). */
+  /** Which corner is being dragged ("symbol-corner" only). */
   corner?: "tl" | "tr" | "bl" | "br";
   /** For "symbol-rotate" only: the angle (degrees) the symbol had at drag start. */
   startRotationDeg?: number;
@@ -234,29 +236,20 @@ interface PendingText {
 const DEFAULT_TEXT_FONT = "Arial, Helvetica, sans-serif";
 const DEFAULT_TEXT_SIZE_PT = 12;
 const DEFAULT_TEXT_COLOR = "#000000";
-const DEFAULT_BOX_STROKE = "#FF0000";
-const DEFAULT_BOX_STROKE_PX = 2;
 const DEFAULT_SYMBOL_SIZE = 60;
-const DEFAULT_SYMBOL_COLOR = "#FF0000";
-const DEFAULT_SYMBOL_STROKE = 2;
 
 // Default z-values for new annotations: scalebar always on top so it can't be hidden;
-// text mid-stack so it overlays boxes/symbols; boxes/symbols at bottom as backdrop.
+// text mid-stack so it overlays symbols; symbols at bottom as backdrop.
 const Z_TEXT = 5;
-const Z_BOX = 1;
 const Z_SYMBOL = 1;
 const Z_SCALEBAR = 10;
 
 // Minimum hit-rect dimension in CSS px so very small annotations remain selectable.
 const MIN_HIT_PX = 8;
 
-// Minimum box width/height (in figure-px) when resizing via corner handles.
-// Prevents the box from collapsing to zero and becoming unselectable.
-const MIN_BOX_DIM = 4;
-
 // Minimum symbol side length (figure-px) when resizing via corner handles.
-// Larger than MIN_BOX_DIM since symbols are center-anchored — half-extents
-// any smaller render visually as a single pixel.
+// Symbols are center-anchored — half-extents any smaller render visually
+// as a single pixel.
 const MIN_SYMBOL_DIM = 8;
 
 // Endpoint/corner handle size in CSS px (square hit-rect).
@@ -450,8 +443,6 @@ function annoBounds(
       const h = sizePx * 1.2;
       return { x: a.x, y: a.y, w, h };
     }
-    case "box":
-      return { x: a.x, y: a.y, w: a.w, h: a.h };
     case "symbol": {
       const half = a.sizePx / 2;
       return { x: a.x - half, y: a.y - half, w: a.sizePx, h: a.sizePx };
@@ -478,6 +469,7 @@ function annoBounds(
 
 export function AnnotationInteractionLayer({
   activeTool,
+  defaultSymbolStyle,
   figure,
   panelRectsById,
   imagesById,
@@ -501,13 +493,6 @@ export function AnnotationInteractionLayer({
   const selectedAnnotationId = singleSelectedId(selectedAnnotationIds);
   const ref = useRef<HTMLDivElement | null>(null);
   const textInputRef = useRef<HTMLInputElement | null>(null);
-  /**
-   * Persisted across clicks: whichever symbol the user last picked from the
-   * properties-form gallery is the one a fresh Symbol-tool click drops next.
-   * Initialised to the library default so the first click after load works
-   * without ever opening the gallery.
-   */
-  const lastSymbolIdRef = useRef<string>(DEFAULT_SYMBOL_ID);
   const [drag, setDrag] = useState<DragState | null>(null);
   /**
    * Active alignment guidelines (spec 14). Set during a "move" drag and
@@ -591,17 +576,6 @@ export function AnnotationInteractionLayer({
     lastSnapBucketRef.current = null;
   }, [activeTool]);
 
-  // Sync the persisted symbol-id with whatever the user has selected in the
-  // properties form. Without this the gallery choice would only stick for the
-  // currently-selected annotation; the next click would revert to the default.
-  useEffect(() => {
-    if (selectedAnnotationId === null) return;
-    const a = figure.annotations.find((x) => x.id === selectedAnnotationId);
-    if (a !== undefined && a.kind === "symbol") {
-      lastSymbolIdRef.current = a.symbolId;
-    }
-  }, [selectedAnnotationId, figure.annotations]);
-
   // Imperatively focus the inline text input AFTER it mounts. `autoFocus`
   // races the synthetic pointerdown that opened it — when the layer is the
   // pointerdown target, the browser keeps focus on document.body so the
@@ -684,19 +658,22 @@ export function AnnotationInteractionLayer({
     }
 
     if (activeTool === "symbol") {
-      // Click-to-place: drop a symbol at this point. No drag-to-size — the
-      // four corner handles + rotation handle take over after selection.
+      // Click-to-place: drop a symbol at this point using the picker's
+      // current style. No drag-to-size — the four corner handles + rotation
+      // handle take over after selection.
       const ann: SymbolAnnotation = {
         id: newAnnoId(),
         kind: "symbol",
         z: Z_SYMBOL,
-        symbolId: lastSymbolIdRef.current,
+        symbolId: defaultSymbolStyle.symbolId,
         x: c.fx,
         y: c.fy,
         sizePx: DEFAULT_SYMBOL_SIZE,
         rotationDeg: 0,
-        color: DEFAULT_SYMBOL_COLOR,
-        strokeWidthPx: DEFAULT_SYMBOL_STROKE,
+        color: defaultSymbolStyle.color,
+        strokeWidthPx: defaultSymbolStyle.strokeWidthPx,
+        fillMode: defaultSymbolStyle.fillMode,
+        strokeStyle: defaultSymbolStyle.strokeStyle,
       };
       const imgCtx = imageContextAt(
         c.fx,
@@ -714,21 +691,11 @@ export function AnnotationInteractionLayer({
         }
       }
       dispatch(addAnnotation(ann));
-      onSelectionChange(replaceSelection(ann.id));
+      // Spec 06: placement mode persists. Do NOT auto-select — the user can
+      // click again to place another symbol with the same style. Switching
+      // to Select selects a placed symbol for editing.
       return;
     }
-
-    // box: begin a rubber-band drag.
-    if (activeTool !== "box") return;
-    e.currentTarget.setPointerCapture(e.pointerId);
-    setDrag({
-      pointerId: e.pointerId,
-      kind: "create-box",
-      startFx: c.fx,
-      startFy: c.fy,
-      curFx: c.fx,
-      curFy: c.fy,
-    });
   }
 
   function onLayerPointerMove(e: React.PointerEvent<HTMLDivElement>): void {
@@ -744,57 +711,6 @@ export function AnnotationInteractionLayer({
     }
     if (e.currentTarget.hasPointerCapture(e.pointerId)) {
       e.currentTarget.releasePointerCapture(e.pointerId);
-    }
-    const c = clientToFigure(e);
-    const endFx = c?.fx ?? drag.curFx;
-    const endFy = c?.fy ?? drag.curFy;
-
-    if (drag.kind === "create-box") {
-      const x = Math.min(drag.startFx, endFx);
-      const y = Math.min(drag.startFy, endFy);
-      const w = Math.abs(endFx - drag.startFx);
-      const h = Math.abs(endFy - drag.startFy);
-      if (w < 2 || h < 2) {
-        setDrag(null);
-        return;
-      }
-      const ann: BoxAnnotation = {
-        id: newAnnoId(),
-        kind: "box",
-        z: Z_BOX,
-        x,
-        y,
-        w,
-        h,
-        stroke: DEFAULT_BOX_STROKE,
-        strokeWidthPx: DEFAULT_BOX_STROKE_PX,
-      };
-      // Bind to the image if BOTH corners land in the same image-bearing panel.
-      const tlCtx = imageContextAt(x, y, figure, panelRectsById, imagesById);
-      const brCtx = imageContextAt(
-        x + w,
-        y + h,
-        figure,
-        panelRectsById,
-        imagesById,
-      );
-      if (
-        tlCtx !== null &&
-        brCtx !== null &&
-        tlCtx.imageId === brCtx.imageId &&
-        tlCtx.panel.panelId !== undefined
-      ) {
-        const a1 = anchorFromFigure(x, y, tlCtx);
-        const a2 = anchorFromFigure(x + w, y + h, tlCtx);
-        if (a1 !== null && a2 !== null) {
-          ann.imageId = tlCtx.imageId;
-          ann.panelId = tlCtx.panel.panelId;
-          ann.anchor1 = a1;
-          ann.anchor2 = a2;
-        }
-      }
-      dispatch(addAnnotation(ann));
-      onSelectionChange(replaceSelection(ann.id));
     }
     setDrag(null);
   }
@@ -1079,41 +995,6 @@ export function AnnotationInteractionLayer({
         }
         return patch;
       }
-      case "box": {
-        const nx = start.x + dx;
-        const ny = start.y + dy;
-        const patch: Partial<BoxAnnotation> = { x: nx, y: ny };
-        if (start.imageId !== undefined) {
-          const tlCtx = imageContextAt(
-            nx,
-            ny,
-            figure,
-            panelRectsById,
-            imagesById,
-          );
-          const brCtx = imageContextAt(
-            nx + start.w,
-            ny + start.h,
-            figure,
-            panelRectsById,
-            imagesById,
-          );
-          if (
-            tlCtx !== null &&
-            brCtx !== null &&
-            tlCtx.imageId === start.imageId &&
-            brCtx.imageId === start.imageId
-          ) {
-            const a1 = anchorFromFigure(nx, ny, tlCtx);
-            const a2 = anchorFromFigure(nx + start.w, ny + start.h, tlCtx);
-            if (a1 !== null && a2 !== null) {
-              patch.anchor1 = a1;
-              patch.anchor2 = a2;
-            }
-          }
-        }
-        return patch;
-      }
       case "symbol": {
         const nx = start.x + dx;
         const ny = start.y + dy;
@@ -1218,140 +1099,6 @@ export function AnnotationInteractionLayer({
   // over body drag (stopPropagation also prevents the body's pointerdown
   // from firing).
   // -------------------------------------------------------------------
-
-  function onBoxCornerPointerDown(
-    e: React.PointerEvent<HTMLDivElement>,
-    a: BoxAnnotation,
-    corner: "tl" | "tr" | "bl" | "br",
-  ): void {
-    if (e.button !== 0) return;
-    e.stopPropagation();
-    onSelectionChange(replaceSelection(a.id));
-    const c = clientToFigure(e);
-    if (c === null) return;
-    e.currentTarget.setPointerCapture(e.pointerId);
-    setDrag({
-      pointerId: e.pointerId,
-      kind: "box-corner",
-      startFx: c.fx,
-      startFy: c.fy,
-      curFx: c.fx,
-      curFy: c.fy,
-      movingId: a.id,
-      startAnno: a,
-      corner,
-    });
-  }
-
-  function onBoxCornerPointerMove(e: React.PointerEvent<HTMLDivElement>): void {
-    if (
-      drag === null ||
-      drag.kind !== "box-corner" ||
-      drag.pointerId !== e.pointerId
-    ) {
-      return;
-    }
-    const c = clientToFigure(e);
-    if (c === null) return;
-    if (drag.movingId === undefined || drag.corner === undefined) return;
-    const start = drag.startAnno;
-    if (start === undefined || start.kind !== "box") return;
-    const dx = c.fx - drag.startFx;
-    const dy = c.fy - drag.startFy;
-
-    // Compute new (x, y, w, h) per-corner. The opposite corner stays put.
-    // Then clamp against MIN_BOX_DIM to prevent collapse.
-    let nx = start.x;
-    let ny = start.y;
-    let nw = start.w;
-    let nh = start.h;
-    switch (drag.corner) {
-      case "tl":
-        // Anchor: bottom-right (start.x + start.w, start.y + start.h).
-        nx = start.x + dx;
-        ny = start.y + dy;
-        nw = start.w - dx;
-        nh = start.h - dy;
-        if (nw < MIN_BOX_DIM) {
-          nx = start.x + start.w - MIN_BOX_DIM;
-          nw = MIN_BOX_DIM;
-        }
-        if (nh < MIN_BOX_DIM) {
-          ny = start.y + start.h - MIN_BOX_DIM;
-          nh = MIN_BOX_DIM;
-        }
-        break;
-      case "tr":
-        // Anchor: bottom-left (start.x, start.y + start.h).
-        ny = start.y + dy;
-        nw = start.w + dx;
-        nh = start.h - dy;
-        if (nw < MIN_BOX_DIM) nw = MIN_BOX_DIM;
-        if (nh < MIN_BOX_DIM) {
-          ny = start.y + start.h - MIN_BOX_DIM;
-          nh = MIN_BOX_DIM;
-        }
-        break;
-      case "bl":
-        // Anchor: top-right (start.x + start.w, start.y).
-        nx = start.x + dx;
-        nw = start.w - dx;
-        nh = start.h + dy;
-        if (nw < MIN_BOX_DIM) {
-          nx = start.x + start.w - MIN_BOX_DIM;
-          nw = MIN_BOX_DIM;
-        }
-        if (nh < MIN_BOX_DIM) nh = MIN_BOX_DIM;
-        break;
-      case "br":
-        // Anchor: top-left (start.x, start.y).
-        nw = start.w + dx;
-        nh = start.h + dy;
-        if (nw < MIN_BOX_DIM) nw = MIN_BOX_DIM;
-        if (nh < MIN_BOX_DIM) nh = MIN_BOX_DIM;
-        break;
-    }
-    const patch: Partial<BoxAnnotation> = { x: nx, y: ny, w: nw, h: nh };
-    // Re-anchor when image-bound: both corners re-derive from the current rect.
-    if (start.imageId !== undefined) {
-      const tlCtx = imageContextAt(nx, ny, figure, panelRectsById, imagesById);
-      const brCtx = imageContextAt(
-        nx + nw,
-        ny + nh,
-        figure,
-        panelRectsById,
-        imagesById,
-      );
-      if (
-        tlCtx !== null &&
-        brCtx !== null &&
-        tlCtx.imageId === start.imageId &&
-        brCtx.imageId === start.imageId
-      ) {
-        const a1 = anchorFromFigure(nx, ny, tlCtx);
-        const a2 = anchorFromFigure(nx + nw, ny + nh, tlCtx);
-        if (a1 !== null && a2 !== null) {
-          patch.anchor1 = a1;
-          patch.anchor2 = a2;
-        }
-      }
-    }
-    dispatch(updateAnnotation(drag.movingId, patch));
-  }
-
-  function onBoxCornerPointerUp(e: React.PointerEvent<HTMLDivElement>): void {
-    if (
-      drag === null ||
-      drag.kind !== "box-corner" ||
-      drag.pointerId !== e.pointerId
-    ) {
-      return;
-    }
-    if (e.currentTarget.hasPointerCapture(e.pointerId)) {
-      e.currentTarget.releasePointerCapture(e.pointerId);
-    }
-    setDrag(null);
-  }
 
   // -------------------------------------------------------------------
   // SELECT MODE — symbol corner + rotation handles.
@@ -1638,7 +1385,7 @@ export function AnnotationInteractionLayer({
   const cursor =
     activeTool === "text"
       ? "text"
-      : activeTool === "symbol" || activeTool === "box"
+      : activeTool === "symbol"
         ? "crosshair"
         : activeTool === "scalebar"
           ? "cell"
@@ -2176,65 +1923,6 @@ export function AnnotationInteractionLayer({
           </>
         )}
 
-      {/* Box corner handles (only when a selected box exists). */}
-      {activeTool === "select" &&
-        selected !== undefined &&
-        selected.kind === "box" && (
-          <>
-            {(
-              [
-                ["tl", selected.x, selected.y, "nwse-resize"],
-                ["tr", selected.x + selected.w, selected.y, "nesw-resize"],
-                ["bl", selected.x, selected.y + selected.h, "nesw-resize"],
-                [
-                  "br",
-                  selected.x + selected.w,
-                  selected.y + selected.h,
-                  "nwse-resize",
-                ],
-              ] as const
-            ).map(([corner, fx, fy, cursor]) => (
-              <div
-                key={`box-handle-${corner}`}
-                data-testid={`anno-box-handle-${corner}`}
-                onPointerDown={(e) =>
-                  onBoxCornerPointerDown(e, selected, corner)
-                }
-                onPointerMove={onBoxCornerPointerMove}
-                onPointerUp={onBoxCornerPointerUp}
-                onPointerCancel={onBoxCornerPointerUp}
-                style={{
-                  position: "absolute",
-                  left: fx * figToCssX - HANDLE_PX / 2,
-                  top: fy * figToCssY - HANDLE_PX / 2,
-                  width: HANDLE_PX,
-                  height: HANDLE_PX,
-                  background: "#0066FF",
-                  pointerEvents: "auto",
-                  cursor,
-                  zIndex: 4,
-                }}
-              />
-            ))}
-          </>
-        )}
-
-      {/* Transient preview during box creation. */}
-      {drag !== null && drag.kind === "create-box" && (
-        <div
-          data-testid="anno-preview-box"
-          style={{
-            position: "absolute",
-            left: Math.min(drag.startFx, drag.curFx) * figToCssX,
-            top: Math.min(drag.startFy, drag.curFy) * figToCssY,
-            width: Math.abs(drag.curFx - drag.startFx) * figToCssX,
-            height: Math.abs(drag.curFy - drag.startFy) * figToCssY,
-            pointerEvents: "none",
-            border: `${DEFAULT_BOX_STROKE_PX}px solid ${DEFAULT_BOX_STROKE}`,
-            boxSizing: "border-box",
-          }}
-        />
-      )}
       {/* Inline text-input for the "text" tool. The pointerdown handlers
           stop propagation so a click inside the input (to focus it, place
           the cursor, or select text) doesn't bubble up to onLayerPointerDown

@@ -703,6 +703,7 @@ export function App(): JSX.Element {
               )}
             <AnnotationInteractionLayer
               activeTool={effectiveTool}
+              defaultSymbolStyle={defaultSymbolStyle}
               figure={figure}
               panelRectsById={panelRectsByIdMemo}
               imagesById={imagesByIdMemo}

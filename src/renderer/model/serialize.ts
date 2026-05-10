@@ -94,7 +94,7 @@ export function fromMosaicFile(file: MosaicFile): FromMosaicResult {
   const annotations: Annotation[] =
     file.schemaVersion === 1
       ? migrateAnnotationsV1ToV2(file.state.annotations)
-      : (file.state.annotations as Annotation[]);
+      : file.state.annotations;
   // v1/v2 stored letterOverrides as Record<panelId, string>. Migrate to the
   // v3 shape so all downstream code sees one type. The cast through unknown
   // is required because the validator accepts either shape on disk; the

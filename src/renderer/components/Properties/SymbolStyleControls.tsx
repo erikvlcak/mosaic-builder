@@ -95,14 +95,14 @@ export function SymbolStyleControls({
         disabled={!isOutlined}
         data-testid="symbol-stroke-width"
         onChange={(strokeWidthPx) => onChange({ strokeWidthPx })}
-        onBlur={onCommit}
+        {...(onCommit !== undefined ? { onBlur: onCommit } : {})}
       />
 
       <ColorField
         label="Color"
         value={value.color}
         onChange={(color) => onChange({ color })}
-        onBlur={onCommit}
+        {...(onCommit !== undefined ? { onBlur: onCommit } : {})}
       />
     </div>
   );

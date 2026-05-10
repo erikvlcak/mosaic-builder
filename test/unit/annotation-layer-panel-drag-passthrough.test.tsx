@@ -30,6 +30,9 @@ import { AnnotationInteractionLayer } from "../../src/renderer/components/Annota
 import type { Figure } from "../../src/renderer/model/types";
 import { DEFAULT_GLOBAL_STYLE } from "../../src/renderer/model/global-style";
 import type { PanelRect } from "../../src/renderer/render/coords";
+import { initialDefaultSymbolStyle } from "../../src/renderer/model/default-symbol-style";
+
+const DEFAULT_PICKER = initialDefaultSymbolStyle();
 
 beforeAll(() => {
   if (typeof window !== "undefined" && !("PointerEvent" in window)) {
@@ -141,6 +144,7 @@ describe("AnnotationInteractionLayer: selection-driven backdrop carve", () => {
     render(
       <AnnotationInteractionLayer
         activeTool="select"
+        defaultSymbolStyle={DEFAULT_PICKER}
         figure={FIG}
         panelRectsById={PANEL_RECTS}
         imagesById={new Map()}
@@ -170,6 +174,7 @@ describe("AnnotationInteractionLayer: selection-driven backdrop carve", () => {
     render(
       <AnnotationInteractionLayer
         activeTool="select"
+        defaultSymbolStyle={DEFAULT_PICKER}
         figure={FIG}
         panelRectsById={PANEL_RECTS}
         imagesById={new Map()}
@@ -197,6 +202,7 @@ describe("AnnotationInteractionLayer: selection-driven backdrop carve", () => {
     render(
       <AnnotationInteractionLayer
         activeTool="select"
+        defaultSymbolStyle={DEFAULT_PICKER}
         figure={FIG}
         panelRectsById={PANEL_RECTS}
         imagesById={new Map()}

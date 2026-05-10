@@ -36,11 +36,13 @@ describe("<SymbolAnnoForm>", () => {
     const dispatch = vi.fn();
     render(<SymbolAnnoForm anno={ann()} dispatch={dispatch} commit={COMMIT} />);
     await user.click(screen.getByTestId("symbol-grid-cell-shape-circle"));
+    const calls = dispatch.mock.calls.map(
+      ([a]) => a as { type?: string; patch?: { symbolId?: string } },
+    );
     expect(
-      dispatch.mock.calls.some(
+      calls.some(
         (c) =>
-          c[0]?.type === "UPDATE_ANNOTATION" &&
-          c[0]?.patch?.symbolId === "shape-circle",
+          c.type === "UPDATE_ANNOTATION" && c.patch?.symbolId === "shape-circle",
       ),
     ).toBe(true);
   });
@@ -71,11 +73,13 @@ describe("<SymbolAnnoForm>", () => {
       />,
     );
     await user.click(screen.getByTestId("symbol-fill-mode-outlined"));
+    const calls = dispatch.mock.calls.map(
+      ([a]) => a as { type?: string; patch?: { fillMode?: string } },
+    );
     expect(
-      dispatch.mock.calls.some(
+      calls.some(
         (c) =>
-          c[0]?.type === "UPDATE_ANNOTATION" &&
-          c[0]?.patch?.fillMode === "outlined",
+          c.type === "UPDATE_ANNOTATION" && c.patch?.fillMode === "outlined",
       ),
     ).toBe(true);
   });
