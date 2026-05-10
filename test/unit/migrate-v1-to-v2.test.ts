@@ -169,4 +169,37 @@ describe("migrateAnnotationsV1ToV2", () => {
     ];
     expect(migrateAnnotationsV1ToV2(arr)).toBe(arr);
   });
+
+  it("migrated symbol annotations carry default fillMode + strokeStyle", () => {
+    const v1Arrow = {
+      id: "a1",
+      kind: "arrow" as const,
+      z: 0,
+      x1: 10, y1: 10, x2: 100, y2: 10,
+      color: "#FF0000",
+      thicknessPx: 2,
+      head: "filled" as const,
+    };
+    const out = migrateAnnotationsV1ToV2([v1Arrow]);
+    const sym = out[0];
+    expect(sym?.kind).toBe("symbol");
+    if (sym?.kind === "symbol") {
+      expect(sym.fillMode).toBe("filled");
+      expect(sym.strokeStyle).toBe("solid");
+    }
+  });
+
+  it("v1 arrow with head='open' migrates to outlined fillMode", () => {
+    const v1Arrow = {
+      id: "a2", kind: "arrow" as const, z: 0,
+      x1: 0, y1: 0, x2: 50, y2: 0,
+      color: "#0000FF", thicknessPx: 1, head: "open" as const,
+    };
+    const out = migrateAnnotationsV1ToV2([v1Arrow]);
+    const sym = out[0];
+    if (sym?.kind === "symbol") {
+      expect(sym.fillMode).toBe("outlined");
+      expect(sym.strokeStyle).toBe("solid");
+    }
+  });
 });

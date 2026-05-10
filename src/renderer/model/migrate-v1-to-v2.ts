@@ -13,13 +13,26 @@
  *   anchor = midpoint of (anchor1, anchor2) when image-bound
  */
 
-import type { Annotation, SymbolAnnotation } from "./annotations";
+import type {
+  Annotation,
+  FillMode,
+  SymbolAnnotation,
+} from "./annotations";
 import type { V1Annotation, V1ArrowAnnotation } from "./schema";
 
 const HEAD_TO_SYMBOL: Record<V1ArrowAnnotation["head"], string> = {
   filled: "arrow-filled-right",
   open: "arrow-open-right",
   none: "arrow-line-right",
+};
+
+// Closed-geometry symbols may render filled; stroke-only symbols don't. The
+// migrator picks fillMode based on the legacy head shape so the on-screen
+// silhouette matches what the user originally drew.
+const HEAD_TO_FILL_MODE: Record<V1ArrowAnnotation["head"], FillMode> = {
+  filled: "filled",
+  open: "outlined",
+  none: "outlined",
 };
 
 export function migrateAnnotationsV1ToV2(
@@ -58,6 +71,9 @@ function migrateArrow(a: V1ArrowAnnotation): SymbolAnnotation {
     rotationDeg,
     color: a.color,
     strokeWidthPx: a.thicknessPx,
+    fillMode: HEAD_TO_FILL_MODE[a.head],
+    // Legacy arrows had no concept of dashing.
+    strokeStyle: "solid",
   };
   if (a.panelId !== undefined) out.panelId = a.panelId;
   if (a.imageId !== undefined) out.imageId = a.imageId;
