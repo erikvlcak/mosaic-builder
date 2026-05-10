@@ -1240,8 +1240,9 @@ const ALLOWED_BULK_KEYS: Record<AnnotationKind, ReadonlySet<string>> = {
     "sizePx",
     "symbolId",
     "rotationDeg",
+    "fillMode",
+    "strokeStyle",
   ]),
-  box: new Set(["stroke", "strokeWidthPx", "fill"]),
   scalebar: new Set(["lengthValue", "lengthUnit", "cornerOverride"]),
   // letters are derived; bulk-update is a no-op for now (spec 08 may revisit).
   letter: new Set(),

@@ -38,7 +38,6 @@ export function computeCanvasDims(
  *
  * - text: x, y
  * - symbol: x, y
- * - box: x, y, w, h
  * - scalebar: nothing (corner-anchored, lengthValue is in real-world units)
  *
  * sizePt, sizePx, rotationDeg, strokeWidthPx are intentionally left alone
@@ -57,15 +56,6 @@ export function scaleAnnotations(
     }
     if (a.kind === "symbol") {
       return { ...a, x: a.x * sx, y: a.y * sy };
-    }
-    if (a.kind === "box") {
-      return {
-        ...a,
-        x: a.x * sx,
-        y: a.y * sy,
-        w: a.w * sx,
-        h: a.h * sy,
-      };
     }
     // scalebar — nothing positional to scale.
     return a;

@@ -110,25 +110,6 @@ function reprojectAnno(
       if (a.x === p.fx && a.y === p.fy && a.panelId === panelId) return a;
       return { ...a, x: p.fx, y: p.fy, panelId };
     }
-    case "box": {
-      if (a.anchor1 === undefined || a.anchor2 === undefined) return a;
-      const p1 = projectAnchor(a.anchor1, panelRect, transform, imgW, imgH);
-      const p2 = projectAnchor(a.anchor2, panelRect, transform, imgW, imgH);
-      const nx = Math.min(p1.fx, p2.fx);
-      const ny = Math.min(p1.fy, p2.fy);
-      const nw = Math.abs(p2.fx - p1.fx);
-      const nh = Math.abs(p2.fy - p1.fy);
-      if (
-        a.x === nx &&
-        a.y === ny &&
-        a.w === nw &&
-        a.h === nh &&
-        a.panelId === panelId
-      ) {
-        return a;
-      }
-      return { ...a, x: nx, y: ny, w: nw, h: nh, panelId };
-    }
     case "scalebar": {
       // Scale bars don't carry per-point anchors (they're positioned by
       // panel + corner), but their `panelId` should follow the bound image.

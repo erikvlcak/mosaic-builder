@@ -4,7 +4,6 @@ import type {
   Annotation,
   TextAnnotation,
   SymbolAnnotation,
-  BoxAnnotation,
   ScaleBarAnnotation,
 } from "../../src/renderer/model/annotations";
 import {
@@ -740,20 +739,8 @@ function symbolAnno(id: string, panelId?: string): SymbolAnnotation {
     rotationDeg: 0,
     color: "#FF0000",
     strokeWidthPx: 2,
-  };
-}
-function boxAnno(id: string, panelId?: string): BoxAnnotation {
-  return {
-    id,
-    kind: "box",
-    z: 0,
-    panelId,
-    x: 0,
-    y: 0,
-    w: 30,
-    h: 30,
-    stroke: "#00FF00",
-    strokeWidthPx: 1,
+    fillMode: "filled",
+    strokeStyle: "solid",
   };
 }
 function scalebarAnno(id: string, panelId: string): ScaleBarAnnotation {
@@ -796,11 +783,20 @@ describe("figureReducer (M6 annotations)", () => {
     expect(s1.annotations).toEqual([ann]);
   });
 
-  it("ADD_ANNOTATION adds a box annotation", () => {
+  it("ADD_ANNOTATION carries fillMode and strokeStyle through verbatim", () => {
     const s0 = initialFigureState();
-    const ann = boxAnno("b1");
+    const pid = panelIdAt(s0, 0, 0);
+    const ann: SymbolAnnotation = {
+      ...symbolAnno("a-fields", pid),
+      fillMode: "outlined",
+      strokeStyle: "dashed",
+      strokeWidthPx: 4,
+    };
     const s1 = figureReducer(s0, addAnnotation(ann));
-    expect(s1.annotations).toEqual([ann]);
+    const stored = s1.annotations[0] as SymbolAnnotation;
+    expect(stored.fillMode).toBe("outlined");
+    expect(stored.strokeStyle).toBe("dashed");
+    expect(stored.strokeWidthPx).toBe(4);
   });
 
   it("ADD_ANNOTATION adds a scale bar when panel has calibrated image", () => {
@@ -1182,23 +1178,21 @@ describe("figureReducer (M6 annotations)", () => {
     s = figureReducer(s, addAnnotation(scalebarAnno("sb1", pid)));
     s = figureReducer(s, addAnnotation(textAnno("t1", pid)));
     s = figureReducer(s, addAnnotation(symbolAnno("a1", pid)));
-    s = figureReducer(s, addAnnotation(boxAnno("b1", pid)));
     s = figureReducer(s, removeFromPool("cal"));
     const ids = s.annotations.map((a) => a.id).sort();
-    expect(ids).toEqual(["a1", "b1", "t1"]);
+    expect(ids).toEqual(["a1", "t1"]);
   });
 
-  it("UNPLACE_PANEL drops scale-bar annotations on the freed panel; keeps text/symbol/box", () => {
+  it("UNPLACE_PANEL drops scale-bar annotations on the freed panel; keeps text/symbol", () => {
     let s = withPool(IMG_CAL);
     const pid = panelIdAt(s, 0, 0);
     s = figureReducer(s, placeIntoPanel("cal", pid));
     s = figureReducer(s, addAnnotation(scalebarAnno("sb1", pid)));
     s = figureReducer(s, addAnnotation(textAnno("t1", pid)));
     s = figureReducer(s, addAnnotation(symbolAnno("a1", pid)));
-    s = figureReducer(s, addAnnotation(boxAnno("b1", pid)));
     s = figureReducer(s, unplacePanel(pid));
     const ids = s.annotations.map((a) => a.id).sort();
-    expect(ids).toEqual(["a1", "b1", "t1"]);
+    expect(ids).toEqual(["a1", "t1"]);
     // Image stays in pool.
     expect(s.pool.map((i) => i.id)).toEqual(["cal"]);
   });
@@ -1409,46 +1403,41 @@ describe("figureReducer (bulk annotation actions)", () => {
   }
 
   it("BULK_UPDATE_ANNOS applies common keys across mixed kinds", () => {
-    const s0 = withAnnos(textAnno("t1"), boxAnno("b1"), symbolAnno("s1"));
+    const s0 = withAnnos(textAnno("t1"), symbolAnno("s1"));
     const s1 = figureReducer(
       s0,
-      bulkUpdateAnnos(["t1", "b1", "s1"], {
+      bulkUpdateAnnos(["t1", "s1"], {
         color: "#123456",
       } as Partial<Annotation>),
     );
     const t = s1.annotations.find((a) => a.id === "t1") as TextAnnotation;
     const sym = s1.annotations.find((a) => a.id === "s1") as SymbolAnnotation;
-    const b = s1.annotations.find((a) => a.id === "b1") as BoxAnnotation;
     expect(t.color).toBe("#123456");
     expect(sym.color).toBe("#123456");
-    // 'color' is not a valid key for boxes (boxes use 'stroke') — patch dropped.
-    expect(b.stroke).toBe("#00FF00");
   });
 
   it("BULK_UPDATE_ANNOS drops keys invalid for some kinds (heterogeneous patch)", () => {
-    const s0 = withAnnos(textAnno("t1"), boxAnno("b1"));
+    const s0 = withAnnos(textAnno("t1"), symbolAnno("s1"));
     const s1 = figureReducer(
       s0,
-      // 'stroke' is valid for boxes only; 'sizePt' valid for text only.
-      bulkUpdateAnnos(["t1", "b1"], {
-        stroke: "#FF0000",
+      // 'sizePt' valid for text only; 'strokeWidthPx' valid for symbol only.
+      bulkUpdateAnnos(["t1", "s1"], {
         sizePt: 24,
+        strokeWidthPx: 5,
       } as Partial<Annotation>),
     );
     const t = s1.annotations.find((a) => a.id === "t1") as TextAnnotation;
-    const b = s1.annotations.find((a) => a.id === "b1") as BoxAnnotation;
-    expect(t.sizePt).toBe(24); // applied
-    expect(b.stroke).toBe("#FF0000"); // applied
-    // box never sees sizePt; text never sees stroke — type system enforces this,
-    // but check by structure too.
-    expect((b as unknown as { sizePt?: number }).sizePt).toBeUndefined();
+    const sym = s1.annotations.find((a) => a.id === "s1") as SymbolAnnotation;
+    expect(t.sizePt).toBe(24); // applied to text
+    expect(sym.strokeWidthPx).toBe(5); // applied to symbol
+    expect((t as unknown as { strokeWidthPx?: number }).strokeWidthPx).toBeUndefined();
   });
 
   it("BULK_UPDATE_ANNOS no-ops when no patch keys are valid for any selected anno", () => {
     const s0 = withAnnos(textAnno("t1"));
     const s1 = figureReducer(
       s0,
-      bulkUpdateAnnos(["t1"], { stroke: "#000000" } as Partial<Annotation>),
+      bulkUpdateAnnos(["t1"], { strokeWidthPx: 9 } as Partial<Annotation>),
     );
     expect(s1).toBe(s0);
   });
@@ -1469,7 +1458,7 @@ describe("figureReducer (bulk annotation actions)", () => {
       s0,
       bulkUpdateAnnos(["t1"], {
         id: "hijack",
-        kind: "box",
+        kind: "symbol",
         color: "#abcdef",
       } as unknown as Partial<Annotation>),
     );
@@ -1493,9 +1482,9 @@ describe("figureReducer (bulk annotation actions)", () => {
   });
 
   it("BULK_REMOVE_ANNOS removes only the listed ids", () => {
-    const s0 = withAnnos(textAnno("t1"), boxAnno("b1"), symbolAnno("s1"));
+    const s0 = withAnnos(textAnno("t1"), symbolAnno("s1"), textAnno("t2"));
     const s1 = figureReducer(s0, bulkRemoveAnnos(["t1", "s1"]));
-    expect(s1.annotations.map((a) => a.id)).toEqual(["b1"]);
+    expect(s1.annotations.map((a) => a.id)).toEqual(["t2"]);
   });
 
   it("BULK_REMOVE_ANNOS no-ops on empty ids", () => {

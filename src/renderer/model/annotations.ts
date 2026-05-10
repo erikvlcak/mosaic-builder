@@ -1,18 +1,21 @@
 /**
  * M6 annotation model. All coordinates are in figure-canvas px (top-left
- * origin). The user-facing `Annotation` discriminated union has 4
- * user-creatable kinds — text/symbol/box/scalebar; `LetterAnnotation` is a
+ * origin). The user-facing `Annotation` discriminated union has 3
+ * user-creatable kinds — text/symbol/scalebar; `LetterAnnotation` is a
  * derived (resolved) shape produced by `figure-derivations` from
  * `letterOverrides` + grid position, and is not directly editable.
  *
  * `AnnotationKind` includes `"letter"` so derived letters share the same
  * `BaseAnnotation` shape; the user-creatable `Annotation` union below
- * narrows to the 4 editable kinds.
+ * narrows to the 3 editable kinds.
  */
 
 import type { Corner } from "./global-style";
 
-export type AnnotationKind = "text" | "symbol" | "box" | "scalebar" | "letter"; // "letter" is derived-only — not in user-facing Annotation union
+export type AnnotationKind = "text" | "symbol" | "scalebar" | "letter"; // "letter" is derived-only — not in user-facing Annotation union
+
+export type FillMode = "filled" | "outlined";
+export type StrokeStyle = "solid" | "dashed" | "dotted";
 
 export interface BaseAnnotation {
   /** crypto.randomUUID() */
@@ -92,29 +95,20 @@ export interface SymbolAnnotation extends BaseAnnotation {
   /** Degrees clockwise. 0 = library default orientation. */
   rotationDeg: number;
   color: string;
-  /** Stroke width for stroke-only symbols. Ignored at draw time for filled symbols. */
+  /** Stroke width when outlined (or for stroke-only geometries). */
   strokeWidthPx: number;
+  /**
+   * Fill vs outline. For `geometry: "stroke-only"` symbols the renderer
+   * falls back to outlined rendering even if this is "filled" — the picker
+   * UI prevents that combination, but the renderer is defensive.
+   */
+  fillMode: FillMode;
+  /** Honoured only when `fillMode === "outlined"` (or geometry is stroke-only). */
+  strokeStyle: StrokeStyle;
 }
 
-export interface BoxAnnotation extends BaseAnnotation {
-  kind: "box";
-  /** figure-canvas px (top-left + size). */
-  x: number;
-  y: number;
-  w: number;
-  h: number;
-  /**
-   * Image-anchors for the box's top-left and bottom-right corners.
-   * Present iff `imageId` is set. We anchor opposite corners (rather than
-   * top-left + size) so rotation re-projects correctly: a box rotated 90°
-   * with the panel keeps its on-image footprint.
-   */
-  anchor1?: ImageAnchor;
-  anchor2?: ImageAnchor;
-  stroke: string;
-  strokeWidthPx: number;
-  fill?: string;
-}
+// BoxAnnotation removed in spec 06 — symbols now cover the rectangle use case
+// via shape-square + outlined fillMode, eliminating the redundant tool.
 
 export interface ScaleBarAnnotation extends BaseAnnotation {
   kind: "scalebar";
@@ -142,5 +136,4 @@ export interface LetterAnnotation extends BaseAnnotation {
 export type Annotation =
   | TextAnnotation
   | SymbolAnnotation
-  | BoxAnnotation
   | ScaleBarAnnotation;
