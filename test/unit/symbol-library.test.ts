@@ -2,70 +2,104 @@ import { describe, it, expect } from "vitest";
 import {
   SYMBOL_LIBRARY,
   SYMBOL_LIBRARY_BY_ID,
-  SYMBOL_CATEGORIES,
+  DEFAULT_SYMBOL_ID,
+  DEFAULT_FILL_MODE,
+  DEFAULT_STROKE_STYLE,
+  DEFAULT_SYMBOL_COLOR,
+  DEFAULT_SYMBOL_STROKE,
   type SymbolDef,
 } from "../../src/renderer/symbols/library";
 
-describe("SYMBOL_LIBRARY", () => {
-  it("has 24 entries", () => {
-    expect(SYMBOL_LIBRARY).toHaveLength(24);
-  });
-
-  it("has unique ids", () => {
-    const ids = SYMBOL_LIBRARY.map((s) => s.id);
-    expect(new Set(ids).size).toBe(ids.length);
-  });
-
-  it("covers all four categories", () => {
-    const seen = new Set(SYMBOL_LIBRARY.map((s) => s.category));
-    expect(seen).toEqual(new Set(["arrow", "shape", "marker", "bracket"]));
-  });
-
-  it("every category has at least one entry", () => {
-    for (const c of SYMBOL_CATEGORIES) {
-      expect(SYMBOL_LIBRARY.some((s) => s.category === c)).toBe(true);
-    }
-  });
-
-  it("every pathD is a non-empty string composed only of valid SVG path tokens", () => {
-    // Path2D is a browser-only constructor and the project's Vitest envs
-    // (node + jsdom) don't ship it, so we structurally validate instead:
-    //   - non-empty
-    //   - first non-whitespace token is an absolute moveto ("M")
-    //   - every character is one of: SVG path commands, numbers, separators
-    const TOKEN_RE = /^[\s\d.,\-+eEMmLlHhVvCcSsQqTtAaZz]+$/;
-    for (const def of SYMBOL_LIBRARY) {
-      expect(def.pathD.length).toBeGreaterThan(0);
-      expect(def.pathD.trimStart().startsWith("M")).toBe(true);
-      expect(TOKEN_RE.test(def.pathD)).toBe(true);
-    }
-  });
-
-  it("includes the three migration-target arrow ids", () => {
-    const required = [
-      "arrow-open-right",
+describe("symbol library", () => {
+  it("contains exactly 6 arrow ids", () => {
+    const arrowIds = SYMBOL_LIBRARY.filter((s) => s.id.startsWith("arrow-")).map(
+      (s) => s.id,
+    );
+    expect(arrowIds.sort()).toEqual([
+      "arrow-double-right",
       "arrow-filled-right",
       "arrow-line-right",
-    ];
-    const ids = new Set(SYMBOL_LIBRARY.map((s) => s.id));
-    for (const id of required) expect(ids.has(id)).toBe(true);
+      "arrow-open-right",
+      "arrow-thick-right",
+      "arrow-thin-right",
+    ]);
   });
 
-  it("SYMBOL_LIBRARY_BY_ID is consistent with SYMBOL_LIBRARY", () => {
-    expect(SYMBOL_LIBRARY_BY_ID.size).toBe(SYMBOL_LIBRARY.length);
-    for (const def of SYMBOL_LIBRARY) {
-      expect(SYMBOL_LIBRARY_BY_ID.get(def.id)).toBe(def);
+  it("contains the expected shape ids (existing 8 + 12 new)", () => {
+    const shapeIds = SYMBOL_LIBRARY.filter((s) => s.id.startsWith("shape-")).map(
+      (s) => s.id,
+    );
+    expect(shapeIds.sort()).toEqual(
+      [
+        "shape-asterisk",
+        "shape-chevron",
+        "shape-circle",
+        "shape-cross",
+        "shape-diamond",
+        "shape-heart",
+        "shape-hexagon",
+        "shape-lightning",
+        "shape-octagon",
+        "shape-oval",
+        "shape-parallelogram",
+        "shape-pentagon",
+        "shape-plus",
+        "shape-right-triangle",
+        "shape-rounded-square",
+        "shape-speech-bubble",
+        "shape-square",
+        "shape-star",
+        "shape-trapezoid",
+        "shape-triangle",
+      ].sort(),
+    );
+  });
+
+  it("contains no marker-* or bracket-* entries", () => {
+    expect(SYMBOL_LIBRARY.some((s) => s.id.startsWith("marker-"))).toBe(false);
+    expect(SYMBOL_LIBRARY.some((s) => s.id.startsWith("bracket-"))).toBe(false);
+  });
+
+  it("every entry has a `geometry` of 'closed' or 'stroke-only' and no legacy `category` or `fill` fields", () => {
+    for (const def of SYMBOL_LIBRARY as readonly SymbolDef[]) {
+      expect(def.geometry === "closed" || def.geometry === "stroke-only").toBe(
+        true,
+      );
+      expect((def as unknown as { category?: unknown }).category).toBeUndefined();
+      expect((def as unknown as { fill?: unknown }).fill).toBeUndefined();
     }
   });
 
-  it("each SymbolDef has well-typed fields", () => {
-    for (const def of SYMBOL_LIBRARY) {
-      const ok: SymbolDef = def;
-      expect(typeof ok.id).toBe("string");
-      expect(typeof ok.label).toBe("string");
-      expect(typeof ok.pathD).toBe("string");
-      expect(typeof ok.fill).toBe("boolean");
-      expect(SYMBOL_CATEGORIES).toContain(ok.category);
+  it("classifies the four currently-stroke-only arrows as 'stroke-only'", () => {
+    const strokeOnly = ["arrow-open-right", "arrow-line-right", "arrow-double-right"];
+    for (const id of strokeOnly) {
+      expect(SYMBOL_LIBRARY_BY_ID.get(id)?.geometry).toBe("stroke-only");
     }
+  });
+
+  it("classifies the closed arrows as 'closed'", () => {
+    for (const id of ["arrow-filled-right", "arrow-thin-right", "arrow-thick-right"]) {
+      expect(SYMBOL_LIBRARY_BY_ID.get(id)?.geometry).toBe("closed");
+    }
+  });
+
+  it("classifies shape-asterisk as stroke-only and the rest of shapes as closed", () => {
+    expect(SYMBOL_LIBRARY_BY_ID.get("shape-asterisk")?.geometry).toBe(
+      "stroke-only",
+    );
+    const closedShapes = SYMBOL_LIBRARY.filter(
+      (s) => s.id.startsWith("shape-") && s.id !== "shape-asterisk",
+    );
+    for (const s of closedShapes) {
+      expect(s.geometry).toBe("closed");
+    }
+  });
+
+  it("exposes default constants", () => {
+    expect(DEFAULT_SYMBOL_ID).toBe("arrow-filled-right");
+    expect(DEFAULT_FILL_MODE).toBe("filled");
+    expect(DEFAULT_STROKE_STYLE).toBe("solid");
+    expect(typeof DEFAULT_SYMBOL_COLOR).toBe("string");
+    expect(typeof DEFAULT_SYMBOL_STROKE).toBe("number");
   });
 });
