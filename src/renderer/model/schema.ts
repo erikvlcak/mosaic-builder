@@ -16,7 +16,7 @@ import type { Panel } from "./panels";
 import type { Annotation, ImageAnchor } from "./annotations";
 import type { GridLayout } from "./grid-layout";
 
-export const CURRENT_SCHEMA_VERSION = 4;
+export const CURRENT_SCHEMA_VERSION = 5;
 
 export type Result<T> = { ok: true; value: T } | { ok: false; error: string };
 
@@ -105,12 +105,26 @@ export interface MosaicFileV4
   state: MosaicFileV3["state"] & { layout: GridLayout };
 }
 
+/**
+ * v5: spec 06 (symbol picker rework) — `BoxAnnotation` removed from the
+ * annotation union; `SymbolAnnotation` gains required `fillMode` and
+ * `strokeStyle` fields. There is no migration: v4 and earlier files are
+ * rejected at load with a clear error, since no production v4 files exist
+ * (the user has confirmed this).
+ */
+export interface MosaicFileV5
+  extends Omit<MosaicFileV4, "schemaVersion" | "state"> {
+  schemaVersion: 5;
+  state: MosaicFileV4["state"];
+}
+
 /** Type alias used by callers that don't care about version. */
 export type MosaicFile =
   | MosaicFileV1
   | MosaicFileV2
   | MosaicFileV3
-  | MosaicFileV4;
+  | MosaicFileV4
+  | MosaicFileV5;
 
 function isObj(x: unknown): x is Record<string, unknown> {
   return typeof x === "object" && x !== null && !Array.isArray(x);
@@ -260,7 +274,7 @@ function validatePanels(x: unknown, path: string): Result<Panel[]> {
 function validateAnnotations(
   x: unknown,
   path: string,
-  schemaVersion: 1 | 2 | 3 | 4,
+  schemaVersion: 1 | 2 | 3 | 5,
 ): Result<FigureState["annotations"]> {
   if (!Array.isArray(x)) return err(`${path}: expected array`);
   const arr = x as unknown[];
@@ -337,23 +351,24 @@ function validateAnnotations(
       if (a.anchor !== undefined && !isImageAnchor(a.anchor)) {
         return err(`${path}[${i}].anchor`);
       }
+      if (schemaVersion === 5) {
+        if (a.fillMode !== "filled" && a.fillMode !== "outlined") {
+          return err(`${path}[${i}].fillMode: must be 'filled' or 'outlined'`);
+        }
+        if (
+          a.strokeStyle !== "solid" &&
+          a.strokeStyle !== "dashed" &&
+          a.strokeStyle !== "dotted"
+        ) {
+          return err(
+            `${path}[${i}].strokeStyle: must be 'solid'|'dashed'|'dotted'`,
+          );
+        }
+      }
     } else if (k === "box") {
-      if (
-        !isNum(a.x) ||
-        !isNum(a.y) ||
-        !isNum(a.w) ||
-        !isNum(a.h) ||
-        !isStr(a.stroke) ||
-        !isNum(a.strokeWidthPx)
-      ) {
-        return err(`${path}[${i}]: malformed box annotation`);
-      }
-      if (a.anchor1 !== undefined && !isImageAnchor(a.anchor1)) {
-        return err(`${path}[${i}].anchor1`);
-      }
-      if (a.anchor2 !== undefined && !isImageAnchor(a.anchor2)) {
-        return err(`${path}[${i}].anchor2`);
-      }
+      return err(
+        `${path}[${i}].kind: 'box' annotations are not supported in v${schemaVersion}`,
+      );
     } else if (k === "scalebar") {
       if (
         !isStr(a.panelId) ||
@@ -366,7 +381,7 @@ function validateAnnotations(
       }
     } else {
       return err(
-        `${path}[${i}].kind: must be text|symbol|box|scalebar (or arrow in v1)`,
+        `${path}[${i}].kind: must be text|symbol|scalebar (or arrow in v1)`,
       );
     }
   }
@@ -440,11 +455,16 @@ export function validateMosaicFile(x: unknown): Result<MosaicFile> {
     x.schemaVersion !== 1 &&
     x.schemaVersion !== 2 &&
     x.schemaVersion !== 3 &&
-    x.schemaVersion !== 4
+    x.schemaVersion !== 5
   ) {
+    if (x.schemaVersion === 4) {
+      return err(
+        "schemaVersion: this file uses an older format (v4) that is not supported. Re-create the project in the current app.",
+      );
+    }
     return err(`schemaVersion: unsupported (${String(x.schemaVersion)})`);
   }
-  const sv: 1 | 2 | 3 | 4 = x.schemaVersion;
+  const sv: 1 | 2 | 3 | 5 = x.schemaVersion;
   if (x.app !== "mosaic-builder") return err("app: must be 'mosaic-builder'");
   if (!isStr(x.appVersion)) return err("appVersion: expected string");
   if (!isStr(x.createdAt)) return err("createdAt: expected ISO string");
@@ -490,7 +510,7 @@ export function validateMosaicFile(x: unknown): Result<MosaicFile> {
   const lo = st.letterOverrides;
   for (const k in lo) {
     const v = lo[k];
-    if (sv === 3 || sv === 4) {
+    if (sv === 3 || sv === 5) {
       if (!isObj(v)) {
         return err(
           `state.letterOverrides.${k}: expected LetterOverride object`,
@@ -524,7 +544,7 @@ export function validateMosaicFile(x: unknown): Result<MosaicFile> {
     }
   }
   // letterPattern only exists in v3+ files; older files default in the loader.
-  if (sv === 3 || sv === 4) {
+  if (sv === 3 || sv === 5) {
     if (
       st.letterPattern !== "uppercase" &&
       st.letterPattern !== "lowercase" &&
@@ -537,9 +557,10 @@ export function validateMosaicFile(x: unknown): Result<MosaicFile> {
     }
   }
 
-  // layout only exists in v4 files; older files default to uniform in the
-  // loader. Validate cross-checks (col/row-weight length must match cols/rows).
-  if (sv === 4) {
+  // layout only exists in v4+ files (introduced in spec 11); v5 carries it
+  // forward unchanged. Older files default to uniform in the loader.
+  // Validate cross-checks (col/row-weight length must match cols/rows).
+  if (sv === 5) {
     const layout = validateLayout(st.layout, "state.layout", st.rows, st.cols);
     if (!layout.ok) return layout;
   }

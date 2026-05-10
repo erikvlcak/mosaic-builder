@@ -2,11 +2,11 @@ import { describe, it, expect } from "vitest";
 import {
   validateMosaicFile,
   CURRENT_SCHEMA_VERSION,
-  type MosaicFileV3,
+  type MosaicFileV5,
 } from "../../src/renderer/model/schema";
 
-const MIN_VALID: MosaicFileV3 = {
-  schemaVersion: 3,
+const MIN_VALID: MosaicFileV5 = {
+  schemaVersion: 5,
   app: "mosaic-builder",
   appVersion: "0.1.0",
   createdAt: "2026-05-02T10:00:00Z",
@@ -49,21 +49,97 @@ const MIN_VALID: MosaicFileV3 = {
     },
     letterOverrides: {},
     letterPattern: "uppercase",
+    layout: {
+      kind: "uniform",
+      colWeights: [0.5, 0.5],
+      rowWeights: [0.5, 0.5],
+    },
   },
 };
 
 describe("validateMosaicFile", () => {
-  it("CURRENT_SCHEMA_VERSION is 4", () => {
-    expect(CURRENT_SCHEMA_VERSION).toBe(4);
+  it("CURRENT_SCHEMA_VERSION is 5", () => {
+    expect(CURRENT_SCHEMA_VERSION).toBe(5);
   });
 
   it("accepts a minimal valid file", () => {
     const r = validateMosaicFile(MIN_VALID);
     expect(r.ok).toBe(true);
     if (r.ok) {
-      expect(r.value.schemaVersion).toBe(3);
+      expect(r.value.schemaVersion).toBe(5);
       expect(r.value.state.rows).toBe(2);
     }
+  });
+
+  it("rejects schemaVersion 4 with a clear error", () => {
+    const r = validateMosaicFile({ ...MIN_VALID, schemaVersion: 4 });
+    expect(r.ok).toBe(false);
+    if (!r.ok) {
+      expect(r.error).toMatch(/older format that is not supported|schemaVersion/);
+    }
+  });
+
+  it("accepts schemaVersion 5 when symbol annotations carry fillMode/strokeStyle", () => {
+    const r = validateMosaicFile({
+      ...MIN_VALID,
+      schemaVersion: 5,
+    });
+    expect(r.ok).toBe(true);
+  });
+
+  it("rejects a v5 symbol annotation missing fillMode", () => {
+    const r = validateMosaicFile({
+      ...MIN_VALID,
+      schemaVersion: 5,
+      state: {
+        ...MIN_VALID.state,
+        annotations: [
+          {
+            id: "s1",
+            kind: "symbol",
+            z: 0,
+            symbolId: "arrow-filled-right",
+            x: 10,
+            y: 10,
+            sizePx: 60,
+            rotationDeg: 0,
+            color: "#FF0000",
+            strokeWidthPx: 2,
+            strokeStyle: "solid",
+          },
+        ],
+      },
+    });
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error).toMatch(/fillMode/);
+  });
+
+  it("rejects a v5 symbol annotation with an invalid strokeStyle", () => {
+    const r = validateMosaicFile({
+      ...MIN_VALID,
+      schemaVersion: 5,
+      state: {
+        ...MIN_VALID.state,
+        annotations: [
+          {
+            id: "s1",
+            kind: "symbol",
+            z: 0,
+            symbolId: "arrow-filled-right",
+            x: 10,
+            y: 10,
+            sizePx: 60,
+            rotationDeg: 0,
+            color: "#FF0000",
+            strokeWidthPx: 2,
+            fillMode: "filled",
+            strokeStyle: "wavy",
+          },
+        ],
+      },
+    });
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error).toMatch(/strokeStyle/);
   });
 
   it("rejects missing schemaVersion with a descriptive error", () => {
@@ -330,10 +406,10 @@ describe("validateMosaicFile schema versions", () => {
   });
 });
 
-describe("schema v4 — layout (spec 11)", () => {
-  function v4File(layoutOverride?: object): unknown {
+describe("schema v5 — layout (spec 11, carried into v5)", () => {
+  function v5File(layoutOverride?: object): unknown {
     return {
-      schemaVersion: 4,
+      schemaVersion: 5,
       app: "mosaic-builder",
       appVersion: "0.1.0",
       createdAt: "2026-05-09T00:00:00.000Z",
@@ -387,20 +463,20 @@ describe("schema v4 — layout (spec 11)", () => {
   }
 
   it("accepts a uniform layout with valid weights", () => {
-    const r = validateMosaicFile(v4File());
+    const r = validateMosaicFile(v5File());
     expect(r.ok).toBe(true);
   });
 
   it("rejects uniform layout with mismatched colWeights length", () => {
     const r = validateMosaicFile(
-      v4File({ kind: "uniform", colWeights: [1.0], rowWeights: [0.5, 0.5] }),
+      v5File({ kind: "uniform", colWeights: [1.0], rowWeights: [0.5, 0.5] }),
     );
     expect(r.ok).toBe(false);
   });
 
   it("accepts a free layout with valid rects", () => {
     const r = validateMosaicFile(
-      v4File({
+      v5File({
         kind: "free",
         rects: {
           p1: { x: 0, y: 0, w: 100, h: 100 },
@@ -412,7 +488,7 @@ describe("schema v4 — layout (spec 11)", () => {
 
   it("rejects free layout with non-numeric rect", () => {
     const r = validateMosaicFile(
-      v4File({
+      v5File({
         kind: "free",
         rects: { p1: { x: "wrong", y: 0, w: 100, h: 100 } },
       }),
@@ -421,7 +497,7 @@ describe("schema v4 — layout (spec 11)", () => {
   });
 
   it("rejects unknown layout.kind", () => {
-    const r = validateMosaicFile(v4File({ kind: "wat" }));
+    const r = validateMosaicFile(v5File({ kind: "wat" }));
     expect(r.ok).toBe(false);
   });
 });

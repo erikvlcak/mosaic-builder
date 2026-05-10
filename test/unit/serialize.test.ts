@@ -21,7 +21,7 @@ const SAMPLE_IMG: ImagePoolItem = {
 };
 
 describe("toMosaicFile", () => {
-  it("emits schemaVersion=4, app=mosaic-builder, copies state through", () => {
+  it("emits schemaVersion=5, app=mosaic-builder, copies state through", () => {
     const f = toMosaicFile({
       state: initialFigureState(),
       canvas: { widthPx: 800, heightPx: 600, background: "#FFFFFF" },
@@ -29,7 +29,7 @@ describe("toMosaicFile", () => {
       appVersion: "0.1.0",
       now: () => "2026-05-02T10:00:00Z",
     });
-    expect(f.schemaVersion).toBe(4);
+    expect(f.schemaVersion).toBe(5);
     expect(f.app).toBe("mosaic-builder");
     expect(f.appVersion).toBe("0.1.0");
     expect(f.createdAt).toBe("2026-05-02T10:00:00Z");
@@ -189,7 +189,7 @@ describe("v1 → v2 migration on fromMosaicFile", () => {
     });
   });
 
-  it("toMosaicFile always writes schemaVersion=4", () => {
+  it("toMosaicFile always writes schemaVersion=5", () => {
     const f = toMosaicFile({
       state: initialFigureState(),
       canvas: { widthPx: 800, heightPx: 600, background: "#FFFFFF" },
@@ -197,7 +197,7 @@ describe("v1 → v2 migration on fromMosaicFile", () => {
       appVersion: "0.1.0",
       now: () => "2026-05-09T00:00:00Z",
     });
-    expect(f.schemaVersion).toBe(4);
+    expect(f.schemaVersion).toBe(5);
   });
 
   it("v1 file with string-shaped letterOverrides loads as v3 LetterOverride map", () => {
@@ -257,8 +257,8 @@ describe("v1 → v2 migration on fromMosaicFile", () => {
   });
 });
 
-describe("serialize — layout v4 (spec 11)", () => {
-  it("toMosaicFile writes schemaVersion 4 with state.layout", () => {
+describe("serialize — layout v5 (spec 11 carried into v5)", () => {
+  it("toMosaicFile writes schemaVersion 5 with state.layout", () => {
     const state = initialFigureState();
     const file = toMosaicFile({
       state,
@@ -267,7 +267,7 @@ describe("serialize — layout v4 (spec 11)", () => {
       appVersion: "0.1.0",
       now: () => "2026-05-09T00:00:00.000Z",
     });
-    expect(file.schemaVersion).toBe(4);
+    expect(file.schemaVersion).toBe(5);
     expect(file.state.layout).toEqual({
       kind: "uniform",
       colWeights: [0.5, 0.5],
@@ -275,7 +275,7 @@ describe("serialize — layout v4 (spec 11)", () => {
     });
   });
 
-  it("round-trips a free-form layout through v4", () => {
+  it("round-trips a free-form layout through v5", () => {
     const state = initialFigureState();
     const free: typeof state = {
       ...state,

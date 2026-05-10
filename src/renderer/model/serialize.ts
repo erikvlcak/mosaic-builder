@@ -16,7 +16,7 @@
 import type { FigureState, LetterOverride } from "./figure-state";
 import type { ImagePoolItem } from "./pool";
 import type { Annotation } from "./annotations";
-import type { MosaicFile, MosaicFileV4 } from "./schema";
+import type { MosaicFile, MosaicFileV5 } from "./schema";
 import { migrateAnnotationsV1ToV2 } from "./migrate-v1-to-v2";
 import { uniformLayoutFor } from "./grid-layout";
 
@@ -39,13 +39,13 @@ export interface ToMosaicInput {
   shaByImageId?: Record<string, string>;
 }
 
-export function toMosaicFile(inp: ToMosaicInput): MosaicFileV4 {
+export function toMosaicFile(inp: ToMosaicInput): MosaicFileV5 {
   const now = inp.now ?? (() => new Date().toISOString());
   const baseDir = posixDirname(inp.mosaicPath);
   const stamp = now();
 
   const pool = inp.state.pool.map((item) => {
-    const out: MosaicFileV4["state"]["pool"][number] = { ...item };
+    const out: MosaicFileV5["state"]["pool"][number] = { ...item };
     const rel = posixRelative(baseDir, item.filePath);
     if (rel !== null) out.relPath = rel;
     const sha = inp.shaByImageId?.[item.id];
@@ -54,13 +54,13 @@ export function toMosaicFile(inp: ToMosaicInput): MosaicFileV4 {
   });
 
   return {
-    schemaVersion: 4,
+    schemaVersion: 5,
     app: "mosaic-builder",
     appVersion: inp.appVersion,
     createdAt: stamp,
     modifiedAt: stamp,
     canvas: inp.canvas,
-    state: { ...inp.state, pool } as MosaicFileV4["state"],
+    state: { ...inp.state, pool } as MosaicFileV5["state"],
   };
 }
 
@@ -89,29 +89,31 @@ export function fromMosaicFile(file: MosaicFile): FromMosaicResult {
     background: file.canvas.background,
   };
   // v1 files carry legacy `arrow` annotations; migrate to v2 `symbol` shape
-  // before constructing runtime state. The runtime model only knows v3.
+  // before constructing runtime state. v2/v3 symbols become v5 symbols
+  // verbatim; the migrator seeds fillMode/strokeStyle defaults on arrow→symbol.
   const annotations: Annotation[] =
     file.schemaVersion === 1
       ? migrateAnnotationsV1ToV2(file.state.annotations)
-      : file.state.annotations;
+      : (file.state.annotations as Annotation[]);
   // v1/v2 stored letterOverrides as Record<panelId, string>. Migrate to the
   // v3 shape so all downstream code sees one type. The cast through unknown
   // is required because the validator accepts either shape on disk; the
   // discriminator here is `schemaVersion`, not the static type.
   const letterOverrides: Record<string, LetterOverride> =
-    file.schemaVersion === 3 || file.schemaVersion === 4
+    file.schemaVersion === 3 || file.schemaVersion === 5
       ? file.state.letterOverrides
       : migrateLetterOverridesV2ToV3(
           file.state.letterOverrides as unknown as Record<string, string>,
         );
   const letterPattern: FigureState["letterPattern"] =
-    file.schemaVersion === 3 || file.schemaVersion === 4
+    file.schemaVersion === 3 || file.schemaVersion === 5
       ? file.state.letterPattern
       : "uppercase";
-  // Spec 11: v4 carries `state.layout`; older versions seed a uniform layout
-  // for the current rows/cols (matches pre-spec-11 behavior).
+  // Spec 11: v4+ carries `state.layout`; older versions seed a uniform layout
+  // for the current rows/cols (matches pre-spec-11 behavior). v4 is rejected
+  // at the validator, so only v5 is reachable here on the layout-present path.
   const layout =
-    file.schemaVersion === 4
+    file.schemaVersion === 5
       ? file.state.layout
       : uniformLayoutFor(file.state.rows, file.state.cols);
   // v1/v2 globalStyle.letters lacks `italic`; default to false at load. We
