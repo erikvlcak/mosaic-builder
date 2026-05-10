@@ -3,7 +3,7 @@
  * visibility toggle.
  */
 
-export type Tool = "select" | "text" | "symbol" | "box" | "scalebar";
+export type Tool = "select" | "text" | "symbol" | "scalebar";
 
 interface Props {
   active: Tool;
@@ -15,8 +15,11 @@ interface Props {
 const TOOLS: ReadonlyArray<{ id: Tool; label: string; title: string }> = [
   { id: "select", label: "Select", title: "Select and move annotations" },
   { id: "text", label: "Text", title: "Add text — click to place" },
-  { id: "symbol", label: "Symbol", title: "Add symbol — click to place" },
-  { id: "box", label: "Box", title: "Add box — drag to draw" },
+  {
+    id: "symbol",
+    label: "Symbol",
+    title: "Pick a symbol — click canvas to place",
+  },
   { id: "scalebar", label: "Scale", title: "Add scale bar — click a panel" },
 ];
 
@@ -31,33 +34,33 @@ export function AnnotationToolbar({
       data-testid="annotation-toolbar"
       style={{ display: "flex", gap: 8, alignItems: "center" }}
     >
-        <div className="seg" role="group" aria-label="Annotation tool">
-          {TOOLS.map((t) => (
-            <button
-              key={t.id}
-              type="button"
-              className="btn"
-              onClick={() => onChange(t.id)}
-              aria-pressed={active === t.id}
-              data-testid={`anno-tool-${t.id}`}
-              title={t.title}
-            >
-              {t.label}
-            </button>
-          ))}
-        </div>
-        <label
-          className="checkbox-row"
-          title="Show or hide auto-generated per-panel letter labels (A, B, C…)"
-        >
-          <input
-            type="checkbox"
-            checked={lettersEnabled}
-            onChange={onToggleLetters}
-            data-testid="anno-letters-toggle"
-          />
-          Letters
-        </label>
+      <div className="seg" role="group" aria-label="Annotation tool">
+        {TOOLS.map((t) => (
+          <button
+            key={t.id}
+            type="button"
+            className="btn"
+            onClick={() => onChange(t.id)}
+            aria-pressed={active === t.id}
+            data-testid={`anno-tool-${t.id}`}
+            title={t.title}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+      <label
+        className="checkbox-row"
+        title="Show or hide auto-generated per-panel letter labels (A, B, C…)"
+      >
+        <input
+          type="checkbox"
+          checked={lettersEnabled}
+          onChange={onToggleLetters}
+          data-testid="anno-letters-toggle"
+        />
+        Letters
+      </label>
     </div>
   );
 }
