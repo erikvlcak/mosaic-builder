@@ -25,9 +25,9 @@ import type {
 import type {
   LetterAnnotation,
   TextAnnotation,
-  BoxAnnotation,
   SymbolAnnotation,
   ScaleBarAnnotation,
+  StrokeStyle,
 } from "../model/annotations";
 import type { LetterStyle } from "../model/global-style";
 import type { ImagePoolItem } from "../model/pool";
@@ -62,9 +62,6 @@ export function drawAnnotations(
         break;
       case "text":
         drawText(ctx, a, deps);
-        break;
-      case "box":
-        drawBox(ctx, a, deps);
         break;
       case "symbol":
         drawSymbol(ctx, a);
@@ -222,22 +219,6 @@ function drawText(
   ctx.fillText(t.text, t.x, t.y);
 }
 
-function drawBox(
-  ctx: DrawCtx,
-  b: BoxAnnotation,
-  deps: AnnotationDrawDeps,
-): void {
-  if (b.panelId !== undefined && !deps.panelRectsById.has(b.panelId)) return;
-
-  if (b.fill !== undefined) {
-    ctx.fillStyle = b.fill;
-    ctx.fillRect(b.x, b.y, b.w, b.h);
-  }
-  ctx.strokeStyle = b.stroke;
-  ctx.lineWidth = b.strokeWidthPx;
-  ctx.strokeRect(b.x, b.y, b.w, b.h);
-}
-
 function drawSymbol(ctx: DrawCtx, a: SymbolAnnotation): void {
   const def = SYMBOL_LIBRARY_BY_ID.get(a.symbolId);
   if (def === undefined) return;
@@ -254,16 +235,46 @@ function drawSymbol(ctx: DrawCtx, a: SymbolAnnotation): void {
   ctx.scale(scale, scale);
   ctx.translate(-50, -50);
   const path = new Path2D(def.pathD);
-  if (def.fill) {
+
+  // Stroke-only geometries silently degrade if asked to fill — the picker
+  // UI prevents this combo, but we don't want a broken render if a future
+  // code path constructs an invalid annotation.
+  const wantFill = a.fillMode === "filled" && def.geometry === "closed";
+  if (wantFill) {
     ctx.fillStyle = a.color;
     ctx.fill(path);
   } else {
     ctx.strokeStyle = a.color;
     // Keep on-screen stroke width constant in figure-px regardless of sizePx.
     ctx.lineWidth = a.strokeWidthPx / scale;
+    ctx.setLineDash(dashPatternFor(a.strokeStyle, a.strokeWidthPx, scale));
     ctx.stroke(path);
+    // Reset so we don't leak dash state to subsequent draws.
+    ctx.setLineDash([]);
   }
   ctx.restore();
+}
+
+/**
+ * Dash pattern in figure-px (divided by `scale` so on-screen spacing is
+ * constant regardless of sizePx — same trick we use for `lineWidth`). The
+ * pattern is also proportional to `strokeWidthPx` so a thicker stroke gets
+ * proportionally longer dashes (avoids the "fat dotted line that looks
+ * solid" failure mode).
+ */
+function dashPatternFor(
+  style: StrokeStyle,
+  strokeWidthPx: number,
+  scale: number,
+): number[] {
+  switch (style) {
+    case "solid":
+      return [];
+    case "dashed":
+      return [(8 * strokeWidthPx) / scale, (4 * strokeWidthPx) / scale];
+    case "dotted":
+      return [(1.5 * strokeWidthPx) / scale, (3 * strokeWidthPx) / scale];
+  }
 }
 
 function drawScaleBar(

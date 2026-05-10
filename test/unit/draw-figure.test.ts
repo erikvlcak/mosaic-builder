@@ -98,6 +98,9 @@ function makeRecorder(): DrawCtx & { calls: Call[] } {
     fill(path?: Path2D) {
       calls.push(snapshot("fill", path === undefined ? [] : [path]));
     },
+    setLineDash(segments: number[]) {
+      calls.push(snapshot("setLineDash", [segments.slice()]));
+    },
   };
   function snapshot(op: string, args: unknown[]): Call {
     return {
@@ -205,6 +208,7 @@ describe("drawFigure", () => {
       lineTo() {},
       stroke() {},
       fill() {},
+      setLineDash() {},
     };
     const fig: Figure = {
       canvas: { widthPx: 100, heightPx: 100, background: "#FAFAFA" },
@@ -497,59 +501,6 @@ describe("drawAnnotations", () => {
     expect(ft?.args).toEqual(["A", 16, 28]);
   });
 
-  it("draws a box with both stroke and fill (one strokeRect + one fillRect)", () => {
-    const ctx = makeRecorder();
-    const fig = figWith([
-      {
-        id: "b1",
-        kind: "box",
-        z: 1,
-        x: 20,
-        y: 30,
-        w: 40,
-        h: 50,
-        stroke: "#FF0000",
-        strokeWidthPx: 2,
-        fill: "#0000FF",
-      },
-    ]);
-    drawAnnotations(ctx, fig, EMPTY_DEPS);
-    const fills = ctx.calls.filter((c) => c.op === "fillRect");
-    const strokes = ctx.calls.filter((c) => c.op === "strokeRect");
-    expect(fills).toHaveLength(1);
-    expect(strokes).toHaveLength(1);
-    expect(fills[0]?.args).toEqual([20, 30, 40, 50]);
-    expect(strokes[0]?.args).toEqual([20, 30, 40, 50]);
-    // Fill color was set before fillRect, stroke color before strokeRect.
-    expect(fills[0]?.fillStyle).toBe("#0000FF");
-    expect(strokes[0]?.strokeStyle).toBe("#FF0000");
-    expect(strokes[0]?.lineWidth).toBe(2);
-    // Order: fill must be painted before stroke so the stroke sits on top.
-    const fillIdx = ctx.calls.findIndex((c) => c.op === "fillRect");
-    const strokeIdx = ctx.calls.findIndex((c) => c.op === "strokeRect");
-    expect(fillIdx).toBeLessThan(strokeIdx);
-  });
-
-  it("box with stroke only (no fill) emits exactly one strokeRect and zero fillRect", () => {
-    const ctx = makeRecorder();
-    const fig = figWith([
-      {
-        id: "b2",
-        kind: "box",
-        z: 1,
-        x: 0,
-        y: 0,
-        w: 10,
-        h: 10,
-        stroke: "#000",
-        strokeWidthPx: 1,
-      },
-    ]);
-    drawAnnotations(ctx, fig, EMPTY_DEPS);
-    expect(ctx.calls.filter((c) => c.op === "fillRect")).toHaveLength(0);
-    expect(ctx.calls.filter((c) => c.op === "strokeRect")).toHaveLength(1);
-  });
-
   it("text without bgColor emits no fillRect (background) and one fillText", () => {
     const ctx = makeRecorder();
     const fig = figWith([
@@ -650,52 +601,33 @@ describe("drawAnnotations", () => {
     expect(ctx.calls.some((c) => c.op === "fillText")).toBe(false);
   });
 
-  it("drawAnnotations skips box annotations whose panelId does not resolve", () => {
-    const ctx = makeRecorder();
-    const fig = figWith([
-      {
-        id: "b-orphan",
-        kind: "box",
-        panelId: "nonexistent",
-        z: 0,
-        x: 0,
-        y: 0,
-        w: 10,
-        h: 10,
-        stroke: "#000",
-        strokeWidthPx: 1,
-      },
-    ]);
-    drawAnnotations(ctx, fig, EMPTY_DEPS);
-    expect(ctx.calls.some((c) => c.op === "strokeRect")).toBe(false);
-    expect(ctx.calls.some((c) => c.op === "fillRect")).toBe(false);
-  });
-
   it("renders letters before user annotations of equal z (array order locks 'letters first')", () => {
     // figure-derivations always puts letters BEFORE user annotations in the
     // resolved array. With both at z=0, the stable sort preserves array
-    // order, so the letter's fillText must precede the box's strokeRect.
+    // order, so the letter's fillText must precede the user text's fillText.
     const ctx = makeRecorder();
     const fig = figWith([
       { id: "letter:p1", kind: "letter", panelId: "p1", z: 0, text: "A" },
       {
-        id: "user-box",
-        kind: "box",
+        id: "user-text",
+        kind: "text",
         z: 0,
         x: 20,
         y: 30,
-        w: 40,
-        h: 50,
-        stroke: "#FF0000",
-        strokeWidthPx: 2,
+        text: "user",
+        font: "Arial",
+        sizePt: 14,
+        bold: false,
+        italic: false,
+        color: "#FF0000",
       },
     ]);
     drawAnnotations(ctx, fig, EMPTY_DEPS);
-    const letterIdx = ctx.calls.findIndex((c) => c.op === "fillText");
-    const boxIdx = ctx.calls.findIndex((c) => c.op === "strokeRect");
-    expect(letterIdx).toBeGreaterThanOrEqual(0);
-    expect(boxIdx).toBeGreaterThanOrEqual(0);
-    expect(letterIdx).toBeLessThan(boxIdx);
+    const fillTexts = ctx.calls.filter((c) => c.op === "fillText");
+    expect(fillTexts).toHaveLength(2);
+    // Letter is first (panel-derived), user text is second.
+    expect(fillTexts[0]?.args[0]).toBe("A");
+    expect(fillTexts[1]?.args[0]).toBe("user");
   });
 
   it("renders a tr-corner letter offset by measureText width", () => {
@@ -964,35 +896,39 @@ describe("drawAnnotations", () => {
     const original: Figure["annotations"] = [
       {
         id: "high",
-        kind: "box",
+        kind: "text",
         z: 5,
         x: 0,
         y: 0,
-        w: 10,
-        h: 10,
-        stroke: "#A",
-        strokeWidthPx: 1,
+        text: "A",
+        font: "Arial",
+        sizePt: 12,
+        bold: false,
+        italic: false,
+        color: "#AAAAAA",
       },
       {
         id: "low",
-        kind: "box",
+        kind: "text",
         z: 1,
         x: 0,
         y: 0,
-        w: 10,
-        h: 10,
-        stroke: "#B",
-        strokeWidthPx: 1,
+        text: "B",
+        font: "Arial",
+        sizePt: 12,
+        bold: false,
+        italic: false,
+        color: "#BBBBBB",
       },
     ];
     const orderBefore = original.map((a) => a.id);
     const fig = figWith(original);
     drawAnnotations(ctx, fig, EMPTY_DEPS);
-    const strokeColors = ctx.calls
-      .filter((c) => c.op === "strokeRect")
-      .map((c) => c.strokeStyle);
-    // low (z=1, stroke "#B") should paint before high (z=5, stroke "#A").
-    expect(strokeColors).toEqual(["#B", "#A"]);
+    const fills = ctx.calls
+      .filter((c) => c.op === "fillText")
+      .map((c) => c.fillStyle);
+    // low (z=1, color "#BBBBBB") should paint before high (z=5, "#AAAAAA").
+    expect(fills).toEqual(["#BBBBBB", "#AAAAAA"]);
     // Original array order untouched.
     expect(original.map((a) => a.id)).toEqual(orderBefore);
   });

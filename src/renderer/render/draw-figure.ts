@@ -54,6 +54,7 @@ export interface DrawCtx {
   lineTo(x: number, y: number): void;
   stroke(path?: Path2D): void;
   fill(path?: Path2D): void;
+  setLineDash(segments: number[]): void;
 }
 
 const PLACEHOLDER_FILL = "#EEEEEE";

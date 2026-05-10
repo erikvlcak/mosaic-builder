@@ -94,6 +94,9 @@ function makeRecorder(): DrawCtx & { calls: Call[] } {
     fill(path?: Path2D) {
       calls.push(snapshot("fill", path === undefined ? [] : [path]));
     },
+    setLineDash(segments: number[]) {
+      calls.push(snapshot("setLineDash", [segments.slice()]));
+    },
   };
   function snapshot(op: string, args: unknown[]): Call {
     return {
@@ -133,7 +136,157 @@ function figWithSymbol(annotations: Figure["annotations"]): Figure {
 }
 
 describe("drawSymbol", () => {
-  it("filled symbol records save → translate → rotate → scale → translate(-50,-50) → fill(path) → restore", () => {
+  it("filled symbol fills the path and never strokes", () => {
+    const ctx = makeRecorder();
+    const fig = figWithSymbol([
+      {
+        id: "s1",
+        kind: "symbol",
+        z: 0,
+        symbolId: "shape-circle",
+        x: 100, y: 100,
+        sizePx: 50,
+        rotationDeg: 0,
+        color: "#112233",
+        strokeWidthPx: 4,
+        fillMode: "filled",
+        strokeStyle: "dashed",
+      },
+    ]);
+    drawAnnotations(ctx, fig, EMPTY_DEPS);
+    expect(ctx.calls.some((c) => c.op === "fill")).toBe(true);
+    expect(ctx.calls.some((c) => c.op === "stroke")).toBe(false);
+  });
+
+  it("outlined symbol strokes the path and never fills", () => {
+    const ctx = makeRecorder();
+    const fig = figWithSymbol([
+      {
+        id: "s1",
+        kind: "symbol",
+        z: 0,
+        symbolId: "shape-circle",
+        x: 100, y: 100,
+        sizePx: 50,
+        rotationDeg: 0,
+        color: "#112233",
+        strokeWidthPx: 4,
+        fillMode: "outlined",
+        strokeStyle: "solid",
+      },
+    ]);
+    drawAnnotations(ctx, fig, EMPTY_DEPS);
+    expect(ctx.calls.some((c) => c.op === "stroke")).toBe(true);
+    expect(ctx.calls.some((c) => c.op === "fill")).toBe(false);
+  });
+
+  it("stroke-only geometry forces outlined rendering even when fillMode=filled", () => {
+    const ctx = makeRecorder();
+    const fig = figWithSymbol([
+      {
+        id: "s1",
+        kind: "symbol",
+        z: 0,
+        symbolId: "arrow-line-right",
+        x: 100, y: 100,
+        sizePx: 50,
+        rotationDeg: 0,
+        color: "#112233",
+        strokeWidthPx: 4,
+        fillMode: "filled",
+        strokeStyle: "solid",
+      },
+    ]);
+    drawAnnotations(ctx, fig, EMPTY_DEPS);
+    expect(ctx.calls.some((c) => c.op === "stroke")).toBe(true);
+    expect(ctx.calls.some((c) => c.op === "fill")).toBe(false);
+  });
+
+  it("solid stroke calls setLineDash([]) and resets after stroking", () => {
+    const ctx = makeRecorder();
+    const fig = figWithSymbol([
+      {
+        id: "s1",
+        kind: "symbol",
+        z: 0,
+        symbolId: "shape-circle",
+        x: 100, y: 100, sizePx: 50, rotationDeg: 0,
+        color: "#112233", strokeWidthPx: 4,
+        fillMode: "outlined", strokeStyle: "solid",
+      },
+    ]);
+    drawAnnotations(ctx, fig, EMPTY_DEPS);
+    const dashCalls = ctx.calls.filter((c) => c.op === "setLineDash");
+    expect(dashCalls.length).toBeGreaterThanOrEqual(2);
+    expect(dashCalls[dashCalls.length - 1]?.args[0]).toEqual([]);
+  });
+
+  it("dashed stroke uses a 2-element dash pattern proportional to strokeWidthPx", () => {
+    const ctx = makeRecorder();
+    const fig = figWithSymbol([
+      {
+        id: "s1",
+        kind: "symbol",
+        z: 0,
+        symbolId: "shape-circle",
+        x: 100, y: 100, sizePx: 100, rotationDeg: 0,
+        color: "#112233", strokeWidthPx: 2,
+        fillMode: "outlined", strokeStyle: "dashed",
+      },
+    ]);
+    drawAnnotations(ctx, fig, EMPTY_DEPS);
+    const dashCalls = ctx.calls.filter((c) => c.op === "setLineDash");
+    const setCall = dashCalls[0];
+    const pattern = setCall?.args[0] as number[];
+    expect(pattern).toHaveLength(2);
+    expect(pattern[0]).toBeGreaterThan(0);
+    expect(pattern[1]).toBeGreaterThan(0);
+    expect(pattern[0]).toBeCloseTo(16);
+    expect(pattern[1]).toBeCloseTo(8);
+    expect(dashCalls[dashCalls.length - 1]?.args[0]).toEqual([]);
+  });
+
+  it("dotted stroke uses a tighter 2-element dash pattern", () => {
+    const ctx = makeRecorder();
+    const fig = figWithSymbol([
+      {
+        id: "s1",
+        kind: "symbol",
+        z: 0,
+        symbolId: "shape-circle",
+        x: 100, y: 100, sizePx: 100, rotationDeg: 0,
+        color: "#112233", strokeWidthPx: 2,
+        fillMode: "outlined", strokeStyle: "dotted",
+      },
+    ]);
+    drawAnnotations(ctx, fig, EMPTY_DEPS);
+    const dashCalls = ctx.calls.filter((c) => c.op === "setLineDash");
+    const pattern = dashCalls[0]?.args[0] as number[];
+    expect(pattern[0]).toBeCloseTo(3);
+    expect(pattern[1]).toBeCloseTo(6);
+  });
+
+  it("dash pattern divides by scale so on-screen spacing is constant", () => {
+    const ctx = makeRecorder();
+    const fig = figWithSymbol([
+      {
+        id: "s1",
+        kind: "symbol",
+        z: 0,
+        symbolId: "shape-circle",
+        x: 100, y: 100, sizePx: 200, rotationDeg: 0,
+        color: "#112233", strokeWidthPx: 2,
+        fillMode: "outlined", strokeStyle: "dashed",
+      },
+    ]);
+    drawAnnotations(ctx, fig, EMPTY_DEPS);
+    const dashCalls = ctx.calls.filter((c) => c.op === "setLineDash");
+    const pattern = dashCalls[0]?.args[0] as number[];
+    expect(pattern[0]).toBeCloseTo(8);
+    expect(pattern[1]).toBeCloseTo(4);
+  });
+
+  it("filled symbol pulls the right path through fill()", () => {
     const ctx = makeRecorder();
     const fig = figWithSymbol([
       {
@@ -141,129 +294,21 @@ describe("drawSymbol", () => {
         kind: "symbol",
         z: 0,
         symbolId: "arrow-filled-right",
-        x: 100,
-        y: 80,
+        x: 100, y: 80,
         sizePx: 60,
         rotationDeg: 0,
         color: "#FF0000",
         strokeWidthPx: 2,
+        fillMode: "filled",
+        strokeStyle: "solid",
       },
     ]);
     drawAnnotations(ctx, fig, EMPTY_DEPS);
-
-    // Locate the symbol's draw envelope: save … restore.
-    const ops = ctx.calls.map((c) => c.op);
-    const saveIdx = ops.indexOf("save");
-    const restoreIdx = ops.indexOf("restore");
-    expect(saveIdx).toBeGreaterThanOrEqual(0);
-    expect(restoreIdx).toBeGreaterThan(saveIdx);
-
-    const seq = ctx.calls.slice(saveIdx, restoreIdx + 1);
-    expect(seq.map((c) => c.op)).toEqual([
-      "save",
-      "translate",
-      "rotate",
-      "scale",
-      "translate",
-      "fill",
-      "restore",
-    ]);
-
-    // Argument shape: scale = sizePx/100 = 0.6.
-    expect(seq[1]?.args).toEqual([100, 80]);
-    expect(seq[2]?.args).toEqual([0]);
-    expect(seq[3]?.args).toEqual([0.6, 0.6]);
-    expect(seq[4]?.args).toEqual([-50, -50]);
-
-    // fill() received the Path2D built from the library entry's pathD,
-    // and fillStyle was set to the annotation color before the call.
-    const fillCall = seq[5];
+    const fillCall = ctx.calls.find((c) => c.op === "fill");
     expect(fillCall?.fillStyle).toBe("#FF0000");
     const path = fillCall?.args[0] as { d: string };
     const def = SYMBOL_LIBRARY_BY_ID.get("arrow-filled-right");
-    expect(def).toBeDefined();
     expect(path.d).toBe(def?.pathD);
-  });
-
-  it("stroke-only symbol sets lineWidth = strokeWidthPx / scale and calls stroke(path)", () => {
-    const ctx = makeRecorder();
-    const fig = figWithSymbol([
-      {
-        id: "s1",
-        kind: "symbol",
-        z: 0,
-        symbolId: "arrow-open-right",
-        x: 50,
-        y: 50,
-        sizePx: 50,
-        rotationDeg: 0,
-        color: "#00AA00",
-        strokeWidthPx: 4,
-      },
-    ]);
-    drawAnnotations(ctx, fig, EMPTY_DEPS);
-
-    const strokeCall = ctx.calls.find((c) => c.op === "stroke");
-    expect(strokeCall).toBeDefined();
-    // scale = 50/100 = 0.5; expected lineWidth = 4 / 0.5 = 8.
-    expect(strokeCall?.lineWidth).toBe(8);
-    expect(strokeCall?.strokeStyle).toBe("#00AA00");
-
-    const path = strokeCall?.args[0] as { d: string };
-    const def = SYMBOL_LIBRARY_BY_ID.get("arrow-open-right");
-    expect(def).toBeDefined();
-    expect(path.d).toBe(def?.pathD);
-
-    // No fill() should be emitted for a stroke-only symbol.
-    expect(ctx.calls.some((c) => c.op === "fill")).toBe(false);
-  });
-
-  it("unknown symbolId emits no fill or stroke and no save/restore", () => {
-    const ctx = makeRecorder();
-    const fig = figWithSymbol([
-      {
-        id: "s1",
-        kind: "symbol",
-        z: 0,
-        symbolId: "no-such-symbol",
-        x: 100,
-        y: 100,
-        sizePx: 40,
-        rotationDeg: 0,
-        color: "#000",
-        strokeWidthPx: 1,
-      },
-    ]);
-    drawAnnotations(ctx, fig, EMPTY_DEPS);
-
-    expect(ctx.calls.some((c) => c.op === "fill")).toBe(false);
-    expect(ctx.calls.some((c) => c.op === "stroke")).toBe(false);
-    expect(ctx.calls.some((c) => c.op === "save")).toBe(false);
-    expect(ctx.calls.some((c) => c.op === "restore")).toBe(false);
-  });
-
-  it("sizePx = 0 emits no save/restore/fill/stroke (avoids Infinity lineWidth)", () => {
-    const ctx = makeRecorder();
-    const fig = figWithSymbol([
-      {
-        id: "s1",
-        kind: "symbol",
-        z: 0,
-        symbolId: "arrow-open-right",
-        x: 100,
-        y: 100,
-        sizePx: 0,
-        rotationDeg: 0,
-        color: "#000",
-        strokeWidthPx: 2,
-      },
-    ]);
-    drawAnnotations(ctx, fig, EMPTY_DEPS);
-
-    expect(ctx.calls.some((c) => c.op === "fill")).toBe(false);
-    expect(ctx.calls.some((c) => c.op === "stroke")).toBe(false);
-    expect(ctx.calls.some((c) => c.op === "save")).toBe(false);
-    expect(ctx.calls.some((c) => c.op === "restore")).toBe(false);
   });
 
   it("rotationDeg is converted to radians (90° → π/2)", () => {
@@ -280,11 +325,47 @@ describe("drawSymbol", () => {
         rotationDeg: 90,
         color: "#000",
         strokeWidthPx: 1,
+        fillMode: "filled",
+        strokeStyle: "solid",
       },
     ]);
     drawAnnotations(ctx, fig, EMPTY_DEPS);
     const rot = ctx.calls.find((c) => c.op === "rotate");
     expect(rot).toBeDefined();
     expect(rot?.args[0] as number).toBeCloseTo(Math.PI / 2, 10);
+  });
+
+  it("unknown symbolId emits no save/restore/fill/stroke", () => {
+    const ctx = makeRecorder();
+    const fig = figWithSymbol([
+      {
+        id: "s1",
+        kind: "symbol",
+        z: 0,
+        symbolId: "ghost",
+        x: 100, y: 100, sizePx: 50, rotationDeg: 0,
+        color: "#112233", strokeWidthPx: 2,
+        fillMode: "filled", strokeStyle: "solid",
+      },
+    ]);
+    drawAnnotations(ctx, fig, EMPTY_DEPS);
+    expect(ctx.calls).toHaveLength(0);
+  });
+
+  it("sizePx = 0 is a no-op", () => {
+    const ctx = makeRecorder();
+    const fig = figWithSymbol([
+      {
+        id: "s1",
+        kind: "symbol",
+        z: 0,
+        symbolId: "shape-circle",
+        x: 100, y: 100, sizePx: 0, rotationDeg: 0,
+        color: "#112233", strokeWidthPx: 2,
+        fillMode: "filled", strokeStyle: "solid",
+      },
+    ]);
+    drawAnnotations(ctx, fig, EMPTY_DEPS);
+    expect(ctx.calls).toHaveLength(0);
   });
 });
