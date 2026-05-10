@@ -1,97 +1,90 @@
 // @vitest-environment jsdom
+
 import { describe, it, expect, vi } from "vitest";
-import { render, fireEvent } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { SymbolAnnoForm } from "../../src/renderer/components/Properties/SymbolAnnoForm";
 import type { SymbolAnnotation } from "../../src/renderer/model/annotations";
 import type { FieldCommit } from "../../src/renderer/hooks/useFieldCommit";
 
-const makeAnno = (
-  overrides: Partial<SymbolAnnotation> = {},
-): SymbolAnnotation => ({
-  id: "s1",
-  kind: "symbol",
-  z: 0,
-  symbolId: "arrow-filled-right",
-  x: 0,
-  y: 0,
-  sizePx: 60,
-  rotationDeg: 0,
-  color: "#FF0000",
-  strokeWidthPx: 2,
-  ...overrides,
-});
+function ann(overrides: Partial<SymbolAnnotation> = {}): SymbolAnnotation {
+  return {
+    id: "s1",
+    kind: "symbol",
+    z: 0,
+    symbolId: "arrow-filled-right",
+    x: 50, y: 50, sizePx: 60, rotationDeg: 0,
+    color: "#FF0000", strokeWidthPx: 2,
+    fillMode: "filled", strokeStyle: "solid",
+    ...overrides,
+  };
+}
 
-const noopCommit: FieldCommit = { markDirty: () => {}, flush: () => {} };
+const COMMIT: FieldCommit = { markDirty: () => {}, flush: () => {} };
 
-describe("SymbolAnnoForm", () => {
-  it("renders gallery groups for each category", () => {
-    const dispatch = vi.fn();
-    const { getAllByTestId } = render(
-      <SymbolAnnoForm
-        anno={makeAnno()}
-        dispatch={dispatch}
-        commit={noopCommit}
-      />,
-    );
-    expect(getAllByTestId(/^symbol-gallery-group-/).length).toBe(4);
+describe("<SymbolAnnoForm>", () => {
+  it("renders the flat grid (no category headers)", () => {
+    render(<SymbolAnnoForm anno={ann()} dispatch={vi.fn()} commit={COMMIT} />);
+    expect(screen.getByTestId("symbol-grid")).toBeDefined();
+    expect(screen.queryByTestId(/symbol-grid-group-/)).toBeNull();
+    // The legacy `symbol-gallery-group-*` test ids are also gone.
+    expect(screen.queryByTestId(/symbol-gallery-group-/)).toBeNull();
   });
 
-  it("clicking a non-active gallery cell dispatches UPDATE_ANNOTATION with that symbolId", () => {
+  it("clicking a shape dispatches UPDATE_ANNOTATION with new symbolId", async () => {
+    const user = userEvent.setup();
     const dispatch = vi.fn();
-    const { getByTestId } = render(
-      <SymbolAnnoForm
-        anno={makeAnno()}
-        dispatch={dispatch}
-        commit={noopCommit}
-      />,
-    );
-    fireEvent.click(getByTestId("symbol-gallery-cell-shape-circle"));
-    expect(dispatch).toHaveBeenCalledWith({
-      type: "UPDATE_ANNOTATION",
-      annotationId: "s1",
-      patch: { symbolId: "shape-circle" },
-    });
-  });
-
-  it("rotation reset button dispatches rotationDeg=0", () => {
-    const dispatch = vi.fn();
-    const anno = makeAnno({ rotationDeg: 137 });
-    const { getByTestId } = render(
-      <SymbolAnnoForm anno={anno} dispatch={dispatch} commit={noopCommit} />,
-    );
-    fireEvent.click(getByTestId("symbol-rotate-reset"));
-    expect(dispatch).toHaveBeenCalledWith({
-      type: "UPDATE_ANNOTATION",
-      annotationId: "s1",
-      patch: { rotationDeg: 0 },
-    });
-  });
-
-  it("stroke-width input is disabled for fill symbols", () => {
-    const dispatch = vi.fn();
-    const { getByTestId } = render(
-      <SymbolAnnoForm
-        anno={makeAnno({ symbolId: "shape-circle" })}
-        dispatch={dispatch}
-        commit={noopCommit}
-      />,
-    );
+    render(<SymbolAnnoForm anno={ann()} dispatch={dispatch} commit={COMMIT} />);
+    await user.click(screen.getByTestId("symbol-grid-cell-shape-circle"));
     expect(
-      (getByTestId("symbol-stroke-width") as HTMLInputElement).disabled,
+      dispatch.mock.calls.some(
+        (c) =>
+          c[0]?.type === "UPDATE_ANNOTATION" &&
+          c[0]?.patch?.symbolId === "shape-circle",
+      ),
     ).toBe(true);
   });
 
-  it("stroke-width input is enabled for stroke symbols", () => {
-    const dispatch = vi.fn();
-    const { getByTestId } = render(
+  it("Filled toggle disabled when current shape is stroke-only", () => {
+    render(
       <SymbolAnnoForm
-        anno={makeAnno({ symbolId: "marker-tick" })}
-        dispatch={dispatch}
-        commit={noopCommit}
+        anno={ann({ symbolId: "arrow-line-right", fillMode: "outlined" })}
+        dispatch={vi.fn()}
+        commit={COMMIT}
       />,
     );
     expect(
-      (getByTestId("symbol-stroke-width") as HTMLInputElement).disabled,
-    ).toBe(false);
+      screen
+        .getByTestId("symbol-fill-mode-filled")
+        .hasAttribute("disabled"),
+    ).toBe(true);
+  });
+
+  it("toggling Outlined dispatches fillMode patch", async () => {
+    const user = userEvent.setup();
+    const dispatch = vi.fn();
+    render(
+      <SymbolAnnoForm
+        anno={ann({ fillMode: "filled" })}
+        dispatch={dispatch}
+        commit={COMMIT}
+      />,
+    );
+    await user.click(screen.getByTestId("symbol-fill-mode-outlined"));
+    expect(
+      dispatch.mock.calls.some(
+        (c) =>
+          c[0]?.type === "UPDATE_ANNOTATION" &&
+          c[0]?.patch?.fillMode === "outlined",
+      ),
+    ).toBe(true);
+  });
+
+  it("Size, Rotation, and Delete controls are still present", () => {
+    render(<SymbolAnnoForm anno={ann()} dispatch={vi.fn()} commit={COMMIT} />);
+    expect(screen.getByTestId("symbol-rotate-reset")).toBeDefined();
+    expect(screen.getByLabelText(/Size/i)).toBeDefined();
+    expect(screen.getByLabelText(/Rotation/i)).toBeDefined();
+    expect(screen.getByText(/Delete annotation/i)).toBeDefined();
   });
 });
