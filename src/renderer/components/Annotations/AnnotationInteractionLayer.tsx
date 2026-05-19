@@ -120,6 +120,13 @@ interface Props {
     targetPanelId: string;
   }) => void;
   /**
+   * Forward dragover hover changes to the parent so the drop-ghost layer can
+   * preview the would-be placement. The annotation layer is the topmost
+   * hit-target so dragover on a panel underneath never reaches GridCells —
+   * hit-test panelRectsById and report.
+   */
+  onTrayDragHoverChange?: (panelId: string | null) => void;
+  /**
    * Forward native dblclick to a panel hit-tested via panelRectsById.
    * Without this, GridCells's per-panel onDoubleClick never fires in
    * select mode because the layer's backdrop (pointerEvents: auto) is
@@ -482,6 +489,7 @@ export function AnnotationInteractionLayer({
   onEditingChange,
   dispatch,
   onTrayDrop,
+  onTrayDragHoverChange,
   onPanelDoubleClick,
   onPanelClick,
   selectedPanelId,
@@ -1502,6 +1510,17 @@ export function AnnotationInteractionLayer({
     if (!e.dataTransfer.types.includes(DRAG_MIME)) return;
     e.preventDefault();
     e.dataTransfer.dropEffect = "move";
+    if (onTrayDragHoverChange !== undefined) {
+      const pt = clientToFigurePoint(e);
+      const hit = pt === null ? null : panelAtFigurePoint(pt.fx, pt.fy);
+      onTrayDragHoverChange(hit);
+    }
+  }
+  function onLayerDragLeave(e: React.DragEvent<HTMLDivElement>): void {
+    // Only clear when the cursor leaves the layer rect itself, not when
+    // crossing internal children (same idea as Tray's onDragLeave).
+    if (e.currentTarget.contains(e.relatedTarget as Node | null)) return;
+    onTrayDragHoverChange?.(null);
   }
   function onLayerDrop(e: React.DragEvent<HTMLDivElement>): void {
     if (onTrayDrop === undefined) return;
@@ -1542,6 +1561,7 @@ export function AnnotationInteractionLayer({
       onPointerUp={onLayerPointerUp}
       onPointerCancel={onLayerPointerUp}
       onDragOver={onLayerDragOver}
+      onDragLeave={onLayerDragLeave}
       onDrop={onLayerDrop}
       onDoubleClick={onLayerDoubleClick}
       style={{

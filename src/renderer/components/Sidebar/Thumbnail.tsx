@@ -1,11 +1,17 @@
 import { useEffect, useRef } from "react";
 import type { ImagePoolItem } from "../../model/pool";
-import { DRAG_MIME, serializeDrag } from "../../dnd/drag-payload";
+import {
+  DRAG_MIME,
+  serializeDrag,
+  type DragPayload,
+} from "../../dnd/drag-payload";
 
 interface Props {
   item: ImagePoolItem;
   bitmap: ImageBitmap | undefined;
   placed: boolean;
+  /** Reports tray drag start/end so the drop-ghost layer can preview. */
+  onDragSourceChange?: (src: DragPayload | null) => void;
 }
 
 const SIZE = 56;
@@ -14,7 +20,12 @@ function formatSize(item: ImagePoolItem): string {
   return `${item.width}×${item.height}`;
 }
 
-export function Thumbnail({ item, bitmap, placed }: Props): JSX.Element {
+export function Thumbnail({
+  item,
+  bitmap,
+  placed,
+  onDragSourceChange,
+}: Props): JSX.Element {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
   useEffect(() => {
@@ -42,12 +53,17 @@ export function Thumbnail({ item, bitmap, placed }: Props): JSX.Element {
       serializeDrag({ kind: "tray", imageId: item.id }),
     );
     e.dataTransfer.effectAllowed = "move";
+    onDragSourceChange?.({ kind: "tray", imageId: item.id });
+  }
+  function onDragEnd(): void {
+    onDragSourceChange?.(null);
   }
 
   return (
     <div
       draggable={!placed}
       onDragStart={onDragStart}
+      onDragEnd={onDragEnd}
       data-testid={`thumb-${item.id}`}
       title={`${item.filename} — ${formatSize(item)}${placed ? " (placed)" : ""}`}
       className={`thumb ${placed ? "thumb--placed" : "thumb--draggable"}`}

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import type { ImagePoolItem } from "../../model/pool";
 import { Thumbnail } from "./Thumbnail";
-import { DRAG_MIME, parseDrag } from "../../dnd/drag-payload";
+import { DRAG_MIME, parseDrag, type DragPayload } from "../../dnd/drag-payload";
 
 interface Props {
   pool: ImagePoolItem[];
@@ -10,6 +10,8 @@ interface Props {
   onAddImagesClick: () => void;
   /** Called with the panelId when a placed-panel drag is dropped on the tray. */
   onUnplacePanel: (panelId: string) => void;
+  /** Reports tray drag start/end so the drop-ghost layer can preview. */
+  onDragSourceChange?: (src: DragPayload | null) => void;
 }
 
 export function Tray({
@@ -18,6 +20,7 @@ export function Tray({
   placedIds,
   onAddImagesClick,
   onUnplacePanel,
+  onDragSourceChange,
 }: Props): JSX.Element {
   const unplaced = pool.filter((p) => !placedIds.has(p.id));
   const placed = pool.filter((p) => placedIds.has(p.id));
@@ -112,6 +115,9 @@ export function Tray({
             item={it}
             bitmap={bitmaps.get(it.id)}
             placed={false}
+            {...(onDragSourceChange !== undefined
+              ? { onDragSourceChange }
+              : {})}
           />
         ))
       )}

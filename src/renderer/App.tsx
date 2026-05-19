@@ -15,7 +15,9 @@ import { CropImageModal } from "./components/Modals/CropImageModal";
 import { Tray } from "./components/Sidebar/Tray";
 import { PropertiesPanel } from "./components/Properties/PropertiesPanel";
 import { GridCells, type DropEvent } from "./components/Grid/GridCells";
+import { DropGhostLayer } from "./components/Grid/DropGhostLayer";
 import { PanelInteractionLayer } from "./components/Grid/PanelInteractionLayer";
+import type { DragPayload } from "./dnd/drag-payload";
 import {
   type PanelInteraction,
   editingIdOf,
@@ -81,6 +83,10 @@ function basename(p: string): string {
 export function App(): JSX.Element {
   const [state, dispatch, history] = useHistoryReducer(initialFigureState());
   const [bitmaps, setBitmaps] = useState<Map<string, ImageBitmap>>(new Map());
+  // Drag-and-drop preview state (UI-only — not in FigureState, not undoable).
+  // Lifted to App so the GridCells outline and the DropGhostLayer share truth.
+  const [dragSource, setDragSource] = useState<DragPayload | null>(null);
+  const [hoverPanelId, setHoverPanelId] = useState<string | null>(null);
   const toasts = useToasts(5000);
   const [panelInteraction, setPanelInteraction] =
     useState<PanelInteraction>(null);
@@ -173,6 +179,11 @@ export function App(): JSX.Element {
 
   const onDrop = useCallback(
     (ev: DropEvent): void => {
+      // Drops can arrive via GridCells per-panel handlers OR via the
+      // annotation layer's passthrough (zIndex: 3 sits above the grid).
+      // Either way, clear preview state so the ghost layer disappears.
+      setHoverPanelId(null);
+      setDragSource(null);
       const action = dispatchDrop(stateRef.current, ev);
       if (action !== null) dispatch(action);
     },
@@ -624,6 +635,7 @@ export function App(): JSX.Element {
             void onAddImagesClick();
           }}
           onUnplacePanel={(panelId) => dispatch(unplacePanel(panelId))}
+          onDragSourceChange={setDragSource}
         />
         <section
           onClick={(e) => {
@@ -659,6 +671,10 @@ export function App(): JSX.Element {
               cssW={CANVAS_CSS_W}
               cssH={CANVAS_CSS_H}
               onDrop={onDrop}
+              hoverPanelId={hoverPanelId}
+              onHoverPanelChange={setHoverPanelId}
+              dragSource={dragSource}
+              onDragSourceChange={setDragSource}
               selection={selection.selected}
               onCellShiftClick={selection.toggle}
               panelInteraction={panelInteraction}
@@ -670,6 +686,16 @@ export function App(): JSX.Element {
                 dispatch(setTrackWeightAction(axis, index, weight));
                 history.commit();
               }}
+            />
+            <DropGhostLayer
+              state={state}
+              bitmaps={bitmaps}
+              dragSource={dragSource}
+              hoverPanelId={hoverPanelId}
+              figurePxW={FIGURE_PX_W}
+              figurePxH={FIGURE_PX_H}
+              cssW={CANVAS_CSS_W}
+              cssH={CANVAS_CSS_H}
             />
             {editingIdOf(panelInteraction) !== null &&
               selectedImagePanel !== undefined &&
@@ -716,6 +742,7 @@ export function App(): JSX.Element {
               onEditingChange={setAnnotationEditing}
               dispatch={dispatch}
               onTrayDrop={onDrop}
+              onTrayDragHoverChange={setHoverPanelId}
               onPanelDoubleClick={onPanelDoubleClick}
               onPanelClick={onPanelSingleClick}
               {...(() => {

@@ -1,5 +1,5 @@
 import * as React from "react";
-import { useRef, useState } from "react";
+import { useRef } from "react";
 import type { FigureState } from "../../model/figure-state";
 import { cellKey } from "../../model/figure-state";
 import { computeGridLayout, computeCellRect } from "../../render/coords";
@@ -16,6 +16,7 @@ import {
   serializeDrag,
   type DragPayload,
 } from "../../dnd/drag-payload";
+import { previewForDrop } from "../../dnd/preview-for-drop";
 
 export interface DropEvent {
   from: DragPayload;
@@ -31,6 +32,12 @@ interface Props {
   cssW: number;
   cssH: number;
   onDrop: (e: DropEvent) => void;
+  /** Hover panel during drag (lifted to App so the ghost layer can read it). */
+  hoverPanelId: string | null;
+  onHoverPanelChange: (panelId: string | null) => void;
+  /** Drag source (lifted to App for the same reason). */
+  dragSource: DragPayload | null;
+  onDragSourceChange: (src: DragPayload | null) => void;
   /** Per-cell merge selection. Shift-click toggles. */
   selection: ReadonlySet<string>;
   onCellShiftClick: (row: number, col: number) => void;
@@ -62,6 +69,10 @@ export function GridCells({
   cssW,
   cssH,
   onDrop,
+  hoverPanelId,
+  onHoverPanelChange,
+  dragSource,
+  onDragSourceChange,
   selection,
   onCellShiftClick,
   panelInteraction,
@@ -71,8 +82,11 @@ export function GridCells({
   onPanelCropBadgeClick,
   onTrackWeightChange,
 }: Props): JSX.Element {
-  const [hoverPanelId, setHoverPanelId] = useState<string | null>(null);
-  const [draggingPanelId, setDraggingPanelId] = useState<string | null>(null);
+  // Drag source for the panel currently being dragged (visual dim only).
+  const draggingPanelId =
+    dragSource !== null && dragSource.kind === "panel"
+      ? dragSource.panelId
+      : null;
 
   const selectedId = selectedIdOf(panelInteraction);
   const editingId = editingIdOf(panelInteraction);
@@ -287,15 +301,24 @@ export function GridCells({
         function onDragOver(e: React.DragEvent<HTMLDivElement>): void {
           if (!e.dataTransfer.types.includes(DRAG_MIME)) return;
           e.preventDefault();
-          e.dataTransfer.dropEffect = "move";
-          if (hoverPanelId !== panel.id) setHoverPanelId(panel.id);
+          // dragSource is the local truth during a drag; on first-cross-window
+          // edge cases it may be null until the next dragstart — fall back to
+          // "move" so the OS cursor doesn't lock to "no-drop" spuriously.
+          const preview =
+            dragSource === null
+              ? null
+              : previewForDrop(state, dragSource, panel.id);
+          e.dataTransfer.dropEffect =
+            preview !== null && !preview.valid ? "none" : "move";
+          if (hoverPanelId !== panel.id) onHoverPanelChange(panel.id);
         }
         function onDragLeave(): void {
-          if (hoverPanelId === panel.id) setHoverPanelId(null);
+          if (hoverPanelId === panel.id) onHoverPanelChange(null);
         }
         function onDropEvt(e: React.DragEvent<HTMLDivElement>): void {
           e.preventDefault();
-          setHoverPanelId(null);
+          onHoverPanelChange(null);
+          onDragSourceChange(null);
           const raw = e.dataTransfer.getData(DRAG_MIME);
           const from = parseDrag(raw);
           if (from === null) return;
@@ -311,10 +334,11 @@ export function GridCells({
             serializeDrag({ kind: "panel", panelId: panel.id }),
           );
           e.dataTransfer.effectAllowed = "move";
-          setDraggingPanelId(panel.id);
+          onDragSourceChange({ kind: "panel", panelId: panel.id });
         }
         function onDragEnd(): void {
-          setDraggingPanelId(null);
+          onDragSourceChange(null);
+          onHoverPanelChange(null);
         }
 
         function onClick(e: React.MouseEvent<HTMLDivElement>): void {
@@ -348,9 +372,17 @@ export function GridCells({
         const draggable = occupied && isSelected;
 
         // editing: no outline here — PanelInteractionLayer owns editing-mode chrome.
+        // Hover outline switches to a "not allowed" treatment for invalid drops
+        // (e.g., dropping a tray image whose source is already placed).
+        const hoverInvalid =
+          hoverPanelId === panel.id &&
+          dragSource !== null &&
+          !previewForDrop(state, dragSource, panel.id).valid;
         const outline =
           hoverPanelId === panel.id
-            ? "3px solid var(--c-hover-stroke)"
+            ? hoverInvalid
+              ? "2px dashed var(--c-danger)"
+              : "3px solid var(--c-hover-stroke)"
             : isEditing
               ? "1px dashed transparent"
               : isSelected && (occupied || isHidden)
