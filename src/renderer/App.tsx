@@ -15,7 +15,6 @@ import { CropImageModal } from "./components/Modals/CropImageModal";
 import { Tray } from "./components/Sidebar/Tray";
 import { PropertiesPanel } from "./components/Properties/PropertiesPanel";
 import { GridCells, type DropEvent } from "./components/Grid/GridCells";
-import { DropGhostLayer } from "./components/Grid/DropGhostLayer";
 import { PanelInteractionLayer } from "./components/Grid/PanelInteractionLayer";
 import type { DragPayload } from "./dnd/drag-payload";
 import {
@@ -24,7 +23,11 @@ import {
   focusedIdOf,
   selectedIdOf,
 } from "./model/panel-interaction";
-import { initialFigureState, type FigureState } from "./model/figure-state";
+import {
+  initialFigureState,
+  figureReducer,
+  type FigureState,
+} from "./model/figure-state";
 import {
   type DefaultSymbolStyle,
   initialDefaultSymbolStyle,
@@ -112,16 +115,33 @@ export function App(): JSX.Element {
 
   const selection = useMergeSelection();
 
+  // Live drag preview: when the cursor is over a valid drop target, compute
+  // the state that *would* result if the user released here and use that
+  // for figure derivation. The render pipeline then paints the dragged
+  // image into its target panel at the same dimensions / transform it
+  // would have post-drop, so the user sees the real thing — not a ghost.
+  // GridCells still consumes the real `state` (so chrome reflects reality
+  // and the dashed invalid-drop outline still works on the hovered panel).
+  const previewState = useMemo((): FigureState | null => {
+    if (dragSource === null || hoverPanelId === null) return null;
+    const action = dispatchDrop(state, {
+      from: dragSource,
+      targetPanelId: hoverPanelId,
+    });
+    if (action === null) return null;
+    return figureReducer(state, action);
+  }, [state, dragSource, hoverPanelId]);
+
   const figure = useMemo(
     () =>
-      deriveFigure(state, {
+      deriveFigure(previewState ?? state, {
         canvas: {
           widthPx: FIGURE_PX_W,
           heightPx: FIGURE_PX_H,
           background: CANVAS_BG,
         },
       }),
-    [state],
+    [state, previewState],
   );
 
   const placedIds = useMemo(
@@ -686,16 +706,6 @@ export function App(): JSX.Element {
                 dispatch(setTrackWeightAction(axis, index, weight));
                 history.commit();
               }}
-            />
-            <DropGhostLayer
-              state={state}
-              bitmaps={bitmaps}
-              dragSource={dragSource}
-              hoverPanelId={hoverPanelId}
-              figurePxW={FIGURE_PX_W}
-              figurePxH={FIGURE_PX_H}
-              cssW={CANVAS_CSS_W}
-              cssH={CANVAS_CSS_H}
             />
             {editingIdOf(panelInteraction) !== null &&
               selectedImagePanel !== undefined &&
