@@ -5,16 +5,29 @@ import {
   __resetPanelIdsForTests,
   type FigureState,
 } from "../../src/renderer/model/figure-state";
-import { addToPool, placeIntoPanel } from "../../src/renderer/model/figure-actions";
+import {
+  addToPool,
+  placeIntoPanel,
+} from "../../src/renderer/model/figure-actions";
 import { findPanelAt } from "../../src/renderer/model/panels";
 import { previewForDrop } from "../../src/renderer/dnd/preview-for-drop";
 import type { ImagePoolItem } from "../../src/renderer/model/pool";
 
 const IMG_A: ImagePoolItem = {
-  id: "a", filename: "a.png", filePath: "/x", mime: "image/png", width: 1, height: 1,
+  id: "a",
+  filename: "a.png",
+  filePath: "/x",
+  mime: "image/png",
+  width: 1,
+  height: 1,
 };
 const IMG_B: ImagePoolItem = {
-  id: "b", filename: "b.png", filePath: "/x", mime: "image/png", width: 1, height: 1,
+  id: "b",
+  filename: "b.png",
+  filePath: "/x",
+  mime: "image/png",
+  width: 1,
+  height: 1,
 };
 
 function panelIdAt(s: FigureState, row: number, col: number): string {

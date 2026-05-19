@@ -110,13 +110,19 @@ function registerIpc(): void {
   ipcMain.handle(
     API_CHANNELS.exportJpeg,
     (event, bytes: Uint8Array, defaultName: string) =>
-      handleExport(event, bytes, defaultName, pickJpegSavePath, [".jpg", ".jpeg"]),
+      handleExport(event, bytes, defaultName, pickJpegSavePath, [
+        ".jpg",
+        ".jpeg",
+      ]),
   );
 
   ipcMain.handle(
     API_CHANNELS.exportTiff,
     (event, bytes: Uint8Array, defaultName: string) =>
-      handleExport(event, bytes, defaultName, pickTiffSavePath, [".tif", ".tiff"]),
+      handleExport(event, bytes, defaultName, pickTiffSavePath, [
+        ".tif",
+        ".tiff",
+      ]),
   );
 
   ipcMain.handle(
@@ -168,7 +174,11 @@ function registerIpc(): void {
     }
     const r = await loadProjectFromPath(picked.filePath);
     if (!r.ok) {
-      return { ok: false, reason: "validation-failed", message: r.error } as const;
+      return {
+        ok: false,
+        reason: "validation-failed",
+        message: r.error,
+      } as const;
     }
     return {
       ok: true,

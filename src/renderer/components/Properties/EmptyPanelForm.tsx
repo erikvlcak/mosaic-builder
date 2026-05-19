@@ -44,8 +44,8 @@ export function EmptyPanelForm({
           lineHeight: 1.4,
         }}
       >
-        Hidden panels render as empty in exports. Delete removes the
-        panel; click the gap to add it back.
+        Hidden panels render as empty in exports. Delete removes the panel;
+        click the gap to add it back.
       </p>
     </div>
   );

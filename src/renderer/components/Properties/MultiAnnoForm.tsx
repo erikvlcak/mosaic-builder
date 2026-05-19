@@ -29,7 +29,10 @@ interface Props {
  * Pretty per-kind label used in the header summary.
  *  e.g. ["text", "symbol"] → "Text, Symbols"
  */
-const KIND_LABELS: Record<Annotation["kind"], { singular: string; plural: string }> = {
+const KIND_LABELS: Record<
+  Annotation["kind"],
+  { singular: string; plural: string }
+> = {
   text: { singular: "Text", plural: "Text" },
   symbol: { singular: "Symbol", plural: "Symbols" },
   scalebar: { singular: "Scale bar", plural: "Scale bars" },
@@ -187,10 +190,20 @@ export function MultiAnnoForm({
 
       {/* Kind-specific section: only shown when every selected anno shares one kind. */}
       {homogeneousKind === "text" && first?.kind === "text" && (
-        <TextOnlyControls anno={first} ids={ids} dispatch={dispatch} commit={commit} />
+        <TextOnlyControls
+          anno={first}
+          ids={ids}
+          dispatch={dispatch}
+          commit={commit}
+        />
       )}
       {homogeneousKind === "symbol" && first?.kind === "symbol" && (
-        <SymbolOnlyControls anno={first} ids={ids} dispatch={dispatch} commit={commit} />
+        <SymbolOnlyControls
+          anno={first}
+          ids={ids}
+          dispatch={dispatch}
+          commit={commit}
+        />
       )}
 
       <button
@@ -288,9 +301,8 @@ function SymbolOnlyControls({
         padding: "4px 0",
       }}
     >
-      All selected symbols share the same kind. Use the gallery (single-select
-      a symbol) to change the icon.
+      All selected symbols share the same kind. Use the gallery (single-select a
+      symbol) to change the icon.
     </div>
   );
 }
-

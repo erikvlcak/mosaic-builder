@@ -61,20 +61,39 @@ export function PanelInteractionLayer({
   // Keep the latest transform/rect/etc. in a ref so the wheel handler
   // (added once via addEventListener with { passive: false }) reads
   // current values without re-binding on every state change.
-  const stateRef = useRef({ panelId, panelRect, transform, bitmap, figurePxW, figurePxH, cssW, cssH, dispatch, onCommit });
-  stateRef.current = { panelId, panelRect, transform, bitmap, figurePxW, figurePxH, cssW, cssH, dispatch, onCommit };
+  const stateRef = useRef({
+    panelId,
+    panelRect,
+    transform,
+    bitmap,
+    figurePxW,
+    figurePxH,
+    cssW,
+    cssH,
+    dispatch,
+    onCommit,
+  });
+  stateRef.current = {
+    panelId,
+    panelRect,
+    transform,
+    bitmap,
+    figurePxW,
+    figurePxH,
+    cssW,
+    cssH,
+    dispatch,
+    onCommit,
+  };
 
   // Drag state — only valid while a pointer is captured.
-  const dragRef = useRef<
-    | {
-        pointerId: number;
-        startClientX: number;
-        startClientY: number;
-        startPanX: number;
-        startPanY: number;
-      }
-    | null
-  >(null);
+  const dragRef = useRef<{
+    pointerId: number;
+    startClientX: number;
+    startClientY: number;
+    startPanX: number;
+    startPanY: number;
+  } | null>(null);
 
   const wheelEndRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -282,10 +301,11 @@ function CornerHandle({
   // Track last clientX/Y so each pointermove dispatches an INCREMENTAL delta
   // (frame-to-frame). The reducer applies each delta atop the current rects,
   // so cumulative semantics emerge naturally from incremental dispatches.
-  const dragRef = useRef<
-    | { pointerId: number; lastClientX: number; lastClientY: number }
-    | null
-  >(null);
+  const dragRef = useRef<{
+    pointerId: number;
+    lastClientX: number;
+    lastClientY: number;
+  } | null>(null);
 
   function onPointerDown(e: React.PointerEvent<HTMLDivElement>): void {
     // Reject right/middle clicks. e.button can be undefined under jsdom

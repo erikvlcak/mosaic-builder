@@ -76,7 +76,7 @@ describe("history ring buffer", () => {
       cur += 1;
     }
     expect(h.past.length).toBe(10);
-    expect(h.past[0]).toBe(2);    // oldest retained
-    expect(h.past[9]).toBe(11);   // most recent past
+    expect(h.past[0]).toBe(2); // oldest retained
+    expect(h.past[9]).toBe(11); // most recent past
   });
 });

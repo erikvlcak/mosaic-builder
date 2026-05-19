@@ -218,9 +218,7 @@ describe("v1 → v2 migration on fromMosaicFile", () => {
         gutterColor: "#FFFFFF",
         outerGutter: true,
         pool: [],
-        panels: [
-          { id: "p1", row: 0, col: 0, rowSpan: 1, colSpan: 1 },
-        ],
+        panels: [{ id: "p1", row: 0, col: 0, rowSpan: 1, colSpan: 1 }],
         annotations: [],
         globalStyle: {
           letters: {
@@ -245,7 +243,9 @@ describe("v1 → v2 migration on fromMosaicFile", () => {
           },
         },
         // v1 used a flat string here.
-        letterOverrides: { p1: "A1" } as unknown as MosaicFileV1["state"]["letterOverrides"],
+        letterOverrides: {
+          p1: "A1",
+        } as unknown as MosaicFileV1["state"]["letterOverrides"],
       },
     };
     const { state } = fromMosaicFile(v1);

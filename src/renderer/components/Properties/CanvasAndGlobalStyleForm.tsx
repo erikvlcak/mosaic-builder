@@ -6,7 +6,11 @@ import {
   setLetterPattern,
 } from "../../model/figure-actions";
 import type { FigureState, LetterPattern } from "../../model/figure-state";
-import type { GlobalAnnoStyle, LetterStyle, ScaleBarStyle } from "../../model/global-style";
+import type {
+  GlobalAnnoStyle,
+  LetterStyle,
+  ScaleBarStyle,
+} from "../../model/global-style";
 import type { FieldCommit } from "../../hooks/useFieldCommit";
 import { NumberField } from "./inputs/NumberField";
 import { ColorField } from "./inputs/ColorField";
@@ -24,17 +28,21 @@ interface Props {
   commit: FieldCommit;
 }
 
-const PATTERN_OPTIONS: ReadonlyArray<{ value: LetterPattern; label: string }> = [
-  { value: "uppercase", label: "A, B, C…" },
-  { value: "lowercase", label: "a, b, c…" },
-  { value: "numeric", label: "1, 2, 3…" },
-  { value: "uppercase-paren", label: "(A), (B)…" },
-  { value: "uppercase-bracket", label: "[A], [B]…" },
-  { value: "rowcol-mixed", label: "1a, 1b… 2a, 2b…" },
-];
+const PATTERN_OPTIONS: ReadonlyArray<{ value: LetterPattern; label: string }> =
+  [
+    { value: "uppercase", label: "A, B, C…" },
+    { value: "lowercase", label: "a, b, c…" },
+    { value: "numeric", label: "1, 2, 3…" },
+    { value: "uppercase-paren", label: "(A), (B)…" },
+    { value: "uppercase-bracket", label: "[A], [B]…" },
+    { value: "rowcol-mixed", label: "1a, 1b… 2a, 2b…" },
+  ];
 
 export function CanvasAndGlobalStyleForm({
-  state, globalStyle, dispatch, commit,
+  state,
+  globalStyle,
+  dispatch,
+  commit,
 }: Props): JSX.Element {
   function patchLetters(p: Partial<LetterStyle>, immediate = false): void {
     const next: GlobalAnnoStyle = {
@@ -66,7 +74,10 @@ export function CanvasAndGlobalStyleForm({
           gap: 10,
         }}
       >
-        <legend className="section-heading" style={{ padding: 0, marginBottom: 4 }}>
+        <legend
+          className="section-heading"
+          style={{ padding: 0, marginBottom: 4 }}
+        >
           Subpanel letters
         </legend>
         <label htmlFor="letter-pattern" className="field">
@@ -77,7 +88,9 @@ export function CanvasAndGlobalStyleForm({
             className="input"
             value={state.letterPattern}
             onChange={(e) => {
-              dispatch(setLetterPattern(e.currentTarget.value as LetterPattern));
+              dispatch(
+                setLetterPattern(e.currentTarget.value as LetterPattern),
+              );
               commit.flush();
             }}
           >
@@ -97,8 +110,8 @@ export function CanvasAndGlobalStyleForm({
           }}
         >
           Pattern controls auto-generated labels. Letters with manual overrides
-          are unaffected. To re-apply the pattern everywhere, click
-          “Reset all letter overrides” first.
+          are unaffected. To re-apply the pattern everywhere, click “Reset all
+          letter overrides” first.
         </p>
         <button
           type="button"
@@ -111,16 +124,25 @@ export function CanvasAndGlobalStyleForm({
         >
           Reset all letter overrides
         </button>
-        <NumberField label="Size (pt)" value={globalStyle.letters.sizePt}
-          min={4} max={144}
+        <NumberField
+          label="Size (pt)"
+          value={globalStyle.letters.sizePt}
+          min={4}
+          max={144}
           onChange={(sizePt) => patchLetters({ sizePt })}
-          onBlur={commit.flush} />
-        <ColorField label="Color" value={globalStyle.letters.color}
+          onBlur={commit.flush}
+        />
+        <ColorField
+          label="Color"
+          value={globalStyle.letters.color}
           onChange={(color) => patchLetters({ color })}
-          onBlur={commit.flush} />
-        <CornerField label="Corner"
+          onBlur={commit.flush}
+        />
+        <CornerField
+          label="Corner"
           value={globalStyle.letters.corner}
-          onChange={(c) => patchLetters({ corner: c }, true)} />
+          onChange={(c) => patchLetters({ corner: c }, true)}
+        />
       </fieldset>
 
       <fieldset
@@ -133,28 +155,47 @@ export function CanvasAndGlobalStyleForm({
           gap: 10,
         }}
       >
-        <legend className="section-heading" style={{ padding: 0, marginBottom: 4 }}>
+        <legend
+          className="section-heading"
+          style={{ padding: 0, marginBottom: 4 }}
+        >
           Scale bar
         </legend>
-        <NumberField label="Thickness (px)"
-          value={globalStyle.scalebar.thicknessPx} min={1} max={32}
+        <NumberField
+          label="Thickness (px)"
+          value={globalStyle.scalebar.thicknessPx}
+          min={1}
+          max={32}
           onChange={(thicknessPx) => patchScalebar({ thicknessPx })}
-          onBlur={commit.flush} />
-        <ColorField label="Color" value={globalStyle.scalebar.barColor}
+          onBlur={commit.flush}
+        />
+        <ColorField
+          label="Color"
+          value={globalStyle.scalebar.barColor}
           onChange={(barColor) => patchScalebar({ barColor, color: barColor })}
-          onBlur={commit.flush} />
-        <NumberField label="Label size (pt)"
-          value={globalStyle.scalebar.sizePt} min={4} max={48}
+          onBlur={commit.flush}
+        />
+        <NumberField
+          label="Label size (pt)"
+          value={globalStyle.scalebar.sizePt}
+          min={4}
+          max={48}
           onChange={(sizePt) => patchScalebar({ sizePt })}
-          onBlur={commit.flush} />
-        <CornerField label="Corner"
+          onBlur={commit.flush}
+        />
+        <CornerField
+          label="Corner"
           value={globalStyle.scalebar.corner}
-          onChange={(c) => patchScalebar({ corner: c }, true)} />
+          onChange={(c) => patchScalebar({ corner: c }, true)}
+        />
         <label className="checkbox-row">
-          <input type="checkbox"
+          <input
+            type="checkbox"
             checked={globalStyle.scalebar.showLabel}
             onChange={(e) =>
-              patchScalebar({ showLabel: e.currentTarget.checked }, true)} />
+              patchScalebar({ showLabel: e.currentTarget.checked }, true)
+            }
+          />
           Show label
         </label>
       </fieldset>

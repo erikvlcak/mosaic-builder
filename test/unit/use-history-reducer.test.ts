@@ -61,27 +61,44 @@ describe("combinedReducer — undo/redo", () => {
     // Manually inject a placed image — we just want a panel with a transform.
     const stateWithImage: FigureState = {
       ...c.state,
-      pool: [{
-        id: "img1", filename: "x.png", filePath: "/x.png", mime: "image/png",
-        width: 100, height: 100, bitDepth: 8,
-      }],
+      pool: [
+        {
+          id: "img1",
+          filename: "x.png",
+          filePath: "/x.png",
+          mime: "image/png",
+          width: 100,
+          height: 100,
+          bitDepth: 8,
+        },
+      ],
       panels: c.state.panels.map((p) =>
-        p.id === panelId ? { ...p, imageId: "img1", transform: DEFAULT_TRANSFORM } : p,
+        p.id === panelId
+          ? { ...p, imageId: "img1", transform: DEFAULT_TRANSFORM }
+          : p,
       ),
     };
-    c = { state: stateWithImage, history: { past: [], future: [] }, lastCommitted: stateWithImage };
+    c = {
+      state: stateWithImage,
+      history: { past: [], future: [] },
+      lastCommitted: stateWithImage,
+    };
 
     c = combinedReducer(c, {
       kind: "dispatch",
       action: setPanelTransform(panelId, { ...DEFAULT_TRANSFORM, panX: 5 }),
     });
     expect(c.history.past).toHaveLength(0);
-    expect(c.state.panels.find((p) => p.id === panelId)!.transform!.panX).toBe(5);
+    expect(c.state.panels.find((p) => p.id === panelId)!.transform!.panX).toBe(
+      5,
+    );
 
     // commit() pushes the pre-drag state.
     c = combinedReducer(c, { kind: "commit" });
     expect(c.history.past).toHaveLength(1);
-    expect(c.history.past[0]!.panels.find((p) => p.id === panelId)!.transform!.panX).toBe(0);
+    expect(
+      c.history.past[0]!.panels.find((p) => p.id === panelId)!.transform!.panX,
+    ).toBe(0);
   });
 
   it("RESET_TO_STATE clears history", () => {
@@ -100,10 +117,21 @@ describe("combinedReducer — undo/redo", () => {
 
 describe("transient actions coalesce until commit", () => {
   it("UPDATE_ANNOTATION dispatches do not push history until commit()", () => {
-    const { result } = renderHook(() => useHistoryReducer(initialFigureState()));
+    const { result } = renderHook(() =>
+      useHistoryReducer(initialFigureState()),
+    );
     const seedAnno = {
-      id: "t1", kind: "text" as const, x: 10, y: 10, text: "hi",
-      font: "Arial", sizePt: 12, bold: false, italic: false, color: "#000", z: 1,
+      id: "t1",
+      kind: "text" as const,
+      x: 10,
+      y: 10,
+      text: "hi",
+      font: "Arial",
+      sizePt: 12,
+      bold: false,
+      italic: false,
+      color: "#000",
+      z: 1,
     };
     act(() => result.current[1](addAnnotation(seedAnno)));
     act(() => result.current[2].commit());
@@ -124,11 +152,17 @@ describe("transient actions coalesce until commit", () => {
   });
 
   it("SET_GLOBAL_STYLE is transient", () => {
-    const { result } = renderHook(() => useHistoryReducer(initialFigureState()));
-    const variantA = { ...DEFAULT_GLOBAL_STYLE,
-      letters: { ...DEFAULT_GLOBAL_STYLE.letters, sizePt: 14 } };
-    const variantB = { ...DEFAULT_GLOBAL_STYLE,
-      letters: { ...DEFAULT_GLOBAL_STYLE.letters, sizePt: 16 } };
+    const { result } = renderHook(() =>
+      useHistoryReducer(initialFigureState()),
+    );
+    const variantA = {
+      ...DEFAULT_GLOBAL_STYLE,
+      letters: { ...DEFAULT_GLOBAL_STYLE.letters, sizePt: 14 },
+    };
+    const variantB = {
+      ...DEFAULT_GLOBAL_STYLE,
+      letters: { ...DEFAULT_GLOBAL_STYLE.letters, sizePt: 16 },
+    };
     act(() => result.current[1](setGlobalStyle(variantA)));
     act(() => result.current[1](setGlobalStyle(variantB)));
     act(() => result.current[2].commit());

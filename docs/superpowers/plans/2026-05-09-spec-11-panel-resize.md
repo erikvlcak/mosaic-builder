@@ -12,23 +12,24 @@
 
 ## File Structure
 
-| File | Role | Change |
-|---|---|---|
-| `src/renderer/model/grid-layout.ts` (NEW) | `GridLayout` type + pure helpers (`uniformLayoutFor`, `setTrackWeight`, `rectsFromUniform`, `rectsFromFree`, `resizePanelFreeform`) | create |
-| `src/renderer/model/figure-state.ts` | Add `layout: GridLayout` field; `initialFigureState` returns uniform layout | modify |
-| `src/renderer/model/figure-actions.ts` | Three new actions: `SET_TRACK_WEIGHT`, `RESIZE_PANEL_FREEFORM`, `RESET_TO_UNIFORM_GRID`. RESIZE_GRID, MERGE_CELLS, UNMERGE_PANEL, DELETE_PANEL, RESTORE_PANEL_AT must keep `layout` consistent | modify |
-| `src/renderer/model/types.ts` | `FigureGrid` (Figure type) gains optional `layout: GridLayout` | modify |
-| `src/renderer/model/figure-derivations.ts` | `deriveFigure` copies `state.layout` onto `figure.grid` | modify |
-| `src/renderer/render/coords.ts` | `computePanelRects` branches on `figure.grid.layout.kind`; uniform path uses weights | modify |
-| `src/renderer/components/Grid/GridCells.tsx` | New `<TrackHandle>` strips along gutter lines (uniform only); use shared layout-aware computation for panel rects | modify |
-| `src/renderer/components/Grid/PanelInteractionLayer.tsx` | Render four corner handles when in editing mode; pointer drag dispatches `RESIZE_PANEL_FREEFORM` | modify |
-| `src/renderer/components/Toolbar/GridControls.tsx` | "Reset to uniform grid" button visible when `layout.kind === "free"` | modify |
-| `src/renderer/App.tsx` | Pipe `layout` + new dispatchers down to `GridControls`, `GridCells`, `PanelInteractionLayer` | modify |
-| `src/renderer/styles.css` | Track-handle and corner-handle styles | modify |
-| `src/renderer/model/schema.ts` | v4: schema includes `state.layout`; loader migrates v1/v2/v3 → v4 | modify |
-| `src/renderer/model/serialize.ts` | `toMosaicFile` writes v4; `fromMosaicFile` reads v3 → seeds uniform layout | modify |
+| File                                                     | Role                                                                                                                                                                                           | Change |
+| -------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ |
+| `src/renderer/model/grid-layout.ts` (NEW)                | `GridLayout` type + pure helpers (`uniformLayoutFor`, `setTrackWeight`, `rectsFromUniform`, `rectsFromFree`, `resizePanelFreeform`)                                                            | create |
+| `src/renderer/model/figure-state.ts`                     | Add `layout: GridLayout` field; `initialFigureState` returns uniform layout                                                                                                                    | modify |
+| `src/renderer/model/figure-actions.ts`                   | Three new actions: `SET_TRACK_WEIGHT`, `RESIZE_PANEL_FREEFORM`, `RESET_TO_UNIFORM_GRID`. RESIZE_GRID, MERGE_CELLS, UNMERGE_PANEL, DELETE_PANEL, RESTORE_PANEL_AT must keep `layout` consistent | modify |
+| `src/renderer/model/types.ts`                            | `FigureGrid` (Figure type) gains optional `layout: GridLayout`                                                                                                                                 | modify |
+| `src/renderer/model/figure-derivations.ts`               | `deriveFigure` copies `state.layout` onto `figure.grid`                                                                                                                                        | modify |
+| `src/renderer/render/coords.ts`                          | `computePanelRects` branches on `figure.grid.layout.kind`; uniform path uses weights                                                                                                           | modify |
+| `src/renderer/components/Grid/GridCells.tsx`             | New `<TrackHandle>` strips along gutter lines (uniform only); use shared layout-aware computation for panel rects                                                                              | modify |
+| `src/renderer/components/Grid/PanelInteractionLayer.tsx` | Render four corner handles when in editing mode; pointer drag dispatches `RESIZE_PANEL_FREEFORM`                                                                                               | modify |
+| `src/renderer/components/Toolbar/GridControls.tsx`       | "Reset to uniform grid" button visible when `layout.kind === "free"`                                                                                                                           | modify |
+| `src/renderer/App.tsx`                                   | Pipe `layout` + new dispatchers down to `GridControls`, `GridCells`, `PanelInteractionLayer`                                                                                                   | modify |
+| `src/renderer/styles.css`                                | Track-handle and corner-handle styles                                                                                                                                                          | modify |
+| `src/renderer/model/schema.ts`                           | v4: schema includes `state.layout`; loader migrates v1/v2/v3 → v4                                                                                                                              | modify |
+| `src/renderer/model/serialize.ts`                        | `toMosaicFile` writes v4; `fromMosaicFile` reads v3 → seeds uniform layout                                                                                                                     | modify |
 
 **Test files (mirror source):**
+
 - `test/unit/grid-layout.test.ts` — pure helpers
 - `test/unit/figure-actions.test.ts` — three new actions + grid-resize/merge/delete interactions
 - `test/unit/coords.test.ts` (or extend `figure-layout.test.ts`) — `computePanelRects` in both regimes
@@ -40,9 +41,10 @@
 - `test/unit/m7-roundtrip.test.ts` — load-old/save-new flow
 
 **Constants (in `grid-layout.ts`):**
+
 ```ts
-export const MIN_TRACK_WEIGHT = 0.05;  // 5% of total — keeps a track visible
-export const MIN_PANEL_W = 30;          // figure-px floor for free-form
+export const MIN_TRACK_WEIGHT = 0.05; // 5% of total — keeps a track visible
+export const MIN_PANEL_W = 30; // figure-px floor for free-form
 export const MIN_PANEL_H = 30;
 ```
 
@@ -51,6 +53,7 @@ export const MIN_PANEL_H = 30;
 ## Task 1: `GridLayout` type + uniform helpers
 
 **Files:**
+
 - Create: `src/renderer/model/grid-layout.ts`
 - Test: `test/unit/grid-layout.test.ts`
 
@@ -214,6 +217,7 @@ git commit -m "feat(qa-feedback): GridLayout type + uniform track-weight helpers
 ## Task 2: Uniform-mode rect computation (`rectsFromUniform`)
 
 **Files:**
+
 - Modify: `src/renderer/model/grid-layout.ts`
 - Modify: `test/unit/grid-layout.test.ts`
 
@@ -235,7 +239,12 @@ const P = (id: string, row: number, col: number, rs = 1, cs = 1): Panel => ({
 
 describe("rectsFromUniform", () => {
   it("matches existing computeGridLayout for equal weights with outerGutter on", () => {
-    const panels: Panel[] = [P("a", 0, 0), P("b", 0, 1), P("c", 1, 0), P("d", 1, 1)];
+    const panels: Panel[] = [
+      P("a", 0, 0),
+      P("b", 0, 1),
+      P("c", 1, 0),
+      P("d", 1, 1),
+    ];
     const rects = rectsFromUniform({
       widthPx: 800,
       heightPx: 600,
@@ -338,10 +347,8 @@ export function rectsFromUniform(
 ): Record<string, FreeRect> {
   const { widthPx, heightPx, rows, cols, gutterPx, outerGutter, panels } = inp;
   const outerOffset = outerGutter ? gutterPx : 0;
-  const availW =
-    widthPx - gutterPx * ((outerGutter ? 2 : 0) + (cols - 1));
-  const availH =
-    heightPx - gutterPx * ((outerGutter ? 2 : 0) + (rows - 1));
+  const availW = widthPx - gutterPx * ((outerGutter ? 2 : 0) + (cols - 1));
+  const availH = heightPx - gutterPx * ((outerGutter ? 2 : 0) + (rows - 1));
 
   const colWPx = inp.colWeights.map((w) => Math.floor(availW * w));
   const rowHPx = inp.rowWeights.map((w) => Math.floor(availH * w));
@@ -353,10 +360,12 @@ export function rectsFromUniform(
   const colX: number[] = new Array(cols).fill(0);
   const rowY: number[] = new Array(rows).fill(0);
   for (let i = 0; i < cols; i++) {
-    colX[i] = outerOffset + (i === 0 ? 0 : colX[i - 1]! + colWPx[i - 1]! + gutterPx);
+    colX[i] =
+      outerOffset + (i === 0 ? 0 : colX[i - 1]! + colWPx[i - 1]! + gutterPx);
   }
   for (let i = 0; i < rows; i++) {
-    rowY[i] = outerOffset + (i === 0 ? 0 : rowY[i - 1]! + rowHPx[i - 1]! + gutterPx);
+    rowY[i] =
+      outerOffset + (i === 0 ? 0 : rowY[i - 1]! + rowHPx[i - 1]! + gutterPx);
   }
 
   const out: Record<string, FreeRect> = {};
@@ -392,6 +401,7 @@ git commit -m "feat(qa-feedback): rectsFromUniform with weighted tracks (spec 11
 ## Task 3: Free-form cascade math (`resizePanelFreeform`)
 
 **Files:**
+
 - Modify: `src/renderer/model/grid-layout.ts`
 - Modify: `test/unit/grid-layout.test.ts`
 
@@ -408,9 +418,9 @@ import {
 describe("resizePanelFreeform", () => {
   // Two-by-two grid in a 1000x1000 figure with no gutters, for clean math.
   const baseRects: Record<string, FreeRect> = {
-    tl: { x: 0,   y: 0,   w: 500, h: 500 },
-    tr: { x: 500, y: 0,   w: 500, h: 500 },
-    bl: { x: 0,   y: 500, w: 500, h: 500 },
+    tl: { x: 0, y: 0, w: 500, h: 500 },
+    tr: { x: 500, y: 0, w: 500, h: 500 },
+    bl: { x: 0, y: 500, w: 500, h: 500 },
     br: { x: 500, y: 500, w: 500, h: 500 },
   };
 
@@ -459,7 +469,7 @@ describe("resizePanelFreeform", () => {
   it("panels not sharing the moved edge stay put", () => {
     // 1x3 layout: a | b | c. Dragging a's right edge only touches a and b.
     const rects: Record<string, FreeRect> = {
-      a: { x: 0,   y: 0, w: 200, h: 100 },
+      a: { x: 0, y: 0, w: 200, h: 100 },
       b: { x: 200, y: 0, w: 200, h: 100 },
       c: { x: 400, y: 0, w: 200, h: 100 },
     };
@@ -708,6 +718,7 @@ git commit -m "feat(qa-feedback): freeform corner-resize cascade with MIN_PANEL 
 ## Task 4: Add `layout` field to `FigureState`
 
 **Files:**
+
 - Modify: `src/renderer/model/figure-state.ts`
 - Modify: `test/unit/figure-state.test.ts` (existing)
 
@@ -781,6 +792,7 @@ git commit -m "feat(qa-feedback): add layout: GridLayout to FigureState (spec 11
 ## Task 5: Reducer action `SET_TRACK_WEIGHT`
 
 **Files:**
+
 - Modify: `src/renderer/model/figure-actions.ts`
 - Modify: `test/unit/figure-actions.test.ts`
 
@@ -838,6 +850,7 @@ Expected: FAIL.
 In `src/renderer/model/figure-actions.ts`:
 
 1. Import:
+
    ```ts
    import {
      setTrackWeight,
@@ -851,11 +864,13 @@ In `src/renderer/model/figure-actions.ts`:
    ```
 
 2. Add to `FigureAction` union:
+
    ```ts
    | { type: "SET_TRACK_WEIGHT"; axis: "row" | "col"; index: number; weight: number }
    ```
 
 3. Add the action creator:
+
    ```ts
    export const setTrackWeightAction = (
      axis: "row" | "col",
@@ -903,6 +918,7 @@ git commit -m "feat(qa-feedback): SET_TRACK_WEIGHT reducer (spec 11)"
 ## Task 6: Reducer actions `RESIZE_PANEL_FREEFORM` + `RESET_TO_UNIFORM_GRID`
 
 **Files:**
+
 - Modify: `src/renderer/model/figure-actions.ts`
 - Modify: `test/unit/figure-actions.test.ts`
 
@@ -934,7 +950,9 @@ describe("RESIZE_PANEL_FREEFORM", () => {
     if (s1.layout.kind !== "free") throw new Error("unreachable");
     expect(s1.layout.rects["panel-1"]!.w).toBe(394 + 50); // baseline col w + dx
     // panel-2 (top-right) shrinks by 50 on the left side.
-    expect(s1.layout.rects["panel-2"]!.x).toBe(s1.layout.rects["panel-1"]!.x + s1.layout.rects["panel-1"]!.w + 12);
+    expect(s1.layout.rects["panel-2"]!.x).toBe(
+      s1.layout.rects["panel-1"]!.x + s1.layout.rects["panel-1"]!.w + 12,
+    );
   });
 
   it("subsequent free-form drag updates rects without changing layout.kind", () => {
@@ -957,7 +975,9 @@ describe("RESIZE_PANEL_FREEFORM", () => {
     expect(s2.layout.kind).toBe("free");
     if (s2.layout.kind !== "free") throw new Error("unreachable");
     if (s1.layout.kind !== "free") throw new Error("unreachable");
-    expect(s2.layout.rects["panel-1"]!.w).toBe(s1.layout.rects["panel-1"]!.w + 5);
+    expect(s2.layout.rects["panel-1"]!.w).toBe(
+      s1.layout.rects["panel-1"]!.w + 5,
+    );
   });
 
   it("is a no-op when target panel is missing", () => {
@@ -1009,6 +1029,7 @@ Expected: FAIL.
 In `src/renderer/model/figure-actions.ts`:
 
 1. Add to the `FigureAction` union:
+
    ```ts
    | {
        type: "RESIZE_PANEL_FREEFORM";
@@ -1023,6 +1044,7 @@ In `src/renderer/model/figure-actions.ts`:
    ```
 
 2. Action creators:
+
    ```ts
    export const resizePanelFreeformAction = (
      panelId: string,
@@ -1045,6 +1067,7 @@ In `src/renderer/model/figure-actions.ts`:
    ```
 
 3. Reducer cases (before `default`):
+
    ```ts
    case "RESIZE_PANEL_FREEFORM": {
      const target = findPanelById(s.panels, a.panelId);
@@ -1123,6 +1146,7 @@ git commit -m "feat(qa-feedback): RESIZE_PANEL_FREEFORM + RESET_TO_UNIFORM_GRID 
 `RESIZE_GRID`, `MERGE_CELLS`, `UNMERGE_PANEL`, `DELETE_PANEL`, `RESTORE_PANEL_AT` all change panel identity or grid dims. The `layout` field has invariants tied to those (weights array length === cols/rows; free rects keyed by surviving panel ids). Without housekeeping, a resize-grid then track-drag would crash on out-of-range index.
 
 **Files:**
+
 - Modify: `src/renderer/model/figure-actions.ts`
 - Modify: `test/unit/figure-actions.test.ts`
 
@@ -1131,7 +1155,13 @@ git commit -m "feat(qa-feedback): RESIZE_PANEL_FREEFORM + RESET_TO_UNIFORM_GRID 
 Append to `test/unit/figure-actions.test.ts`:
 
 ```ts
-import { resizeGrid as resizeGridAction, mergeCells, unmergePanelAction, deletePanel, restorePanelAt } from "../../src/renderer/model/figure-actions";
+import {
+  resizeGrid as resizeGridAction,
+  mergeCells,
+  unmergePanelAction,
+  deletePanel,
+  restorePanelAt,
+} from "../../src/renderer/model/figure-actions";
 
 describe("layout housekeeping across grid mutations", () => {
   it("RESIZE_GRID rebuilds uniform weights to the new dims", () => {
@@ -1190,7 +1220,10 @@ describe("layout housekeeping across grid mutations", () => {
     );
     const sMerged = figureReducer(
       sFree,
-      mergeCells([{ row: 0, col: 0 }, { row: 0, col: 1 }]),
+      mergeCells([
+        { row: 0, col: 0 },
+        { row: 0, col: 1 },
+      ]),
     );
     expect(sMerged.layout.kind).toBe("uniform");
   });
@@ -1207,6 +1240,7 @@ Expected: FAIL.
 In `src/renderer/model/figure-actions.ts`:
 
 1. **`RESIZE_GRID`**: after computing new rows/cols/panels, set `layout: uniformLayoutFor(rows, cols)`. Replace the existing return statement with:
+
    ```ts
    return {
      ...s,
@@ -1221,10 +1255,13 @@ In `src/renderer/model/figure-actions.ts`:
 2. **`MERGE_CELLS`** and **`UNMERGE_PANEL`**: append `layout: uniformLayoutFor(s.rows, s.cols)` to the returned state. Rationale: a merged panel's id changes, and free-form rects keyed by old ids would dangle. Reverting to uniform is simpler than rect surgery and matches the spec's "v1 implementation choice — recommend equal weights for simplicity."
 
    For `MERGE_CELLS` replace:
+
    ```ts
    return { ...s, panels: nextPanels, letterOverrides };
    ```
+
    with:
+
    ```ts
    return {
      ...s,
@@ -1235,10 +1272,13 @@ In `src/renderer/model/figure-actions.ts`:
    ```
 
    For `UNMERGE_PANEL` replace:
+
    ```ts
    return { ...s, panels: next, letterOverrides };
    ```
+
    with:
+
    ```ts
    return {
      ...s,
@@ -1249,6 +1289,7 @@ In `src/renderer/model/figure-actions.ts`:
    ```
 
 3. **`DELETE_PANEL`**: drop the panel's rect entry from a free layout (keep weights for uniform). Replace the existing return:
+
    ```ts
    const layout: GridLayout =
      s.layout.kind === "free" && a.panelId in s.layout.rects
@@ -1258,20 +1299,16 @@ In `src/renderer/model/figure-actions.ts`:
    ```
 
 4. **`RESTORE_PANEL_AT`**: a fresh empty panel appears with no entry in the free rects map. If layout is free, the renderer needs an entry. Simplest: revert to uniform (a free layout with a missing panel can't render). Append `layout: uniformLayoutFor(s.rows, s.cols)` when the layout was free; keep uniform unchanged when layout was uniform. Replace the existing return with:
+
    ```ts
    const layout: GridLayout =
-     s.layout.kind === "free"
-       ? uniformLayoutFor(s.rows, s.cols)
-       : s.layout;
+     s.layout.kind === "free" ? uniformLayoutFor(s.rows, s.cols) : s.layout;
    return { ...s, panels, layout };
    ```
 
 5. Add the `omitKey` helper near `arraysEqual`:
    ```ts
-   function omitKey<T>(
-     map: Record<string, T>,
-     key: string,
-   ): Record<string, T> {
+   function omitKey<T>(map: Record<string, T>, key: string): Record<string, T> {
      const out: Record<string, T> = {};
      for (const k in map) if (k !== key) out[k] = map[k]!;
      return out;
@@ -1300,6 +1337,7 @@ git commit -m "feat(qa-feedback): layout housekeeping across grid mutations (spe
 ## Task 8: Wire `layout` through `Figure` type + `deriveFigure`
 
 **Files:**
+
 - Modify: `src/renderer/model/types.ts`
 - Modify: `src/renderer/model/figure-derivations.ts`
 - Modify: `test/unit/figure-derivations.test.ts`
@@ -1402,6 +1440,7 @@ git commit -m "feat(qa-feedback): plumb GridLayout through Figure + deriveFigure
 ## Task 9: `computePanelRects` branches on `layout.kind`
 
 **Files:**
+
 - Modify: `src/renderer/render/coords.ts`
 - Modify: `test/unit/figure-layout.test.ts`
 
@@ -1585,6 +1624,7 @@ git commit -m "feat(qa-feedback): computePanelRects branches on layout.kind (spe
 ## Task 10: Schema v4 — type and validator
 
 **Files:**
+
 - Modify: `src/renderer/model/schema.ts`
 - Modify: `test/unit/schema.test.ts`
 
@@ -1616,7 +1656,9 @@ describe("schema v4 — layout", () => {
           { id: "p4", row: 1, col: 1, rowSpan: 1, colSpan: 1 },
         ],
         annotations: [],
-        globalStyle: { /* full style — copy from existing v3 fixture */ },
+        globalStyle: {
+          /* full style — copy from existing v3 fixture */
+        },
         letterOverrides: {},
         letterPattern: "uppercase",
         layout: layoutOverride ?? {
@@ -1681,16 +1723,19 @@ Expected: FAIL — schema doesn't know about v4.
 In `src/renderer/model/schema.ts`:
 
 1. Bump version constant:
+
    ```ts
    export const CURRENT_SCHEMA_VERSION = 4;
    ```
 
 2. Import `GridLayout`:
+
    ```ts
    import type { GridLayout } from "./grid-layout";
    ```
 
 3. Add the v4 type after `MosaicFileV3`:
+
    ```ts
    /**
     * v4: spec 11 — adds `state.layout: GridLayout`. Loader migrates v1/v2/v3
@@ -1704,6 +1749,7 @@ In `src/renderer/model/schema.ts`:
    ```
 
 4. Update `MosaicFile` union:
+
    ```ts
    export type MosaicFile =
      | MosaicFileV1
@@ -1713,6 +1759,7 @@ In `src/renderer/model/schema.ts`:
    ```
 
 5. In `validateMosaicFile`, change the version gate:
+
    ```ts
    if (
      x.schemaVersion !== 1 &&
@@ -1726,6 +1773,7 @@ In `src/renderer/model/schema.ts`:
    ```
 
 6. After the `letterPattern` validation (which is `if (sv === 3)`), expand to include v4 (v4 inherits the v3 fields):
+
    ```ts
    if (sv === 3 || sv === 4) {
      if (
@@ -1740,12 +1788,19 @@ In `src/renderer/model/schema.ts`:
      }
    }
    ```
+
    And likewise change the v3-only `letterOverrides` shape gate to `sv === 3 || sv === 4`.
 
 7. Add the v4-specific layout validation. Insert before `return { ok: true, value: x as unknown as MosaicFile };`:
+
    ```ts
    if (sv === 4) {
-     const layoutValidation = validateLayout(st.layout, "state.layout", st.rows, st.cols);
+     const layoutValidation = validateLayout(
+       st.layout,
+       "state.layout",
+       st.rows,
+       st.cols,
+     );
      if (!layoutValidation.ok) return layoutValidation;
    }
    ```
@@ -1816,6 +1871,7 @@ git commit -m "feat(qa-feedback): schema v4 with layout validation (spec 11)"
 ## Task 11: Serialize/deserialize layout (v3 → v4 migration)
 
 **Files:**
+
 - Modify: `src/renderer/model/serialize.ts`
 - Modify: `test/unit/serialize.test.ts`
 
@@ -1884,6 +1940,7 @@ Expected: FAIL.
 In `src/renderer/model/serialize.ts`:
 
 1. Change return type:
+
    ```ts
    import type { MosaicFile, MosaicFileV4 } from "./schema";
    import { uniformLayoutFor } from "./grid-layout";
@@ -1950,6 +2007,7 @@ git commit -m "feat(qa-feedback): serialize layout as v4; v3->v4 load migration 
 ## Task 12: Track-resize handle UI in `GridCells`
 
 **Files:**
+
 - Modify: `src/renderer/components/Grid/GridCells.tsx`
 - Modify: `src/renderer/styles.css`
 - Modify: `test/unit/grid-cells-modes.test.tsx`
@@ -2061,46 +2119,52 @@ Expected: FAIL.
 In `src/renderer/components/Grid/GridCells.tsx`:
 
 1. Add to `Props`:
+
    ```ts
    onTrackWeightChange?: (axis: "row" | "col", index: number, weight: number) => void;
    ```
 
 2. After the `holes.map(...)` block and before `state.panels.map(...)`, insert track handles. Read layout from state:
+
    ```tsx
    const isUniform = state.layout.kind === "uniform";
    ```
 
 3. Render col handles (positioned over each gutter line between adjacent columns):
+
    ```tsx
-   {isUniform && Array.from({ length: state.cols - 1 }).map((_, i) => {
-     // The handle straddles the gutter line between col i and col i+1.
-     // Get the right edge of cell (0, i) using computeCellRect.
-     const left = computeCellRect(layout, 0, i);
-     const lineX = left.x + left.w + state.gutterPx / 2;
-     // Handle spans the full grid height.
-     const top = computeCellRect(layout, 0, 0).y;
-     const bot = computeCellRect(layout, state.rows - 1, 0);
-     const fullH = bot.y + bot.h - top;
-     return (
-       <TrackHandle
-         key={`col-${i}`}
-         testId={`track-handle-col-${i}`}
-         axis="col"
-         index={i}
-         hairlineCenter={lineX}
-         crossSize={fullH}
-         crossStart={top}
-         sx={sx}
-         sy={sy}
-         figurePxW={figurePxW}
-         figurePxH={figurePxH}
-         cssW={cssW}
-         cssH={cssH}
-         outerOffset={state.outerGutter ? state.gutterPx : 0}
-         onChange={(w) => onTrackWeightChange?.("col", i, w)}
-       />
-     );
-   })}
+   {
+     isUniform &&
+       Array.from({ length: state.cols - 1 }).map((_, i) => {
+         // The handle straddles the gutter line between col i and col i+1.
+         // Get the right edge of cell (0, i) using computeCellRect.
+         const left = computeCellRect(layout, 0, i);
+         const lineX = left.x + left.w + state.gutterPx / 2;
+         // Handle spans the full grid height.
+         const top = computeCellRect(layout, 0, 0).y;
+         const bot = computeCellRect(layout, state.rows - 1, 0);
+         const fullH = bot.y + bot.h - top;
+         return (
+           <TrackHandle
+             key={`col-${i}`}
+             testId={`track-handle-col-${i}`}
+             axis="col"
+             index={i}
+             hairlineCenter={lineX}
+             crossSize={fullH}
+             crossStart={top}
+             sx={sx}
+             sy={sy}
+             figurePxW={figurePxW}
+             figurePxH={figurePxH}
+             cssW={cssW}
+             cssH={cssH}
+             outerOffset={state.outerGutter ? state.gutterPx : 0}
+             onChange={(w) => onTrackWeightChange?.("col", i, w)}
+           />
+         );
+       });
+   }
    ```
 
 4. Mirror for row handles.
@@ -2217,13 +2281,15 @@ This sketch reveals the math complication. The cleaner shape is below.
 - [ ] **Step 3.5: Restructure track handle to take pair geometry**
 
 Replace the sketch above with a cleaner shape. Add these fields to `TrackHandleProps`:
+
 ```ts
-pairLeftFigPx: number;  // left edge of (weights[index] + weights[index+1]) span
+pairLeftFigPx: number; // left edge of (weights[index] + weights[index+1]) span
 pairWidthFigPx: number; // width of the pair
 pairTotalWeight: number; // weights[index] + weights[index+1]
 ```
 
 In the parent, compute these from `layout` before passing:
+
 ```tsx
 if (state.layout.kind === "uniform") {
   // For col handle i: pair spans col i and col i+1.
@@ -2231,12 +2297,14 @@ if (state.layout.kind === "uniform") {
   const rightCell = computeCellRect(layout, 0, i + 1);
   const pairLeftFigPx = leftCell.x;
   const pairWidthFigPx = rightCell.x + rightCell.w - leftCell.x;
-  const pairTotalWeight = state.layout.colWeights[i]! + state.layout.colWeights[i + 1]!;
+  const pairTotalWeight =
+    state.layout.colWeights[i]! + state.layout.colWeights[i + 1]!;
   // ...pass to TrackHandle
 }
 ```
 
 In `handleMove`:
+
 ```tsx
 if (axis === "col") {
   const figX = ((e.clientX - wrapper.left) / cssW) * figurePxW;
@@ -2253,6 +2321,7 @@ Mirror for row handles.
 - [ ] **Step 3.6: Layout DOM**
 
 The handle's DOM:
+
 ```tsx
 return (
   <div
@@ -2262,17 +2331,16 @@ return (
     onPointerMove={onPointerMove}
     onPointerUp={onPointerUp}
     onPointerCancel={onPointerUp}
-    className={axis === "col" ? "track-handle track-handle-col" : "track-handle track-handle-row"}
+    className={
+      axis === "col"
+        ? "track-handle track-handle-col"
+        : "track-handle track-handle-row"
+    }
     style={{
       position: "absolute",
       left:
-        axis === "col"
-          ? (hairlineCenter - STRIP / 2) * sx
-          : crossStart * sx,
-      top:
-        axis === "col"
-          ? crossStart * sy
-          : (hairlineCenter - STRIP / 2) * sy,
+        axis === "col" ? (hairlineCenter - STRIP / 2) * sx : crossStart * sx,
+      top: axis === "col" ? crossStart * sy : (hairlineCenter - STRIP / 2) * sy,
       width: axis === "col" ? STRIP * sx : crossSize * sx,
       height: axis === "col" ? crossSize * sy : STRIP * sy,
       cursor: axis === "col" ? "col-resize" : "row-resize",
@@ -2285,6 +2353,7 @@ return (
 ```
 
 Add CSS in `src/renderer/styles.css`:
+
 ```css
 .track-handle {
   background: transparent;
@@ -2305,12 +2374,14 @@ Expected: 3 tests pass.
 - [ ] **Step 5: Wire `onTrackWeightChange` from App**
 
 In `src/renderer/App.tsx`, locate the `<GridCells ...>` usage. Add the prop:
+
 ```tsx
 onTrackWeightChange={(axis, index, weight) => {
   dispatch(setTrackWeightAction(axis, index, weight));
   history.commit();
 }}
 ```
+
 Import `setTrackWeightAction` at the top.
 
 - [ ] **Step 6: Run lint + typecheck**
@@ -2330,6 +2401,7 @@ git commit -m "feat(qa-feedback): track-resize handles in GridCells (spec 11)"
 ## Task 13: Corner-resize handles in `PanelInteractionLayer`
 
 **Files:**
+
 - Modify: `src/renderer/components/Grid/PanelInteractionLayer.tsx`
 - Modify: `src/renderer/styles.css`
 - Modify: `test/unit/panel-interaction-layer.test.tsx`
@@ -2389,6 +2461,7 @@ Expected: FAIL.
 In `src/renderer/components/Grid/PanelInteractionLayer.tsx`:
 
 1. Add to `Props`:
+
    ```ts
    /** Dispatched when the user drags a corner handle. dx, dy are figure-px deltas. */
    onResizeFreeform?: (corner: "tl" | "tr" | "bl" | "br", dx: number, dy: number) => void;
@@ -2435,10 +2508,11 @@ function CornerHandle({
   onCommit,
 }: CornerHandleProps): JSX.Element {
   const ref = useRef<HTMLDivElement | null>(null);
-  const dragRef = useRef<
-    | { pointerId: number; startClientX: number; startClientY: number }
-    | null
-  >(null);
+  const dragRef = useRef<{
+    pointerId: number;
+    startClientX: number;
+    startClientY: number;
+  } | null>(null);
 
   function onPointerDown(e: React.PointerEvent<HTMLDivElement>): void {
     if (e.button !== 0 || ref.current === null) return;
@@ -2501,6 +2575,7 @@ function CornerHandle({
 ```
 
 4. Add CSS:
+
 ```css
 .corner-handle {
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
@@ -2518,6 +2593,7 @@ Expected: 2 tests pass.
 - [ ] **Step 5: Wire `onResizeFreeform` from App**
 
 In `src/renderer/App.tsx`, add to the `<PanelInteractionLayer ... />` usage:
+
 ```tsx
 onResizeFreeform={(corner, dx, dy) => {
   if (selectedImagePanel === null) return;
@@ -2555,6 +2631,7 @@ git commit -m "feat(qa-feedback): corner-resize handles trigger free-form layout
 ## Task 14: "Reset to uniform grid" button in `GridControls`
 
 **Files:**
+
 - Modify: `src/renderer/components/Toolbar/GridControls.tsx`
 - Modify: `src/renderer/App.tsx`
 - Create: `test/unit/grid-controls.test.tsx`
@@ -2629,6 +2706,7 @@ Expected: FAIL.
 In `src/renderer/components/Toolbar/GridControls.tsx`:
 
 1. Extend `Props`:
+
    ```ts
    layoutKind: "uniform" | "free";
    onResetUniform: () => void;
@@ -2638,22 +2716,25 @@ In `src/renderer/components/Toolbar/GridControls.tsx`:
 
 3. Render the button at the end of the row, conditionally:
    ```tsx
-   {layoutKind === "free" && (
-     <button
-       type="button"
-       className="btn-secondary"
-       data-testid="reset-uniform-grid"
-       onClick={onResetUniform}
-       title="Restore equal-width columns and equal-height rows"
-     >
-       Reset grid
-     </button>
-   )}
+   {
+     layoutKind === "free" && (
+       <button
+         type="button"
+         className="btn-secondary"
+         data-testid="reset-uniform-grid"
+         onClick={onResetUniform}
+         title="Restore equal-width columns and equal-height rows"
+       >
+         Reset grid
+       </button>
+     );
+   }
    ```
 
 - [ ] **Step 4: Wire from App**
 
 In `src/renderer/App.tsx`:
+
 1. Import `resetToUniformGridAction`.
 2. Pass to `GridControls`:
    ```tsx
@@ -2700,6 +2781,7 @@ Expected: zero warnings.
 - [ ] **Step 3: Boot the dev app and smoke-test**
 
 Run: `pnpm dev`
+
 - Drag a column gutter handle → verify the column resizes; the next column shrinks; rest unchanged.
 - Drag a row gutter handle → verify mirror behavior.
 - Save a `.mosaic` file from this state, close, reopen — verify weights survive.
@@ -2744,11 +2826,13 @@ git commit -m "fix(qa-feedback): smoke-test fixups for spec 11"
 - [x] Acceptance: MIN_PANEL_W floor — Task 3 test
 
 **Scope deliberately deferred:**
+
 - First-time toast on uniform → free transition (small UX, separate PR).
 - Smart "auto-detect alignment" reverse path (out of scope per spec).
 - Snapping during free-form drag (depends on spec 14 alignment guidelines).
 
 **Risks:**
+
 - Task 3's cascade math is the highest-stakes piece. The clampAxis helper is dense — if the smoke test in Task 15 surfaces a corner-drag bug, it will land here.
 - Task 7's "merge resets layout to uniform" is a deliberate UX simplification (the spec calls this out as the recommended v1 implementation choice).
 - `RESIZE_PANEL_FREEFORM` accepting `canvas: { widthPx, heightPx }` couples the reducer to a runtime concern. Alternative would be to move the snapshot to the App-level dispatcher; this version keeps reducer self-contained at the cost of a chunkier action shape. Worth revisiting if it bites.

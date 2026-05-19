@@ -31,9 +31,13 @@ export function canMergeSelection(
   panels: readonly Panel[],
   selection: readonly CellCoord[],
 ): MergeCheck {
-  if (selection.length < 2) return { ok: false, reason: "select at least 2 cells" };
+  if (selection.length < 2)
+    return { ok: false, reason: "select at least 2 cells" };
 
-  let minRow = Infinity, maxRow = -Infinity, minCol = Infinity, maxCol = -Infinity;
+  let minRow = Infinity,
+    maxRow = -Infinity,
+    minCol = Infinity,
+    maxCol = -Infinity;
   for (const c of selection) {
     if (c.row < minRow) minRow = c.row;
     if (c.row > maxRow) maxRow = c.row;
@@ -49,7 +53,8 @@ export function canMergeSelection(
   const seen = new Set<string>();
   for (const c of selection) {
     const k = `${c.row},${c.col}`;
-    if (seen.has(k)) return { ok: false, reason: "duplicate cell in selection" };
+    if (seen.has(k))
+      return { ok: false, reason: "duplicate cell in selection" };
     seen.add(k);
     const p = findPanelAt(panels, c.row, c.col);
     if (p === null) return { ok: false, reason: "cell out of grid" };
@@ -113,8 +118,18 @@ export function unmergePanel(
   const out = panels.filter((p) => p.id !== panelId);
   for (let r = target.row; r < target.row + target.rowSpan; r++) {
     for (let c = target.col; c < target.col + target.colSpan; c++) {
-      const p: Panel = { id: freshId(), row: r, col: c, rowSpan: 1, colSpan: 1 };
-      if (r === target.row && c === target.col && target.imageId !== undefined) {
+      const p: Panel = {
+        id: freshId(),
+        row: r,
+        col: c,
+        rowSpan: 1,
+        colSpan: 1,
+      };
+      if (
+        r === target.row &&
+        c === target.col &&
+        target.imageId !== undefined
+      ) {
         p.imageId = target.imageId;
         if (target.transform !== undefined) p.transform = target.transform;
       }

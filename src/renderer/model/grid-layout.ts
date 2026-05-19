@@ -90,10 +90,8 @@ export function rectsFromUniform(
 ): Record<string, FreeRect> {
   const { widthPx, heightPx, rows, cols, gutterPx, outerGutter, panels } = inp;
   const outerOffset = outerGutter ? gutterPx : 0;
-  const availW =
-    widthPx - gutterPx * ((outerGutter ? 2 : 0) + (cols - 1));
-  const availH =
-    heightPx - gutterPx * ((outerGutter ? 2 : 0) + (rows - 1));
+  const availW = widthPx - gutterPx * ((outerGutter ? 2 : 0) + (cols - 1));
+  const availH = heightPx - gutterPx * ((outerGutter ? 2 : 0) + (rows - 1));
 
   const colWPx = inp.colWeights.map((w) => Math.floor(availW * w));
   const rowHPx = inp.rowWeights.map((w) => Math.floor(availH * w));
@@ -105,12 +103,10 @@ export function rectsFromUniform(
   const colX: number[] = Array.from({ length: cols }, () => 0);
   const rowY: number[] = Array.from({ length: rows }, () => 0);
   for (let i = 0; i < cols; i++) {
-    colX[i] =
-      i === 0 ? outerOffset : colX[i - 1]! + colWPx[i - 1]! + gutterPx;
+    colX[i] = i === 0 ? outerOffset : colX[i - 1]! + colWPx[i - 1]! + gutterPx;
   }
   for (let i = 0; i < rows; i++) {
-    rowY[i] =
-      i === 0 ? outerOffset : rowY[i - 1]! + rowHPx[i - 1]! + gutterPx;
+    rowY[i] = i === 0 ? outerOffset : rowY[i - 1]! + rowHPx[i - 1]! + gutterPx;
   }
 
   const out: Record<string, FreeRect> = {};
@@ -176,12 +172,8 @@ export function resizePanelUniform(
   const movesRight = corner === "tr" || corner === "br";
   const movesBottom = corner === "bl" || corner === "br";
 
-  const colIndex = movesRight
-    ? panel.col + panel.colSpan - 1
-    : panel.col - 1;
-  const rowIndex = movesBottom
-    ? panel.row + panel.rowSpan - 1
-    : panel.row - 1;
+  const colIndex = movesRight ? panel.col + panel.colSpan - 1 : panel.col - 1;
+  const rowIndex = movesBottom ? panel.row + panel.rowSpan - 1 : panel.row - 1;
 
   const colInRange =
     colIndex >= 0 && colIndex < colWeights.length - 1 && availW > 0;
@@ -195,18 +187,10 @@ export function resizePanelUniform(
   // `colWeights[colIndex]` (the col to the panel's LEFT) shrinks. Both
   // cases collapse to: `target = colWeights[colIndex] + dx / availW`.
   const nextCol = colInRange
-    ? setTrackWeight(
-        colWeights,
-        colIndex,
-        colWeights[colIndex]! + dx / availW,
-      )
+    ? setTrackWeight(colWeights, colIndex, colWeights[colIndex]! + dx / availW)
     : colWeights;
   const nextRow = rowInRange
-    ? setTrackWeight(
-        rowWeights,
-        rowIndex,
-        rowWeights[rowIndex]! + dy / availH,
-      )
+    ? setTrackWeight(rowWeights, rowIndex, rowWeights[rowIndex]! + dy / availH)
     : rowWeights;
 
   // Reconstruct the pixel delta actually applied — `setTrackWeight` clamps
@@ -223,10 +207,8 @@ export function resizePanelUniform(
 
   // Reference-equality short-circuit: when neither axis applied a real
   // change, return the input arrays so reducers can compare with `===`.
-  const colChanged =
-    colInRange && nextCol.some((v, i) => v !== colWeights[i]);
-  const rowChanged =
-    rowInRange && nextRow.some((v, i) => v !== rowWeights[i]);
+  const colChanged = colInRange && nextCol.some((v, i) => v !== colWeights[i]);
+  const rowChanged = rowInRange && nextRow.some((v, i) => v !== rowWeights[i]);
 
   return {
     colWeights: colChanged ? (nextCol as number[]) : (colWeights as number[]),

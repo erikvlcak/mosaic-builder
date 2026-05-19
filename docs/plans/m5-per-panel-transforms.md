@@ -9,6 +9,7 @@
 **Working directory:** `/Users/erikvlcak/Desktop/mosaic-builder/`. Branch off `main`. Build a feature branch (e.g. `feat/m5-per-panel-transforms`) and merge once the manual checklist passes.
 
 **Predecessor state (M4):**
+
 - [src/renderer/model/figure-state.ts](../../src/renderer/model/figure-state.ts) — `Panel` carries `id, row, col, rowSpan, colSpan, imageId?` and nothing else; no transform.
 - [src/renderer/model/figure-derivations.ts](../../src/renderer/model/figure-derivations.ts) — projects `FigureState` → `Figure` (the M2-shaped render input).
 - [src/renderer/model/types.ts:22-38](../../src/renderer/model/types.ts#L22-L38) — `HardCodedPanel` is the input shape `drawFigure` consumes; today it has no transform.
@@ -64,9 +65,9 @@ export type Rotation = 0 | 90 | 180 | 270;
 
 export interface PanelTransform {
   fit: FitMode;
-  panX: number;     // figure-px, panel-local; 0,0 = panel center
+  panX: number; // figure-px, panel-local; 0,0 = panel center
   panY: number;
-  zoom: number;     // 1.0 = baseline (Contain or Cover baseline depending on `fit`)
+  zoom: number; // 1.0 = baseline (Contain or Cover baseline depending on `fit`)
   rotation: Rotation;
   flipH: boolean;
   flipV: boolean;
@@ -79,7 +80,7 @@ export interface Panel {
   rowSpan: number;
   colSpan: number;
   imageId?: string;
-  transform?: PanelTransform;   // present iff imageId is set
+  transform?: PanelTransform; // present iff imageId is set
 }
 
 export const DEFAULT_TRANSFORM: PanelTransform = {
@@ -98,9 +99,11 @@ export const DEFAULT_TRANSFORM: PanelTransform = {
 ### `src/renderer/model/types.ts` — extend `HardCodedPanel`
 
 The image variant gains `transform`:
+
 ```ts
 | { row, col, kind: "image", imageId, rowSpan?, colSpan?, transform: PanelTransform }
 ```
+
 `transform` is required on the image variant (so render code never branches on `undefined`); `figure-derivations.ts` substitutes `DEFAULT_TRANSFORM` for any panel whose state-side transform is missing — shouldn't happen post-migration, but defensive.
 
 ### `src/renderer/model/figure-actions.ts` — new actions
@@ -115,6 +118,7 @@ The image variant gains `transform`:
 ```
 
 Reasoning for the granularity:
+
 - `SET_PANEL_TRANSFORM` is the workhorse for pan/zoom (the input layer computes the clamped result and dispatches the whole transform).
 - The other actions are **derived mutations** — they compute small state changes the reducer can do without external math. `SET_PANEL_FIT` resets `panX/panY/zoom` to identity for the new mode (changing fit from Contain to Cover with non-zero pan would violate clamp); `RESET_PANEL_TRANSFORM` snaps to defaults for the current `fit`.
 
@@ -143,7 +147,7 @@ Add these to `src/renderer/render/coords.ts`. All functions are pure; all dimens
 export function rotatedImageDims(
   imgW: number,
   imgH: number,
-  rotation: 0|90|180|270,
+  rotation: 0 | 90 | 180 | 270,
 ): { w: number; h: number } {
   return rotation === 90 || rotation === 270
     ? { w: imgH, h: imgW }
@@ -152,12 +156,14 @@ export function rotatedImageDims(
 
 // Multiplier from source-image px to panel-local px before user zoom.
 export function baseScale(
-  panelW: number, panelH: number,
-  rotImgW: number, rotImgH: number,
+  panelW: number,
+  panelH: number,
+  rotImgW: number,
+  rotImgH: number,
   fit: FitMode,
 ): number | { sx: number; sy: number } {
   if (fit === "contain") return Math.min(panelW / rotImgW, panelH / rotImgH);
-  if (fit === "cover")   return Math.max(panelW / rotImgW, panelH / rotImgH);
+  if (fit === "cover") return Math.max(panelW / rotImgW, panelH / rotImgH);
   // stretch — anisotropic; zoom is locked to 1 in the input layer
   return { sx: panelW / rotImgW, sy: panelH / rotImgH };
 }
@@ -165,9 +171,12 @@ export function baseScale(
 // Cover-mode clamp envelope (panel-local px). With S = baseScaleCover * zoom:
 //   panX ∈ [-(hx - pw), (hx - pw)], same for panY.
 export function clampCoverPan(
-  panX: number, panY: number,
-  panelW: number, panelH: number,
-  rotImgW: number, rotImgH: number,
+  panX: number,
+  panY: number,
+  panelW: number,
+  panelH: number,
+  rotImgW: number,
+  rotImgH: number,
   zoom: number,
 ): { panX: number; panY: number } {
   const S = Math.max(panelW / rotImgW, panelH / rotImgH) * zoom;
@@ -195,15 +204,25 @@ export function clampZoom(zoom: number, fit: FitMode): number {
 // pan/zoom interaction in Cover mode.
 export function snapTransform(
   t: PanelTransform,
-  panelW: number, panelH: number,
-  imgW: number, imgH: number,
+  panelW: number,
+  panelH: number,
+  imgW: number,
+  imgH: number,
 ): PanelTransform {
   const { w: rw, h: rh } = rotatedImageDims(imgW, imgH, t.rotation);
   const zoom = clampZoom(t.zoom, t.fit);
   if (t.fit === "stretch") return { ...t, zoom: 1, panX: 0, panY: 0 };
   if (t.fit === "contain") return { ...t, zoom, panX: t.panX, panY: t.panY };
   // cover
-  const { panX, panY } = clampCoverPan(t.panX, t.panY, panelW, panelH, rw, rh, zoom);
+  const { panX, panY } = clampCoverPan(
+    t.panX,
+    t.panY,
+    panelW,
+    panelH,
+    rw,
+    rh,
+    zoom,
+  );
   return { ...t, zoom, panX, panY };
 }
 
@@ -214,8 +233,10 @@ export function snapTransform(
 // Returns a 2D affine [a,b,c,d,e,f] suitable for ctx.setTransform.
 export function panelImageMatrix(
   t: PanelTransform,
-  imgW: number, imgH: number,
-  panelW: number, panelH: number,
+  imgW: number,
+  imgH: number,
+  panelW: number,
+  panelH: number,
 ): [number, number, number, number, number, number];
 ```
 
@@ -253,7 +274,11 @@ function drawPanelImage(
   if (t.fit === "stretch") {
     ctx.scale(rect.w / bitmap.width, rect.h / bitmap.height);
   } else {
-    const { w: rw, h: rh } = rotatedImageDims(bitmap.width, bitmap.height, t.rotation);
+    const { w: rw, h: rh } = rotatedImageDims(
+      bitmap.width,
+      bitmap.height,
+      t.rotation,
+    );
     const S =
       t.fit === "cover"
         ? Math.max(rect.w / rw, rect.h / rh)
@@ -273,11 +298,13 @@ function drawPanelImage(
 ```
 
 **`DrawCtx` additions** (extend the interface in [draw-figure.ts:9-30](../../src/renderer/render/draw-figure.ts#L9-L30)):
+
 ```ts
 translate(x: number, y: number): void;
 scale(x: number, y: number): void;
 rotate(rad: number): void;
 ```
+
 The recorder fake in [test/unit/draw-figure.test.ts](../../test/unit/draw-figure.test.ts) gets stubs for these and records call sequences for assertions.
 
 ### `src/renderer/render/editor-renderer.ts`
@@ -316,6 +343,7 @@ A new `src/renderer/components/Toolbar/PanelControls.tsx` rendered in the header
 - `Reset` — back to `DEFAULT_TRANSFORM` for current fit.
 
 `useKeyboardShortcuts` extends:
+
 ```ts
 export interface ShortcutHandlers {
   onMerge: () => void;
@@ -341,6 +369,7 @@ Each task ends with `pnpm typecheck && pnpm test && pnpm lint` exiting 0.
 ### Task 1: Extend the data model
 
 **Files:**
+
 - Edit: [src/renderer/model/panels.ts](../../src/renderer/model/panels.ts)
 - Edit: [src/renderer/model/types.ts](../../src/renderer/model/types.ts)
 
@@ -351,6 +380,7 @@ Each task ends with `pnpm typecheck && pnpm test && pnpm lint` exiting 0.
 ### Task 2: Wire transforms through the reducer
 
 **Files:**
+
 - Edit: [src/renderer/model/figure-actions.ts](../../src/renderer/model/figure-actions.ts)
 - Edit: [test/unit/figure-actions.test.ts](../../test/unit/figure-actions.test.ts)
 
@@ -363,7 +393,7 @@ Each task ends with `pnpm typecheck && pnpm test && pnpm lint` exiting 0.
 - [ ] **Step 2.3:** Implement the new cases. Keep them dumb — they trust the dispatcher to have called `snapTransform` already; the reducer just stores numbers.
   - `SET_PANEL_TRANSFORM`: lookup panel; if `imageId` undefined, no-op; else replace `transform`.
   - `SET_PANEL_FIT`: same, but reset `panX=0, panY=0, zoom=1` whenever fit changes (preserve `rotation, flipH, flipV`). If new fit equals old, no-op.
-  - `ROTATE_PANEL_90`: `(rotation + 90) % 360 as Rotation`. Reset `panX=0, panY=0` to avoid post-rotation pan landing outside the new clamp envelope. Keep `zoom` (user expectation: 90° rotates *the image*, not the framing).
+  - `ROTATE_PANEL_90`: `(rotation + 90) % 360 as Rotation`. Reset `panX=0, panY=0` to avoid post-rotation pan landing outside the new clamp envelope. Keep `zoom` (user expectation: 90° rotates _the image_, not the framing).
   - `FLIP_PANEL_H` / `FLIP_PANEL_V`: toggle the bool. No pan reset.
   - `RESET_PANEL_TRANSFORM`: replace with `DEFAULT_TRANSFORM`.
 - [ ] **Step 2.4:** Add tests. Cover at minimum:
@@ -379,6 +409,7 @@ Each task ends with `pnpm typecheck && pnpm test && pnpm lint` exiting 0.
 ### Task 3: Pure transform math in `coords.ts`
 
 **Files:**
+
 - Edit: [src/renderer/render/coords.ts](../../src/renderer/render/coords.ts)
 - Create: [test/unit/coords-transform.test.ts](../../test/unit/coords-transform.test.ts)
 
@@ -395,6 +426,7 @@ Each task ends with `pnpm typecheck && pnpm test && pnpm lint` exiting 0.
 ### Task 4: Update the draw routine
 
 **Files:**
+
 - Edit: [src/renderer/render/draw-figure.ts](../../src/renderer/render/draw-figure.ts)
 - Edit: [test/unit/draw-figure.test.ts](../../test/unit/draw-figure.test.ts)
 
@@ -409,6 +441,7 @@ Each task ends with `pnpm typecheck && pnpm test && pnpm lint` exiting 0.
 ### Task 5: Wire derivations + remove M2 leftovers
 
 **Files:**
+
 - Edit: [src/renderer/model/figure-derivations.ts](../../src/renderer/model/figure-derivations.ts)
 - Edit: [src/renderer/model/hardcoded.ts](../../src/renderer/model/hardcoded.ts) — keep the file (used by [test/unit/figure-layout.test.ts](../../test/unit/figure-layout.test.ts)) but update the placeholder image variants to include `transform: DEFAULT_TRANSFORM`.
 - Edit: [test/unit/figure-derivations.test.ts](../../test/unit/figure-derivations.test.ts)
@@ -419,6 +452,7 @@ Each task ends with `pnpm typecheck && pnpm test && pnpm lint` exiting 0.
 ### Task 6: Selection state hoisted; toolbar; keyboard
 
 **Files:**
+
 - Edit: [src/renderer/App.tsx](../../src/renderer/App.tsx)
 - Create: [src/renderer/components/Toolbar/PanelControls.tsx](../../src/renderer/components/Toolbar/PanelControls.tsx)
 - Edit: [src/renderer/hooks/useKeyboardShortcuts.ts](../../src/renderer/hooks/useKeyboardShortcuts.ts)
@@ -431,6 +465,7 @@ Each task ends with `pnpm typecheck && pnpm test && pnpm lint` exiting 0.
 ### Task 7: Pointer + wheel input on focused panel
 
 **Files:**
+
 - Create: [src/renderer/components/Grid/PanelInteractionLayer.tsx](../../src/renderer/components/Grid/PanelInteractionLayer.tsx)
 - Edit: [src/renderer/App.tsx](../../src/renderer/App.tsx) — mount it.
 - Edit: [src/renderer/components/Grid/GridCells.tsx](../../src/renderer/components/Grid/GridCells.tsx) — the existing focus outline becomes the "selected" chrome; bump from 2px to 3px and add an inset shadow or contrasting color. Cursor on focused panel becomes `grab` (`grabbing` while dragging).
@@ -455,6 +490,7 @@ This is the subtle bit: HTML drag-and-drop and Pointer Events are independent. A
 ### Task 8: Selection chrome refinement
 
 **Files:**
+
 - Edit: [src/renderer/components/Grid/GridCells.tsx](../../src/renderer/components/Grid/GridCells.tsx)
 
 - [ ] **Step 8.1:** Distinguish the M5 "selected for editing" chrome from the M4 "focused for unmerge" outline (currently the same green border). Two states now:
@@ -490,11 +526,12 @@ This is the subtle bit: HTML drag-and-drop and Pointer Events are independent. A
 8. Switch to Stretch → cursor returns to `default`; pan/zoom/rotate disabled in toolbar (rotate/flip stay enabled).
 9. Press `Escape` → selection clears.
 10. Click `Reset` (or press `0`) on a panel mid-zoom → snaps to `DEFAULT_TRANSFORM` for current fit.
-11. Drag the placed image to a *different* panel → image moves; transform travels with it (rotation, flips, zoom preserved). Drag tray-onto-occupied-panel → previous image returns to tray; new image starts at default transform.
+11. Drag the placed image to a _different_ panel → image moves; transform travels with it (rotation, flips, zoom preserved). Drag tray-onto-occupied-panel → previous image returns to tray; new image starts at default transform.
 12. Merge two cells (M4 still works), place an image in the merged panel, pan/zoom inside it. Unmerge → image lands in the top-left 1×1 with its transform preserved.
 13. Click `Export PNG` → exported PNG matches the editor pixel-for-pixel for at least one Cover-zoomed panel (visual diff manually).
 
 **Automated coverage targets:**
+
 - `coords-transform.test.ts` — ≥ 12 cases.
 - `figure-actions.test.ts` — ≥ 6 new cases for the transform actions.
 - `draw-figure.test.ts` — ≥ 3 new cases for fit modes + rotation.
@@ -507,7 +544,7 @@ This is the subtle bit: HTML drag-and-drop and Pointer Events are independent. A
 - **Wheel event scrolls the page.** React `onWheel` is passive in modern Chromium; `preventDefault` is a no-op. Mitigation: bind via `addEventListener("wheel", handler, { passive: false })` in a `useEffect`. Confirm with a manual test in step 7 of the checklist.
 - **Pointer drag conflicts with HTML5 drag.** A user starting a pointer-drag on a focused panel that also accepts HTML drops could fire both. Mitigation: `setPointerCapture` on `pointerdown` ensures pointer events route to the interaction layer; HTML drag only starts on a separate `dragstart`, which we don't fire from the interaction layer. If issues appear, gate `draggable={occupied && !isFocused}` in `GridCells` so the focused panel disables HTML drag while selected.
 - **Transform field bloats `Panel` even for unplaced cells.** It's optional, so `undefined` overhead is just one slot. The image-variant of `HardCodedPanel` requires it (defensive default in `deriveFigure`). No memory concern for 100 panels.
-- **Cover-fit clamp races on rapid wheel events.** Each wheel dispatch reads stable React state — no race on a single event. If `setPanelTransform` batches across multiple `onWheel` callbacks, the clamp is computed against the *committed* state, which is fine; the worst case is a brief one-frame overshoot.
+- **Cover-fit clamp races on rapid wheel events.** Each wheel dispatch reads stable React state — no race on a single event. If `setPanelTransform` batches across multiple `onWheel` callbacks, the clamp is computed against the _committed_ state, which is fine; the worst case is a brief one-frame overshoot.
 - **Stretch mode disables zoom but not rotation.** Intentional — rotation in Stretch produces the same anisotropic fill at 90°/270°, which is a useful effect. Document with a comment in `drawPanelImage`.
 - **Editor-canvas backing size still equals figure size.** No `editorScale` yet (see [editor-renderer.ts:14](../../src/renderer/render/editor-renderer.ts#L14)). M5 doesn't add it. If the figure is larger than the viewport, the wrapper's `overflow: auto` kicks in (existing behaviour). True high-DPI editor rendering arrives with M6 or M8.
 - **Test coverage on the input layer is light.** Pointer and wheel handlers are tested manually only — Vitest + JSDOM don't faithfully simulate pointer capture. Playwright (M1's tech stack pin, not yet used) would be the right harness; defer to M8 packaging when E2E lands.

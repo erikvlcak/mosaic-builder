@@ -33,6 +33,14 @@ import {
   initialDefaultSymbolStyle,
 } from "./model/default-symbol-style";
 import {
+  type DefaultTextStyle,
+  initialDefaultTextStyle,
+} from "./model/default-text-style";
+import {
+  type DefaultScalebarStyle,
+  initialDefaultScalebarStyle,
+} from "./model/default-scalebar-style";
+import {
   addToPool,
   resizeGrid,
   setGutterPx,
@@ -97,6 +105,11 @@ export function App(): JSX.Element {
   const [activeTool, setActiveTool] = useState<Tool>("select");
   const [defaultSymbolStyle, setDefaultSymbolStyle] =
     useState<DefaultSymbolStyle>(initialDefaultSymbolStyle);
+  const [defaultTextStyle, setDefaultTextStyle] = useState<DefaultTextStyle>(
+    initialDefaultTextStyle,
+  );
+  const [defaultScalebarStyle, setDefaultScalebarStyle] =
+    useState<DefaultScalebarStyle>(initialDefaultScalebarStyle);
   const [spacebarHeld, setSpacebarHeld] = useState<boolean>(false);
   const [projectPath, setProjectPath] = useState<string | null>(null);
   const [missingImages, setMissingImages] = useState<
@@ -616,6 +629,7 @@ export function App(): JSX.Element {
             }}
           />
         </ToolGroup>
+        <span className="toolbar-divider" aria-hidden="true" />
         <ToolGroup label="Selection">
           <MergeControls
             canMerge={canMerge}
@@ -624,6 +638,7 @@ export function App(): JSX.Element {
             onUnmerge={onUnmerge}
           />
         </ToolGroup>
+        <span className="toolbar-divider" aria-hidden="true" />
         <ToolGroup label="Panel">
           <PanelControls
             transform={selectedImagePanel?.transform ?? null}
@@ -635,6 +650,7 @@ export function App(): JSX.Element {
             onCalibrate={onCalibrate}
           />
         </ToolGroup>
+        <span className="toolbar-divider" aria-hidden="true" />
         <ToolGroup label="Annotate">
           <AnnotationToolbar
             active={activeTool}
@@ -740,6 +756,9 @@ export function App(): JSX.Element {
             <AnnotationInteractionLayer
               activeTool={effectiveTool}
               defaultSymbolStyle={defaultSymbolStyle}
+              defaultTextStyle={defaultTextStyle}
+              defaultScalebarStyle={defaultScalebarStyle}
+              onDefaultScalebarStyleChange={setDefaultScalebarStyle}
               figure={figure}
               panelRectsById={panelRectsByIdMemo}
               imagesById={imagesByIdMemo}
@@ -790,6 +809,10 @@ export function App(): JSX.Element {
           activeTool={activeTool}
           defaultSymbolStyle={defaultSymbolStyle}
           onDefaultSymbolStyleChange={setDefaultSymbolStyle}
+          defaultTextStyle={defaultTextStyle}
+          onDefaultTextStyleChange={setDefaultTextStyle}
+          defaultScalebarStyle={defaultScalebarStyle}
+          onDefaultScalebarStyleChange={setDefaultScalebarStyle}
           dispatch={dispatch}
           commit={fieldCommit}
           onCalibrate={onCalibrate}

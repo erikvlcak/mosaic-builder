@@ -26,9 +26,11 @@ export interface TiffDecodeErr {
 
 export type TiffDecodeResponse = TiffDecodeOk | TiffDecodeErr;
 
-const post = (self as unknown as {
-  postMessage: (m: unknown, t?: Transferable[]) => void;
-}).postMessage;
+const post = (
+  self as unknown as {
+    postMessage: (m: unknown, t?: Transferable[]) => void;
+  }
+).postMessage;
 
 self.onmessage = (e: MessageEvent<TiffDecodeRequest>): void => {
   const { reqId } = e.data;
@@ -46,9 +48,7 @@ self.onmessage = (e: MessageEvent<TiffDecodeRequest>): void => {
     // Intentional structural cast: UTIF.IFD carries `data: Uint8Array` and a
     // permissive index signature; UtifIfd is our minimal subset of the tags
     // we actually read (t258/t282/t283/t296 + width/height).
-    const calibration = readCalibrationFromIFD(
-      ifd0 as unknown as UtifIfd,
-    );
+    const calibration = readCalibrationFromIFD(ifd0 as unknown as UtifIfd);
     const clamped = new Uint8ClampedArray(
       rgba.buffer,
       rgba.byteOffset,

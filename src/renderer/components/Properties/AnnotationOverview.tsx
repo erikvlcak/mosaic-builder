@@ -1,9 +1,6 @@
 import { useMemo } from "react";
 import type { Annotation } from "../../model/annotations";
-import {
-  setSelection,
-  unionSelection,
-} from "../../state/anno-selection";
+import { setSelection, unionSelection } from "../../state/anno-selection";
 
 /**
  * Per-kind overview shown in the empty-state Properties panel. Each row
@@ -22,11 +19,7 @@ interface Props {
   onSelectionChange: (next: ReadonlySet<string>) => void;
 }
 
-const VISIBLE_KINDS: Annotation["kind"][] = [
-  "text",
-  "symbol",
-  "scalebar",
-];
+const VISIBLE_KINDS: Annotation["kind"][] = ["text", "symbol", "scalebar"];
 
 const KIND_LABELS: Record<Annotation["kind"], string> = {
   text: "Text",
@@ -64,10 +57,7 @@ export function AnnotationOverview({
       data-testid="annotation-overview"
       style={{ display: "flex", flexDirection: "column", gap: 6 }}
     >
-      <h3
-        className="section-heading"
-        style={{ fontSize: 12, marginBottom: 2 }}
-      >
+      <h3 className="section-heading" style={{ fontSize: 12, marginBottom: 2 }}>
         Annotations
       </h3>
       {VISIBLE_KINDS.map((kind) => {

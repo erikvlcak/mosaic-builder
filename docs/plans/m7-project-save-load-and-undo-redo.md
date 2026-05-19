@@ -9,9 +9,9 @@
 - Toolbar Save / Open buttons.
 - Relink modal (`src/renderer/components/Modals/RelinkModal.tsx`) for missing-on-load images.
 - Undo/redo backed by a generic 10-deep ring buffer (`src/renderer/state/history.ts`)
-  + `useHistoryReducer` (`src/renderer/state/use-history-reducer.ts`).
-  - Pan/zoom drags = transient + explicit `commit()` on `pointerup` / wheel-end (250ms debounce).
-  - `RESET_TO_STATE` (used by project-load) clears history.
+  - `useHistoryReducer` (`src/renderer/state/use-history-reducer.ts`).
+  * Pan/zoom drags = transient + explicit `commit()` on `pointerup` / wheel-end (250ms debounce).
+  * `RESET_TO_STATE` (used by project-load) clears history.
 - Cmd/Ctrl-Z undo, Cmd/Ctrl-Shift-Z redo, gated to ignore typing targets.
 - Bitmaps NEVER persist — they live in `useState<Map<string, ImageBitmap>>` in
   `App.tsx` and are rebuilt on load by re-running `decodeImageBytes` over the

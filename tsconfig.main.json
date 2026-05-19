@@ -16,6 +16,10 @@
     "outDir": "./dist-electron/main",
     "rootDir": "./src"
   },
-  "include": ["src/main/**/*.ts", "src/preload/api.ts", "src/renderer/model/**/*.ts"],
+  "include": [
+    "src/main/**/*.ts",
+    "src/preload/api.ts",
+    "src/renderer/model/**/*.ts"
+  ],
   "exclude": ["src/renderer/model/figure-derivations.ts"]
 }

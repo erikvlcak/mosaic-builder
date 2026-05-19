@@ -1,6 +1,9 @@
 import { useId } from "react";
 
-interface Option<V extends string> { value: V; label: string; }
+interface Option<V extends string> {
+  value: V;
+  label: string;
+}
 interface Props<V extends string> {
   label: string;
   value: V;
@@ -9,7 +12,10 @@ interface Props<V extends string> {
 }
 
 export function SelectField<V extends string>({
-  label, value, options, onChange,
+  label,
+  value,
+  options,
+  onChange,
 }: Props<V>): JSX.Element {
   const id = useId();
   return (
@@ -23,7 +29,9 @@ export function SelectField<V extends string>({
         onChange={(e) => onChange(e.currentTarget.value as V)}
       >
         {options.map((o) => (
-          <option key={o.value} value={o.value}>{o.label}</option>
+          <option key={o.value} value={o.value}>
+            {o.label}
+          </option>
         ))}
       </select>
     </label>

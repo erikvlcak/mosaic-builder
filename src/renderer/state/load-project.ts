@@ -3,10 +3,7 @@ import { decodeImageBytes } from "../image/decode-bytes";
 import type { FigureAction } from "../model/figure-actions";
 import { resetToState } from "../model/figure-actions";
 import { fromMosaicFile } from "../model/serialize";
-import type {
-  LoadProjectResult,
-  ResolvedImageDto,
-} from "../../preload/api";
+import type { LoadProjectResult, ResolvedImageDto } from "../../preload/api";
 
 export interface LoadOutcome {
   /** Image ids whose bytes failed to decode after disk read. */

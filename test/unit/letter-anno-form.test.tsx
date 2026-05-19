@@ -10,7 +10,9 @@ type SetLetterOverride = Extract<FigureAction, { type: "SET_LETTER_OVERRIDE" }>;
 
 const COMMIT = { markDirty: vi.fn(), flush: vi.fn() };
 
-function lastCall(dispatch: ReturnType<typeof vi.fn>): SetLetterOverride | undefined {
+function lastCall(
+  dispatch: ReturnType<typeof vi.fn>,
+): SetLetterOverride | undefined {
   return dispatch.mock.calls.at(-1)?.[0] as SetLetterOverride | undefined;
 }
 

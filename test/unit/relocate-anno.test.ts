@@ -270,7 +270,9 @@ describe("figureReducer image-bound annotation behavior", () => {
       anchor: { imgU: 0.25, imgV: 0.25 },
     };
     s = figureReducer(s, addAnnotation(sym));
-    const beforeH = s.annotations.find((a) => a.id === "b1") as SymbolAnnotation;
+    const beforeH = s.annotations.find(
+      (a) => a.id === "b1",
+    ) as SymbolAnnotation;
 
     s = figureReducer(s, flipPanelH(pidA));
     const afterH = s.annotations.find((a) => a.id === "b1") as SymbolAnnotation;
@@ -278,7 +280,9 @@ describe("figureReducer image-bound annotation behavior", () => {
     // Coords re-projected.
     expect(afterH.x === beforeH.x).toBe(false);
 
-    const beforeV = s.annotations.find((a) => a.id === "b1") as SymbolAnnotation;
+    const beforeV = s.annotations.find(
+      (a) => a.id === "b1",
+    ) as SymbolAnnotation;
     s = figureReducer(s, flipPanelV(pidA));
     const afterV = s.annotations.find((a) => a.id === "b1") as SymbolAnnotation;
     expect(afterV.anchor).toEqual({ imgU: 0.25, imgV: 0.25 });

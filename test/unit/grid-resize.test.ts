@@ -1,7 +1,5 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import {
-  __resetPanelIdsForTests,
-} from "../../src/renderer/model/figure-state";
+import { __resetPanelIdsForTests } from "../../src/renderer/model/figure-state";
 import { resizePanels } from "../../src/renderer/model/grid-resize";
 import type { Panel } from "../../src/renderer/model/panels";
 import { assertPanelsCoverGrid } from "../../src/renderer/model/panels";

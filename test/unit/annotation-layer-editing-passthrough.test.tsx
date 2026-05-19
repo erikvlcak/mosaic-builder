@@ -87,7 +87,9 @@ function rectFromStyle(el: HTMLElement): CssRect {
   return { left, top, right: left + width, bottom: top + height };
 }
 function overlaps(a: CssRect, b: CssRect): boolean {
-  return a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top;
+  return (
+    a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top
+  );
 }
 
 describe("AnnotationInteractionLayer — editing-panel donut backdrop", () => {
@@ -139,6 +141,8 @@ describe("AnnotationInteractionLayer — editing-panel donut backdrop", () => {
       />,
     );
     expect(screen.getByTestId("annotation-backdrop")).toBeTruthy();
-    expect(screen.queryAllByTestId(/^annotation-backdrop-strip-\d+$/).length).toBe(0);
+    expect(
+      screen.queryAllByTestId(/^annotation-backdrop-strip-\d+$/).length,
+    ).toBe(0);
   });
 });

@@ -11,9 +11,9 @@ import {
 
 describe("symbol library", () => {
   it("contains exactly 6 arrow ids", () => {
-    const arrowIds = SYMBOL_LIBRARY.filter((s) => s.id.startsWith("arrow-")).map(
-      (s) => s.id,
-    );
+    const arrowIds = SYMBOL_LIBRARY.filter((s) =>
+      s.id.startsWith("arrow-"),
+    ).map((s) => s.id);
     expect(arrowIds.sort()).toEqual([
       "arrow-double-right",
       "arrow-filled-right",
@@ -25,9 +25,9 @@ describe("symbol library", () => {
   });
 
   it("contains the expected shape ids (existing 8 + 12 new)", () => {
-    const shapeIds = SYMBOL_LIBRARY.filter((s) => s.id.startsWith("shape-")).map(
-      (s) => s.id,
-    );
+    const shapeIds = SYMBOL_LIBRARY.filter((s) =>
+      s.id.startsWith("shape-"),
+    ).map((s) => s.id);
     expect(shapeIds.sort()).toEqual(
       [
         "shape-asterisk",
@@ -64,20 +64,30 @@ describe("symbol library", () => {
       expect(def.geometry === "closed" || def.geometry === "stroke-only").toBe(
         true,
       );
-      expect((def as unknown as { category?: unknown }).category).toBeUndefined();
+      expect(
+        (def as unknown as { category?: unknown }).category,
+      ).toBeUndefined();
       expect((def as unknown as { fill?: unknown }).fill).toBeUndefined();
     }
   });
 
   it("classifies the four currently-stroke-only arrows as 'stroke-only'", () => {
-    const strokeOnly = ["arrow-open-right", "arrow-line-right", "arrow-double-right"];
+    const strokeOnly = [
+      "arrow-open-right",
+      "arrow-line-right",
+      "arrow-double-right",
+    ];
     for (const id of strokeOnly) {
       expect(SYMBOL_LIBRARY_BY_ID.get(id)?.geometry).toBe("stroke-only");
     }
   });
 
   it("classifies the closed arrows as 'closed'", () => {
-    for (const id of ["arrow-filled-right", "arrow-thin-right", "arrow-thick-right"]) {
+    for (const id of [
+      "arrow-filled-right",
+      "arrow-thin-right",
+      "arrow-thick-right",
+    ]) {
       expect(SYMBOL_LIBRARY_BY_ID.get(id)?.geometry).toBe("closed");
     }
   });

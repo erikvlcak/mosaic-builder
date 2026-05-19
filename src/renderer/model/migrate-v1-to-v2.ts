@@ -13,11 +13,7 @@
  *   anchor = midpoint of (anchor1, anchor2) when image-bound
  */
 
-import type {
-  Annotation,
-  FillMode,
-  SymbolAnnotation,
-} from "./annotations";
+import type { Annotation, FillMode, SymbolAnnotation } from "./annotations";
 import type { V1Annotation, V1ArrowAnnotation } from "./schema";
 
 const HEAD_TO_SYMBOL: Record<V1ArrowAnnotation["head"], string> = {

@@ -13,7 +13,14 @@ interface Props {
 }
 
 export function NumberField({
-  label, value, min, max, step = 1, disabled, onChange, onBlur,
+  label,
+  value,
+  min,
+  max,
+  step = 1,
+  disabled,
+  onChange,
+  onBlur,
   ...rest
 }: Props): JSX.Element {
   const id = useId();

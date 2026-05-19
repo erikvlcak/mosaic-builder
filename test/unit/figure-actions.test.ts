@@ -1430,7 +1430,9 @@ describe("figureReducer (bulk annotation actions)", () => {
     const sym = s1.annotations.find((a) => a.id === "s1") as SymbolAnnotation;
     expect(t.sizePt).toBe(24); // applied to text
     expect(sym.strokeWidthPx).toBe(5); // applied to symbol
-    expect((t as unknown as { strokeWidthPx?: number }).strokeWidthPx).toBeUndefined();
+    expect(
+      (t as unknown as { strokeWidthPx?: number }).strokeWidthPx,
+    ).toBeUndefined();
   });
 
   it("BULK_UPDATE_ANNOS no-ops when no patch keys are valid for any selected anno", () => {

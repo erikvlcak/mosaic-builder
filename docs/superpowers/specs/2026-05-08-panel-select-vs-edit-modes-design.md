@@ -48,21 +48,21 @@ Helper derivations (memoized as needed):
 
 ## Behavior matrix
 
-| User action | Current `panelInteraction` | Result |
-|---|---|---|
-| Click empty (no-image) panel | any | Same as today. Sets focus for merge-selection / properties; no select-or-edit mode. |
-| Single-click image panel | `null` or different panel | `{ mode: "selected", panelId }` |
-| Single-click image panel | `{ mode: "selected", panelId }` (same) | No-op |
-| Single-click image panel | `{ mode: "editing", panelId }` (same) | No-op (stay in editing) |
-| Single-click image panel B | `{ mode: "editing", panelId: A }` | `{ mode: "selected", panelId: B }` |
-| Double-click image panel | any | `{ mode: "editing", panelId }` |
-| HTML5 drag image panel | `selected` | Drag-to-swap (existing native DnD path in GridCells). |
-| Pointer-drag inside panel | `editing` | Pan the image (existing PanelInteractionLayer code). |
-| Wheel inside panel | `editing` | Zoom (existing). |
-| Wheel inside panel | `selected` or other | Pass through (no zoom). |
-| `Esc` | non-null | `null` |
-| Click outside grid | non-null | `null` |
-| Shift-click 1×1 panel | any | Existing merge-selection toggle. Does NOT enter selected/editing. |
+| User action                  | Current `panelInteraction`             | Result                                                                              |
+| ---------------------------- | -------------------------------------- | ----------------------------------------------------------------------------------- |
+| Click empty (no-image) panel | any                                    | Same as today. Sets focus for merge-selection / properties; no select-or-edit mode. |
+| Single-click image panel     | `null` or different panel              | `{ mode: "selected", panelId }`                                                     |
+| Single-click image panel     | `{ mode: "selected", panelId }` (same) | No-op                                                                               |
+| Single-click image panel     | `{ mode: "editing", panelId }` (same)  | No-op (stay in editing)                                                             |
+| Single-click image panel B   | `{ mode: "editing", panelId: A }`      | `{ mode: "selected", panelId: B }`                                                  |
+| Double-click image panel     | any                                    | `{ mode: "editing", panelId }`                                                      |
+| HTML5 drag image panel       | `selected`                             | Drag-to-swap (existing native DnD path in GridCells).                               |
+| Pointer-drag inside panel    | `editing`                              | Pan the image (existing PanelInteractionLayer code).                                |
+| Wheel inside panel           | `editing`                              | Zoom (existing).                                                                    |
+| Wheel inside panel           | `selected` or other                    | Pass through (no zoom).                                                             |
+| `Esc`                        | non-null                               | `null`                                                                              |
+| Click outside grid           | non-null                               | `null`                                                                              |
+| Shift-click 1×1 panel        | any                                    | Existing merge-selection toggle. Does NOT enter selected/editing.                   |
 
 Single-click on the same panel while in `editing` is intentionally a no-op so users do not accidentally lose their edit state mid-pan. Exits from editing require Esc, clicking another panel, or clicking outside the grid.
 
@@ -108,11 +108,11 @@ Single-click on the same panel while in `editing` is intentionally a no-op so us
 
 ## Visual spec
 
-| Mode | Outline | Cursor | Drawn by |
-|---|---|---|---|
-| (no mode) | none | default | — |
-| `selected` | 2px solid focus-blue | `grab` (`grabbing` during native DnD, browser-managed) | GridCells |
-| `editing` | 2px dashed accent | `move` | PanelInteractionLayer |
+| Mode       | Outline              | Cursor                                                 | Drawn by              |
+| ---------- | -------------------- | ------------------------------------------------------ | --------------------- |
+| (no mode)  | none                 | default                                                | —                     |
+| `selected` | 2px solid focus-blue | `grab` (`grabbing` during native DnD, browser-managed) | GridCells             |
+| `editing`  | 2px dashed accent    | `move`                                                 | PanelInteractionLayer |
 
 The two outline styles must remain visually distinct under all panel sizes and gutter widths. Pick the accent color from the existing palette so it doesn't clash; a warm accent (e.g. an orange used elsewhere in the toolbar) works.
 

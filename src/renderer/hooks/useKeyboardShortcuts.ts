@@ -32,7 +32,9 @@ export function useKeyboardShortcuts(h: ShortcutHandlers): void {
       // Cmd/Ctrl-Z and Cmd/Ctrl-Shift-Z come first — they intentionally
       // require a modifier and would otherwise be filtered out below.
       const isModZ =
-        (e.metaKey || e.ctrlKey) && !e.altKey && (e.key === "z" || e.key === "Z");
+        (e.metaKey || e.ctrlKey) &&
+        !e.altKey &&
+        (e.key === "z" || e.key === "Z");
       if (isModZ) {
         if (isTypingTarget(e.target)) return;
         e.preventDefault();

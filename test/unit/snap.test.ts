@@ -6,7 +6,13 @@ import {
   type Guideline,
 } from "../../src/renderer/render/snap";
 
-function rect(id: string, x: number, y: number, w: number, h: number): SnapRect {
+function rect(
+  id: string,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+): SnapRect {
   return { id, x, y, w, h };
 }
 
@@ -17,7 +23,8 @@ function findGuideline(
   otherId: string,
 ): Guideline | undefined {
   return guidelines.find(
-    (g) => g.axis === axis && g.otherId === otherId && Math.abs(g.pos - pos) < 1e-6,
+    (g) =>
+      g.axis === axis && g.otherId === otherId && Math.abs(g.pos - pos) < 1e-6,
   );
 }
 

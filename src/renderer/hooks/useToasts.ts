@@ -22,7 +22,9 @@ function newId(): string {
 
 export function useToasts(ttlMs = 5000): UseToasts {
   const [toasts, setToasts] = useState<Toast[]>([]);
-  const timersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+  const timersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(
+    new Map(),
+  );
 
   const dismiss = useCallback((id: string): void => {
     const t = timersRef.current.get(id);
@@ -31,14 +33,17 @@ export function useToasts(ttlMs = 5000): UseToasts {
     setToasts((prev) => prev.filter((x) => x.id !== id));
   }, []);
 
-  const push = useCallback((t: Omit<Toast, "id">): string => {
-    const id = newId();
-    const toast: Toast = { id, ...t };
-    setToasts((prev) => [...prev, toast]);
-    const timer = setTimeout(() => dismiss(id), ttlMs);
-    timersRef.current.set(id, timer);
-    return id;
-  }, [ttlMs, dismiss]);
+  const push = useCallback(
+    (t: Omit<Toast, "id">): string => {
+      const id = newId();
+      const toast: Toast = { id, ...t };
+      setToasts((prev) => [...prev, toast]);
+      const timer = setTimeout(() => dismiss(id), ttlMs);
+      timersRef.current.set(id, timer);
+      return id;
+    },
+    [ttlMs, dismiss],
+  );
 
   useEffect(() => {
     const timers = timersRef.current;

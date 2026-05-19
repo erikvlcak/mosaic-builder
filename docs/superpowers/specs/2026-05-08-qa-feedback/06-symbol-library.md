@@ -54,6 +54,7 @@ The library covers four categories:
 All symbols designed in a 100×100 viewport, centered at (50,50), so
 rendering math is uniform. We choose path-only (no nested groups, no
 gradients) so the same path data can be used in:
+
 - The DOM gallery (inline SVG)
 - The export canvas (`new Path2D(pathD)` + transform)
 
@@ -80,6 +81,7 @@ export interface SymbolAnnotation extends BaseAnnotation {
 
 Migration: existing `ArrowAnnotation`s in saved projects map to
 `SymbolAnnotation { symbolId: <best match by head> }`:
+
 - `head: "filled"` → `arrow-filled-right`
 - `head: "open"` → `arrow-open-right`
 - `head: "none"` → `arrow-line-right`
@@ -114,6 +116,7 @@ that flow doesn't fit (rotation has to be a separate gesture). Use
 ### Properties panel
 
 Replace `ArrowAnnoForm.tsx` with `SymbolAnnoForm.tsx`. The form has:
+
 - A **Symbol gallery** grid (see below).
 - Color picker.
 - Size slider/input.
@@ -150,7 +153,7 @@ function drawSymbol(ctx, anno: SymbolAnnotation): void {
     ctx.fill(path);
   } else {
     ctx.strokeStyle = anno.color;
-    ctx.lineWidth = anno.strokeWidthPx / scale;  // keep stroke visually constant
+    ctx.lineWidth = anno.strokeWidthPx / scale; // keep stroke visually constant
     ctx.stroke(path);
   }
   ctx.restore();

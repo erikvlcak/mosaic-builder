@@ -107,7 +107,10 @@ export function GridCells({
   // track weights are honored. The legacy cell-grid `layout` still drives
   // selection/hole math (equal weights) — a deliberate v1 simplification;
   // non-equal-weight uniform produces minor misalignment for hole chrome only.
-  const panelRectMap: Record<string, { x: number; y: number; w: number; h: number }> =
+  const panelRectMap: Record<
+    string,
+    { x: number; y: number; w: number; h: number }
+  > =
     state.layout.kind === "free"
       ? state.layout.rects
       : rectsFromUniform({
@@ -396,8 +399,11 @@ export function GridCells({
         //   selected + occupied → grab (drag-to-swap is armed)
         //   occupied unselected → default (annotation backdrop owns pointer)
         //   empty → default
-        const cursor =
-          isEditing ? "default" : isSelected && occupied ? "grab" : "default";
+        const cursor = isEditing
+          ? "default"
+          : isSelected && occupied
+            ? "grab"
+            : "default";
 
         return (
           <div
@@ -566,13 +572,9 @@ function TrackHandle({
       style={{
         position: "absolute",
         left:
-          axis === "col"
-            ? (hairlineCenter - STRIP / 2) * sx
-            : crossStart * sx,
+          axis === "col" ? (hairlineCenter - STRIP / 2) * sx : crossStart * sx,
         top:
-          axis === "col"
-            ? crossStart * sy
-            : (hairlineCenter - STRIP / 2) * sy,
+          axis === "col" ? crossStart * sy : (hairlineCenter - STRIP / 2) * sy,
         width: axis === "col" ? STRIP * sx : crossSize * sx,
         height: axis === "col" ? crossSize * sy : STRIP * sy,
         cursor: axis === "col" ? "col-resize" : "row-resize",

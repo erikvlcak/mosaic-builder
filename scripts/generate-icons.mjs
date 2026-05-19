@@ -1,6 +1,12 @@
 #!/usr/bin/env node
 import { execFileSync } from "node:child_process";
-import { mkdirSync, readFileSync, writeFileSync, rmSync, existsSync } from "node:fs";
+import {
+  mkdirSync,
+  readFileSync,
+  writeFileSync,
+  rmSync,
+  existsSync,
+} from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import pngToIco from "png-to-ico";
@@ -17,12 +23,16 @@ mkdirSync(OUT, { recursive: true });
 
 function resizePng(srcPng, dstPng, size) {
   if (process.platform === "darwin") {
-    execFileSync("sips", ["-z", String(size), String(size), srcPng, "--out", dstPng],
-      { stdio: "inherit" });
+    execFileSync(
+      "sips",
+      ["-z", String(size), String(size), srcPng, "--out", dstPng],
+      { stdio: "inherit" },
+    );
   } else {
     try {
-      execFileSync("magick", [srcPng, "-resize", `${size}x${size}`, dstPng],
-        { stdio: "inherit" });
+      execFileSync("magick", [srcPng, "-resize", `${size}x${size}`, dstPng], {
+        stdio: "inherit",
+      });
     } catch {
       // Fallback: full-size copy.
       writeFileSync(dstPng, readFileSync(srcPng));
@@ -57,12 +67,17 @@ if (process.platform === "darwin") {
       resizePng(SRC, resolve(tmp, `icon_${s}x${s}@2x.png`), s * 2);
     }
   }
-  execFileSync("iconutil", ["-c", "icns", tmp, "-o", resolve(OUT, "icon.icns")],
-    { stdio: "inherit" });
+  execFileSync(
+    "iconutil",
+    ["-c", "icns", tmp, "-o", resolve(OUT, "icon.icns")],
+    { stdio: "inherit" },
+  );
   rmSync(tmp, { recursive: true, force: true });
 } else {
-  console.warn("iconutil not available; skipping .icns. " +
-    "Re-run on macOS to refresh resources/icons/icon.icns.");
+  console.warn(
+    "iconutil not available; skipping .icns. " +
+      "Re-run on macOS to refresh resources/icons/icon.icns.",
+  );
 }
 
 console.log("Icons regenerated.");

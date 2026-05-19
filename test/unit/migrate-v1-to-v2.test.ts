@@ -175,7 +175,10 @@ describe("migrateAnnotationsV1ToV2", () => {
       id: "a1",
       kind: "arrow" as const,
       z: 0,
-      x1: 10, y1: 10, x2: 100, y2: 10,
+      x1: 10,
+      y1: 10,
+      x2: 100,
+      y2: 10,
       color: "#FF0000",
       thicknessPx: 2,
       head: "filled" as const,
@@ -191,9 +194,16 @@ describe("migrateAnnotationsV1ToV2", () => {
 
   it("v1 arrow with head='open' migrates to outlined fillMode", () => {
     const v1Arrow = {
-      id: "a2", kind: "arrow" as const, z: 0,
-      x1: 0, y1: 0, x2: 50, y2: 0,
-      color: "#0000FF", thicknessPx: 1, head: "open" as const,
+      id: "a2",
+      kind: "arrow" as const,
+      z: 0,
+      x1: 0,
+      y1: 0,
+      x2: 50,
+      y2: 0,
+      color: "#0000FF",
+      thicknessPx: 1,
+      head: "open" as const,
     };
     const out = migrateAnnotationsV1ToV2([v1Arrow]);
     const sym = out[0];

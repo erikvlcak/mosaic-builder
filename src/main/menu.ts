@@ -1,4 +1,8 @@
-import { Menu, type BrowserWindow, type MenuItemConstructorOptions } from "electron";
+import {
+  Menu,
+  type BrowserWindow,
+  type MenuItemConstructorOptions,
+} from "electron";
 import { MENU_EVENTS, type MenuEvent } from "../preload/api";
 
 export interface BuildMenuArgs {
@@ -7,21 +11,34 @@ export interface BuildMenuArgs {
   send: (event: MenuEvent) => void;
 }
 
-export function buildMenuTemplate(
-  { isMac, send }: BuildMenuArgs,
-): MenuItemConstructorOptions[] {
+export function buildMenuTemplate({
+  isMac,
+  send,
+}: BuildMenuArgs): MenuItemConstructorOptions[] {
   const file: MenuItemConstructorOptions = {
     label: "File",
     submenu: [
-      { label: "New", accelerator: "CommandOrControl+N",
-        click: () => send(MENU_EVENTS.new) },
-      { label: "Open…", accelerator: "CommandOrControl+O",
-        click: () => send(MENU_EVENTS.open) },
+      {
+        label: "New",
+        accelerator: "CommandOrControl+N",
+        click: () => send(MENU_EVENTS.new),
+      },
+      {
+        label: "Open…",
+        accelerator: "CommandOrControl+O",
+        click: () => send(MENU_EVENTS.open),
+      },
       { type: "separator" },
-      { label: "Save", accelerator: "CommandOrControl+S",
-        click: () => send(MENU_EVENTS.save) },
-      { label: "Save As…", accelerator: "CommandOrControl+Shift+S",
-        click: () => send(MENU_EVENTS.saveAs) },
+      {
+        label: "Save",
+        accelerator: "CommandOrControl+S",
+        click: () => send(MENU_EVENTS.save),
+      },
+      {
+        label: "Save As…",
+        accelerator: "CommandOrControl+Shift+S",
+        click: () => send(MENU_EVENTS.saveAs),
+      },
       { type: "separator" },
       { label: "Export as PNG…", click: () => send(MENU_EVENTS.exportPng) },
       { label: "Export as JPEG…", click: () => send(MENU_EVENTS.exportJpeg) },
@@ -34,38 +51,51 @@ export function buildMenuTemplate(
   const edit: MenuItemConstructorOptions = {
     label: "Edit",
     submenu: [
-      { label: "Undo", accelerator: "CommandOrControl+Z",
-        click: () => send(MENU_EVENTS.undo) },
-      { label: "Redo", accelerator: "CommandOrControl+Shift+Z",
-        click: () => send(MENU_EVENTS.redo) },
+      {
+        label: "Undo",
+        accelerator: "CommandOrControl+Z",
+        click: () => send(MENU_EVENTS.undo),
+      },
+      {
+        label: "Redo",
+        accelerator: "CommandOrControl+Shift+Z",
+        click: () => send(MENU_EVENTS.redo),
+      },
       { type: "separator" },
-      { role: "cut" }, { role: "copy" }, { role: "paste" },
+      { role: "cut" },
+      { role: "copy" },
+      { role: "paste" },
       { role: "selectAll" },
     ],
   };
   const view: MenuItemConstructorOptions = {
     label: "View",
     submenu: [
-      { role: "reload" }, { role: "toggleDevTools" },
+      { role: "reload" },
+      { role: "toggleDevTools" },
       { type: "separator" },
-      { role: "resetZoom" }, { role: "zoomIn" }, { role: "zoomOut" },
+      { role: "resetZoom" },
+      { role: "zoomIn" },
+      { role: "zoomOut" },
       { type: "separator" },
       { role: "togglefullscreen" },
     ],
   };
   const help: MenuItemConstructorOptions = {
     label: "Help",
-    submenu: [
-      { label: "About Mosaic Builder", role: "about" },
-    ],
+    submenu: [{ label: "About Mosaic Builder", role: "about" }],
   };
   if (isMac) {
     const appMenu: MenuItemConstructorOptions = {
       label: "Mosaic Builder",
       submenu: [
-        { role: "about" }, { type: "separator" },
-        { role: "services" }, { type: "separator" },
-        { role: "hide" }, { role: "hideOthers" }, { role: "unhide" },
+        { role: "about" },
+        { type: "separator" },
+        { role: "services" },
+        { type: "separator" },
+        { role: "hide" },
+        { role: "hideOthers" },
+        { role: "unhide" },
         { type: "separator" },
         { role: "quit" },
       ],

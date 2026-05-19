@@ -14,21 +14,22 @@
 
 ## File Structure
 
-| File | Action | Responsibility |
-|---|---|---|
-| `src/renderer/model/panel-interaction.ts` | **Create** | Defines `PanelInteraction` type and three pure helpers (`selectedIdOf`, `editingIdOf`, `focusedIdOf`). Single home for the union so both App and GridCells import it. |
-| `src/renderer/components/Grid/GridCells.tsx` | **Modify** | Accept `panelInteraction` prop instead of `focusedPanelId`. Wire `onDoubleClick`. Adjust `draggable` and outline/cursor styling per panel mode. |
-| `src/renderer/App.tsx` | **Modify** | Replace `focusedPanelId` state with `panelInteraction`. Add single-click and double-click handlers that respect mode rules. Mount `PanelInteractionLayer` only when editing. Update Esc / new / open. |
-| `src/renderer/components/Grid/PanelInteractionLayer.tsx` | **Modify** | Change focus outline from solid blue to dashed `var(--c-warn)`. No behavioral change. |
-| `test/unit/panel-interaction.test.ts` | **Create** | Tests for the three helpers. |
-| `test/unit/grid-cells-modes.test.tsx` | **Create** | Tests for GridCells single-click vs double-click + draggable behavior + outline class. |
-| `test/unit/panel-interaction-layer.test.tsx` | **Create** | One assertion: outline style is dashed `var(--c-warn)`. |
+| File                                                     | Action     | Responsibility                                                                                                                                                                                        |
+| -------------------------------------------------------- | ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/renderer/model/panel-interaction.ts`                | **Create** | Defines `PanelInteraction` type and three pure helpers (`selectedIdOf`, `editingIdOf`, `focusedIdOf`). Single home for the union so both App and GridCells import it.                                 |
+| `src/renderer/components/Grid/GridCells.tsx`             | **Modify** | Accept `panelInteraction` prop instead of `focusedPanelId`. Wire `onDoubleClick`. Adjust `draggable` and outline/cursor styling per panel mode.                                                       |
+| `src/renderer/App.tsx`                                   | **Modify** | Replace `focusedPanelId` state with `panelInteraction`. Add single-click and double-click handlers that respect mode rules. Mount `PanelInteractionLayer` only when editing. Update Esc / new / open. |
+| `src/renderer/components/Grid/PanelInteractionLayer.tsx` | **Modify** | Change focus outline from solid blue to dashed `var(--c-warn)`. No behavioral change.                                                                                                                 |
+| `test/unit/panel-interaction.test.ts`                    | **Create** | Tests for the three helpers.                                                                                                                                                                          |
+| `test/unit/grid-cells-modes.test.tsx`                    | **Create** | Tests for GridCells single-click vs double-click + draggable behavior + outline class.                                                                                                                |
+| `test/unit/panel-interaction-layer.test.tsx`             | **Create** | One assertion: outline style is dashed `var(--c-warn)`.                                                                                                                                               |
 
 ---
 
 ## Task 1: PanelInteraction type + pure helpers
 
 **Files:**
+
 - Create: `src/renderer/model/panel-interaction.ts`
 - Test: `test/unit/panel-interaction.test.ts`
 
@@ -139,6 +140,7 @@ without leaking mode-checks to call sites."
 ## Task 2: GridCells supports per-panel selected vs editing state
 
 **Files:**
+
 - Modify: `src/renderer/components/Grid/GridCells.tsx`
 - Create: `test/unit/grid-cells-modes.test.tsx`
 
@@ -607,7 +609,9 @@ export function GridCells({
             onDoubleClick={onDoubleClick}
             data-testid={`panel-${panel.row}-${panel.col}`}
             data-panel-id={panel.id}
-            data-mode={isEditing ? "editing" : isSelected ? "selected" : undefined}
+            data-mode={
+              isEditing ? "editing" : isSelected ? "selected" : undefined
+            }
             style={{
               position: "absolute",
               left: r.x * sx,
@@ -652,6 +656,7 @@ PanelInteractionLayer."
 ## Task 3: Wire App.tsx + restyle PanelInteractionLayer
 
 **Files:**
+
 - Modify: `src/renderer/App.tsx`
 - Modify: `src/renderer/components/Grid/PanelInteractionLayer.tsx`
 - Create: `test/unit/panel-interaction-layer.test.tsx`
@@ -749,15 +754,15 @@ import {
 **5b.** Replace line 67 from:
 
 ```tsx
-  const [focusedPanelId, setFocusedPanelId] = useState<string | null>(null);
+const [focusedPanelId, setFocusedPanelId] = useState<string | null>(null);
 ```
 
 to:
 
 ```tsx
-  const [panelInteraction, setPanelInteraction] =
-    useState<PanelInteraction>(null);
-  const focusedPanelId = focusedIdOf(panelInteraction);
+const [panelInteraction, setPanelInteraction] =
+  useState<PanelInteraction>(null);
+const focusedPanelId = focusedIdOf(panelInteraction);
 ```
 
 **5c.** Replace the body of `onUnmerge` (lines 159–165) with the same logic — `focusedPanelId` is still computed, so this works as-is. No change needed.
@@ -767,18 +772,18 @@ to:
 **5e.** Replace the `onEscape` body (line 215–220):
 
 ```tsx
-  const onEscape = useCallback(() => {
-    selection.clear();
-    setPanelInteraction(null);
-    setSelectedAnnotationId(null);
-    setActiveTool("select");
-  }, [selection]);
+const onEscape = useCallback(() => {
+  selection.clear();
+  setPanelInteraction(null);
+  setSelectedAnnotationId(null);
+  setActiveTool("select");
+}, [selection]);
 ```
 
 **5f.** Replace the `onNew` body's panel-clearing line (line 346):
 
 ```tsx
-    setPanelInteraction(null);
+setPanelInteraction(null);
 ```
 
 (replacing `setFocusedPanelId(null);`)
@@ -786,74 +791,73 @@ to:
 **5g.** Add two new handlers before the `useKeyboardShortcuts` call (so they're in scope below). Insert after the `onResetTransform` handler (line ~206):
 
 ```tsx
-  const onPanelSingleClick = useCallback(
-    (panelId: string) => {
-      // Single-click while already editing this same panel: no-op (stay
-      // in editing so the user doesn't lose pan/zoom state mid-drag).
-      if (
-        panelInteraction !== null &&
-        panelInteraction.mode === "editing" &&
-        panelInteraction.panelId === panelId
-      ) {
-        return;
-      }
-      // Same shape for image and empty panels — empty panels can't drag
-      // anyway (GridCells gates on `occupied`), but they still need
-      // "selected" focus for the Unmerge action and properties panel.
-      setPanelInteraction({ mode: "selected", panelId });
-    },
-    [panelInteraction],
-  );
+const onPanelSingleClick = useCallback(
+  (panelId: string) => {
+    // Single-click while already editing this same panel: no-op (stay
+    // in editing so the user doesn't lose pan/zoom state mid-drag).
+    if (
+      panelInteraction !== null &&
+      panelInteraction.mode === "editing" &&
+      panelInteraction.panelId === panelId
+    ) {
+      return;
+    }
+    // Same shape for image and empty panels — empty panels can't drag
+    // anyway (GridCells gates on `occupied`), but they still need
+    // "selected" focus for the Unmerge action and properties panel.
+    setPanelInteraction({ mode: "selected", panelId });
+  },
+  [panelInteraction],
+);
 
-  const onPanelDoubleClick = useCallback(
-    (panelId: string) => {
-      const panel = stateRef.current.panels.find((p) => p.id === panelId);
-      if (panel === undefined || panel.imageId === undefined) return;
-      setPanelInteraction({ mode: "editing", panelId });
-    },
-    [],
-  );
+const onPanelDoubleClick = useCallback((panelId: string) => {
+  const panel = stateRef.current.panels.find((p) => p.id === panelId);
+  if (panel === undefined || panel.imageId === undefined) return;
+  setPanelInteraction({ mode: "editing", panelId });
+}, []);
 ```
 
 **5h.** Replace the `<GridCells>` props block (lines 489–500) with:
 
 ```tsx
-            <GridCells
-              state={state}
-              figurePxW={FIGURE_PX_W}
-              figurePxH={FIGURE_PX_H}
-              cssW={CANVAS_CSS_W}
-              cssH={CANVAS_CSS_H}
-              onDrop={onDrop}
-              selection={selection.selected}
-              onCellShiftClick={selection.toggle}
-              panelInteraction={panelInteraction}
-              onPanelClick={onPanelSingleClick}
-              onPanelDoubleClick={onPanelDoubleClick}
-            />
+<GridCells
+  state={state}
+  figurePxW={FIGURE_PX_W}
+  figurePxH={FIGURE_PX_H}
+  cssW={CANVAS_CSS_W}
+  cssH={CANVAS_CSS_H}
+  onDrop={onDrop}
+  selection={selection.selected}
+  onCellShiftClick={selection.toggle}
+  panelInteraction={panelInteraction}
+  onPanelClick={onPanelSingleClick}
+  onPanelDoubleClick={onPanelDoubleClick}
+/>
 ```
 
 **5i.** Gate the `PanelInteractionLayer` mount on editing mode. Replace the existing block (lines 501–517) with:
 
 ```tsx
-            {editingIdOf(panelInteraction) !== null &&
-              selectedImagePanel !== undefined &&
-              focusedPanelRect !== null &&
-              focusedBitmap !== undefined &&
-              selectedImagePanel.transform !== undefined && (
-                <PanelInteractionLayer
-                  panelId={selectedImagePanel.id}
-                  panelRect={focusedPanelRect}
-                  transform={selectedImagePanel.transform}
-                  bitmap={focusedBitmap}
-                  figurePxW={FIGURE_PX_W}
-                  figurePxH={FIGURE_PX_H}
-                  cssW={CANVAS_CSS_W}
-                  cssH={CANVAS_CSS_H}
-                  dispatch={dispatch}
-                  onCommit={history.commit}
-                />
-              )}
+{
+  editingIdOf(panelInteraction) !== null &&
+    selectedImagePanel !== undefined &&
+    focusedPanelRect !== null &&
+    focusedBitmap !== undefined &&
+    selectedImagePanel.transform !== undefined && (
+      <PanelInteractionLayer
+        panelId={selectedImagePanel.id}
+        panelRect={focusedPanelRect}
+        transform={selectedImagePanel.transform}
+        bitmap={focusedBitmap}
+        figurePxW={FIGURE_PX_W}
+        figurePxH={FIGURE_PX_H}
+        cssW={CANVAS_CSS_W}
+        cssH={CANVAS_CSS_H}
+        dispatch={dispatch}
+        onCommit={history.commit}
+      />
+    );
+}
 ```
 
 (`editingIdOf(panelInteraction) !== null` is the new gate. The other conditions stay because they protect against the first render frame after the panel state changes — `selectedImagePanel` derives from `focusedPanelId` which derives from `panelInteraction.panelId`, so when editing is set, `selectedImagePanel` becomes the same panel.)
@@ -875,6 +879,7 @@ If any pre-existing test fails because it imported a now-unused symbol, fix the 
 Run: `pnpm dev` (or whatever the dev script is — check `package.json` `scripts.dev`).
 
 Verify in the running app:
+
 1. Add an image, place it in a panel.
 2. Single-click the image panel: cursor changes to `grab`, solid green outline appears, **drag to another panel — the swap works** (this is the bug fix).
 3. Double-click the image panel: dashed orange outline replaces the green; pointer-drag pans the image; wheel zooms.

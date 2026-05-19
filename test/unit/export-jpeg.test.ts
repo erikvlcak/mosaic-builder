@@ -20,8 +20,12 @@ beforeEach(() => {
 
 describe.skipIf(!HAS_OFFSCREEN)("exportFigureAsJpeg", () => {
   it("calls window.api.exportJpeg with non-zero bytes and a .jpg defaultName", async () => {
-    const { exportFigureAsJpeg } = await import("../../src/renderer/export/jpeg");
-    const { HARDCODED_FIGURE } = await import("../../src/renderer/model/hardcoded");
+    const { exportFigureAsJpeg } = await import(
+      "../../src/renderer/export/jpeg"
+    );
+    const { HARDCODED_FIGURE } = await import(
+      "../../src/renderer/model/hardcoded"
+    );
 
     const result = await exportFigureAsJpeg(HARDCODED_FIGURE, new Map(), 0.92);
     expect(result.ok).toBe(true);

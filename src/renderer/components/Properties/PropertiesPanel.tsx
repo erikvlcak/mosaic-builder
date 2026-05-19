@@ -6,6 +6,8 @@ import type { Annotation } from "../../model/annotations";
 import type { Panel, PanelTransform } from "../../model/panels";
 import type { FieldCommit } from "../../hooks/useFieldCommit";
 import type { DefaultSymbolStyle } from "../../model/default-symbol-style";
+import type { DefaultTextStyle } from "../../model/default-text-style";
+import type { DefaultScalebarStyle } from "../../model/default-scalebar-style";
 import { labelForPattern } from "../../render/letters";
 import type { Tool } from "../Toolbar/AnnotationToolbar";
 import { CanvasAndGlobalStyleForm } from "./CanvasAndGlobalStyleForm";
@@ -16,6 +18,8 @@ import { MultiAnnoForm } from "./MultiAnnoForm";
 import { PanelPropertiesForm } from "./PanelPropertiesForm";
 import { EmptyPanelForm } from "./EmptyPanelForm";
 import { SymbolPickerPanel } from "./SymbolPickerPanel";
+import { TextStylePickerPanel } from "./TextStylePickerPanel";
+import { ScalebarPickerPanel } from "./ScalebarPickerPanel";
 
 interface Props {
   state: FigureState;
@@ -40,14 +44,18 @@ interface Props {
   selectedAnnotationIds?: ReadonlySet<string>;
   onSelectionChange?: (next: ReadonlySet<string>) => void;
   /**
-   * The active annotation tool. When `"symbol"` and nothing is selected,
-   * the panel routes to `<SymbolPickerPanel>` instead of the global-style
-   * fallback so the user can pick shape + style BEFORE clicking the canvas.
+   * The active annotation tool. When `"symbol"`, `"text"`, or `"scalebar"`
+   * is active and nothing is selected, the panel routes to a picker form
+   * so the user can configure style BEFORE clicking the canvas.
    */
   activeTool?: Tool;
   /** Picker state (session-only — not in FigureState, not undoable). */
   defaultSymbolStyle?: DefaultSymbolStyle;
   onDefaultSymbolStyleChange?: (next: DefaultSymbolStyle) => void;
+  defaultTextStyle?: DefaultTextStyle;
+  onDefaultTextStyleChange?: (next: DefaultTextStyle) => void;
+  defaultScalebarStyle?: DefaultScalebarStyle;
+  onDefaultScalebarStyleChange?: (next: DefaultScalebarStyle) => void;
   dispatch: Dispatch<FigureAction>;
   commit: FieldCommit;
   onCalibrate: () => void;
@@ -72,6 +80,10 @@ export function PropertiesPanel({
   activeTool,
   defaultSymbolStyle,
   onDefaultSymbolStyleChange,
+  defaultTextStyle,
+  onDefaultTextStyleChange,
+  defaultScalebarStyle,
+  onDefaultScalebarStyleChange,
   dispatch,
   commit,
   onCalibrate,
@@ -193,6 +205,23 @@ export function PropertiesPanel({
       />
     );
   } else if (
+    activeTool === "text" &&
+    defaultTextStyle !== undefined &&
+    onDefaultTextStyleChange !== undefined
+  ) {
+    // Text tool active with no selection: show the style picker so the user
+    // configures font/size/colour BEFORE clicking the canvas to place. The
+    // selection branches above run first, so a selected text annotation
+    // still routes to its edit form.
+    title = "Text";
+    subtitle = "Set style — click canvas to place";
+    body = (
+      <TextStylePickerPanel
+        value={defaultTextStyle}
+        onChange={onDefaultTextStyleChange}
+      />
+    );
+  } else if (
     activeTool === "symbol" &&
     defaultSymbolStyle !== undefined &&
     onDefaultSymbolStyleChange !== undefined
@@ -207,6 +236,23 @@ export function PropertiesPanel({
       <SymbolPickerPanel
         value={defaultSymbolStyle}
         onChange={onDefaultSymbolStyleChange}
+      />
+    );
+  } else if (
+    activeTool === "scalebar" &&
+    defaultScalebarStyle !== undefined &&
+    onDefaultScalebarStyleChange !== undefined
+  ) {
+    // Scalebar tool active with no selection: show the picker so the user
+    // configures length/unit/corner BEFORE clicking the canvas. The bar's
+    // visual style (color, height, label font) lives on globalStyle.scalebar
+    // and is edited via the global-style form, so it is not duplicated here.
+    title = "Scale bar";
+    subtitle = "Set length — click a calibrated panel";
+    body = (
+      <ScalebarPickerPanel
+        value={defaultScalebarStyle}
+        onChange={onDefaultScalebarStyleChange}
       />
     );
   } else {

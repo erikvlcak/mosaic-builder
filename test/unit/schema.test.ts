@@ -75,7 +75,9 @@ describe("validateMosaicFile", () => {
     const r = validateMosaicFile({ ...MIN_VALID, schemaVersion: 4 });
     expect(r.ok).toBe(false);
     if (!r.ok) {
-      expect(r.error).toMatch(/older format that is not supported|schemaVersion/);
+      expect(r.error).toMatch(
+        /older format that is not supported|schemaVersion/,
+      );
     }
   });
 

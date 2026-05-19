@@ -31,7 +31,10 @@ describe("resolveWindowConfig", () => {
       preloadPath: "/tmp/p.js",
       devServerUrl: "http://localhost:5173",
     });
-    expect(dev.loadTarget).toEqual({ kind: "url", url: "http://localhost:5173" });
+    expect(dev.loadTarget).toEqual({
+      kind: "url",
+      url: "http://localhost:5173",
+    });
 
     const prod = resolveWindowConfig({
       preloadPath: "/tmp/p.js",

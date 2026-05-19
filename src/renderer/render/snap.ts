@@ -143,7 +143,11 @@ function collectAxisGuidelines(
   };
   const movingAxis = axis === "x" ? xEdges(moved) : yEdges(moved);
   const movingPerp = axis === "x" ? yEdges(moved) : xEdges(moved);
-  const movingEdges: number[] = [movingAxis.min, movingAxis.mid, movingAxis.max];
+  const movingEdges: number[] = [
+    movingAxis.min,
+    movingAxis.mid,
+    movingAxis.max,
+  ];
   const out: Guideline[] = [];
   for (const cand of candidates) {
     const candAxis = axis === "x" ? xEdges(cand) : yEdges(cand);

@@ -31,7 +31,8 @@ describe("preload API contract", () => {
       exportPdf: () =>
         Promise.resolve({ ok: true, filePath: "/tmp/x.pdf", bytesWritten: 0 }),
       openImages: () => Promise.resolve({ canceled: true }),
-      saveProject: () => Promise.resolve({ ok: true, filePath: "/tmp/x.mosaic" }),
+      saveProject: () =>
+        Promise.resolve({ ok: true, filePath: "/tmp/x.mosaic" }),
       loadProject: () => Promise.resolve({ ok: false, reason: "canceled" }),
     };
     expect(typeof fake.ping).toBe("function");

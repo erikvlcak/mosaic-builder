@@ -18,8 +18,12 @@ import type { SymbolAnnotation } from "../../src/renderer/model/annotations";
 import type { PanelRect } from "../../src/renderer/render/coords";
 import type { ImagePoolItem } from "../../src/renderer/model/pool";
 import { initialDefaultSymbolStyle } from "../../src/renderer/model/default-symbol-style";
+import { initialDefaultTextStyle } from "../../src/renderer/model/default-text-style";
+import { initialDefaultScalebarStyle } from "../../src/renderer/model/default-scalebar-style";
 
 const DEFAULT_PICKER = initialDefaultSymbolStyle();
+const DEFAULT_TEXT_PICKER = initialDefaultTextStyle();
+const DEFAULT_SCALEBAR_PICKER = initialDefaultScalebarStyle();
 
 // jsdom doesn't ship a PointerEvent constructor. Without one, testing-library's
 // fireEvent.pointerDown dispatches a MouseEvent with type "pointerdown" — which
@@ -36,8 +40,9 @@ beforeAll(() => {
         this.pointerType = init.pointerType ?? "mouse";
       }
     }
-    (window as unknown as { PointerEvent: typeof PointerEventPolyfill }).PointerEvent =
-      PointerEventPolyfill;
+    (
+      window as unknown as { PointerEvent: typeof PointerEventPolyfill }
+    ).PointerEvent = PointerEventPolyfill;
   }
   // jsdom doesn't implement Pointer Capture; stub the methods so handlers
   // that call setPointerCapture/hasPointerCapture don't throw.
@@ -96,6 +101,9 @@ function setup(): { dispatch: ReturnType<typeof vi.fn> } {
     <AnnotationInteractionLayer
       activeTool="text"
       defaultSymbolStyle={DEFAULT_PICKER}
+      defaultTextStyle={DEFAULT_TEXT_PICKER}
+      defaultScalebarStyle={DEFAULT_SCALEBAR_PICKER}
+      onDefaultScalebarStyleChange={() => {}}
       figure={FIG}
       panelRectsById={new Map()}
       imagesById={new Map()}
@@ -128,7 +136,10 @@ describe("AnnotationInteractionLayer: text creation", () => {
     fireEvent.change(input, { target: { value: "hello" } });
     fireEvent.keyDown(input, { key: "Enter" });
     const adds = dispatch.mock.calls
-      .map(([a]) => a as { type: string; annotation?: { kind: string; text?: string } })
+      .map(
+        ([a]) =>
+          a as { type: string; annotation?: { kind: string; text?: string } },
+      )
       .filter((a) => a.type === "ADD_ANNOTATION");
     expect(adds).toHaveLength(1);
     expect(adds[0]?.annotation?.kind).toBe("text");
@@ -144,13 +155,19 @@ describe("AnnotationInteractionLayer: symbol creation + handles", () => {
       imagesById?: Map<string, ImagePoolItem>;
       figureOverride?: Figure;
     },
-  ): { dispatch: ReturnType<typeof vi.fn>; onSelect: ReturnType<typeof vi.fn> } {
+  ): {
+    dispatch: ReturnType<typeof vi.fn>;
+    onSelect: ReturnType<typeof vi.fn>;
+  } {
     const dispatch = vi.fn();
     const onSelect = vi.fn();
     render(
       <AnnotationInteractionLayer
         activeTool="symbol"
         defaultSymbolStyle={customPicker ?? DEFAULT_PICKER}
+        defaultTextStyle={DEFAULT_TEXT_PICKER}
+        defaultScalebarStyle={DEFAULT_SCALEBAR_PICKER}
+        onDefaultScalebarStyleChange={() => {}}
         figure={opts?.figureOverride ?? FIG}
         panelRectsById={opts?.panelRectsById ?? new Map()}
         imagesById={opts?.imagesById ?? new Map()}
@@ -181,6 +198,9 @@ describe("AnnotationInteractionLayer: symbol creation + handles", () => {
       <AnnotationInteractionLayer
         activeTool="select"
         defaultSymbolStyle={DEFAULT_PICKER}
+        defaultTextStyle={DEFAULT_TEXT_PICKER}
+        defaultScalebarStyle={DEFAULT_SCALEBAR_PICKER}
+        onDefaultScalebarStyleChange={() => {}}
         figure={figureWithSymbol}
         panelRectsById={new Map()}
         imagesById={new Map()}
@@ -428,6 +448,9 @@ describe("AnnotationInteractionLayer: multi-select gestures", () => {
       <AnnotationInteractionLayer
         activeTool="select"
         defaultSymbolStyle={DEFAULT_PICKER}
+        defaultTextStyle={DEFAULT_TEXT_PICKER}
+        defaultScalebarStyle={DEFAULT_SCALEBAR_PICKER}
+        onDefaultScalebarStyleChange={() => {}}
         figure={opts?.figure ?? FIG_TWO_SYMBOLS}
         panelRectsById={new Map()}
         imagesById={new Map()}
@@ -522,7 +545,14 @@ describe("AnnotationInteractionLayer: multi-select gestures", () => {
     });
     // Two UPDATE_ANNOTATION calls, one per selected anno, with matching delta (15, 10).
     const updates = dispatch.mock.calls
-      .map(([a]) => a as { type: string; annotationId?: string; patch?: { x?: number; y?: number } })
+      .map(
+        ([a]) =>
+          a as {
+            type: string;
+            annotationId?: string;
+            patch?: { x?: number; y?: number };
+          },
+      )
       .filter((a) => a.type === "UPDATE_ANNOTATION");
     expect(updates).toHaveLength(2);
     const byId = new Map(updates.map((u) => [u.annotationId, u.patch]));
@@ -578,7 +608,11 @@ describe("AnnotationInteractionLayer: multi-select gestures", () => {
       clientY: 5,
       shiftKey: true,
     });
-    fireEvent.pointerMove(backdrop, { clientX: 50, clientY: 50, shiftKey: true });
+    fireEvent.pointerMove(backdrop, {
+      clientX: 50,
+      clientY: 50,
+      shiftKey: true,
+    });
     fireEvent.pointerUp(backdrop, { clientX: 50, clientY: 50, shiftKey: true });
     expect(onSelectionChange).toHaveBeenCalledWith(new Set(["b2", "b1"]));
   });
@@ -598,7 +632,7 @@ describe("AnnotationInteractionLayer: letter selection (spec 08)", () => {
         row: 0,
         col: 0,
         kind: "placeholder",
-        label: "(empty)",
+        label: "",
         rowSpan: 1,
         colSpan: 1,
       },
@@ -609,15 +643,18 @@ describe("AnnotationInteractionLayer: letter selection (spec 08)", () => {
     globalStyle: DEFAULT_GLOBAL_STYLE,
   };
 
-  function setupLetter(opts?: {
-    selectedIds?: ReadonlySet<string>;
-  }): { onSelectionChange: ReturnType<typeof vi.fn> } {
+  function setupLetter(opts?: { selectedIds?: ReadonlySet<string> }): {
+    onSelectionChange: ReturnType<typeof vi.fn>;
+  } {
     const onSelectionChange = vi.fn();
     const panelRect: PanelRect = { x: 0, y: 0, w: 200, h: 200 };
     render(
       <AnnotationInteractionLayer
         activeTool="select"
         defaultSymbolStyle={DEFAULT_PICKER}
+        defaultTextStyle={DEFAULT_TEXT_PICKER}
+        defaultScalebarStyle={DEFAULT_SCALEBAR_PICKER}
+        onDefaultScalebarStyleChange={() => {}}
         figure={FIG_WITH_LETTER}
         panelRectsById={new Map([["p1", panelRect]])}
         imagesById={new Map()}
@@ -690,6 +727,9 @@ describe("AnnotationInteractionLayer: alignment guidelines (spec 14)", () => {
       <AnnotationInteractionLayer
         activeTool="select"
         defaultSymbolStyle={DEFAULT_PICKER}
+        defaultTextStyle={DEFAULT_TEXT_PICKER}
+        defaultScalebarStyle={DEFAULT_SCALEBAR_PICKER}
+        onDefaultScalebarStyleChange={() => {}}
         figure={FIG_TWO_FOR_SNAP}
         panelRectsById={new Map()}
         imagesById={new Map()}

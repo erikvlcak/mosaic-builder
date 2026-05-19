@@ -138,8 +138,8 @@ export function CalibrationModal({
       >
         <h2 className="dialog-title">Calibrate scale</h2>
         <p className="dialog-body">
-          Click two points on a feature of known length (e.g. an existing
-          scale bar in the image), then enter that length below.
+          Click two points on a feature of known length (e.g. an existing scale
+          bar in the image), then enter that length below.
         </p>
         <div style={{ position: "relative", display: "inline-block" }}>
           <canvas
@@ -199,7 +199,11 @@ export function CalibrationModal({
             flexWrap: "wrap",
           }}
         >
-          <label htmlFor="cal-len" className="field-row" style={{ marginRight: 4 }}>
+          <label
+            htmlFor="cal-len"
+            className="field-row"
+            style={{ marginRight: 4 }}
+          >
             Length
           </label>
           <input
@@ -223,7 +227,13 @@ export function CalibrationModal({
             <option value="um">µm</option>
             <option value="mm">mm</option>
           </select>
-          <span style={{ color: "var(--c-text-muted)", fontSize: 12, marginLeft: "auto" }}>
+          <span
+            style={{
+              color: "var(--c-text-muted)",
+              fontSize: 12,
+              marginLeft: "auto",
+            }}
+          >
             Points: {pts.length}/2
           </span>
         </div>

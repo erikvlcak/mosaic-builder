@@ -127,12 +127,7 @@ export function Tray({
         <Empty primary="—" />
       ) : (
         placed.map((it) => (
-          <Thumbnail
-            key={it.id}
-            item={it}
-            bitmap={bitmaps.get(it.id)}
-            placed
-          />
+          <Thumbnail key={it.id} item={it} bitmap={bitmaps.get(it.id)} placed />
         ))
       )}
     </aside>
@@ -155,7 +150,9 @@ function Section({
         <span className="tray-section-count">{count}</span>
       </div>
       {hint !== undefined && count > 0 && (
-        <div style={{ fontSize: 11, color: "var(--c-text-faint)", marginTop: 4 }}>
+        <div
+          style={{ fontSize: 11, color: "var(--c-text-faint)", marginTop: 4 }}
+        >
           {hint}
         </div>
       )}
@@ -184,7 +181,9 @@ function Empty({
     >
       <div>{primary}</div>
       {secondary !== undefined && (
-        <div style={{ fontSize: 11, color: "var(--c-text-faint)", marginTop: 2 }}>
+        <div
+          style={{ fontSize: 11, color: "var(--c-text-faint)", marginTop: 2 }}
+        >
           {secondary}
         </div>
       )}

@@ -128,7 +128,9 @@ function rectFromStyle(el: HTMLElement): CssRect {
 }
 
 function overlaps(a: CssRect, b: CssRect): boolean {
-  return a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top;
+  return (
+    a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top
+  );
 }
 
 function pointInside(p: { x: number; y: number }, r: CssRect): boolean {

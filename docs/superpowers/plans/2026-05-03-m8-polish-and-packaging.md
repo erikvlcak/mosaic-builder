@@ -39,6 +39,7 @@ State of the codebase the plan assumes (verified 2026-05-03):
 **New files:**
 
 Properties panel (Task group 1):
+
 - `src/renderer/components/Properties/PropertiesPanel.tsx` — root, picks the right form by selection.
 - `src/renderer/components/Properties/PanelPropertiesForm.tsx` — image-panel form (fit, pan/zoom readouts, rotation, flip, calibration, letter override).
 - `src/renderer/components/Properties/AnnotationPropertiesForm.tsx` — picks per-kind form by `kind`.
@@ -55,14 +56,17 @@ Properties panel (Task group 1):
 - `src/renderer/hooks/useFieldCommit.ts` — debounce + commit-on-blur helper.
 
 Toasts (Task group 3):
+
 - `src/renderer/components/Toasts/ToastTray.tsx`
 - `src/renderer/hooks/useToasts.ts`
 
 Native menu + IPC (Task group 2):
+
 - `src/main/menu.ts`
 - `src/renderer/hooks/useMenuEvents.ts` — listens for main → renderer menu events.
 
 Versioning + icons (Task group 4):
+
 - `src/renderer/app-version.ts` — `export const APP_VERSION = "0.1.0";`
 - `electron-builder.yml`
 - `scripts/generate-icons.mjs` — png-to-ico + png-to-icns; run once via `pnpm gen:icons`.
@@ -73,6 +77,7 @@ Versioning + icons (Task group 4):
 - `build/entitlements.mac.plist` — minimal macOS hardened-runtime entitlements.
 
 Tests:
+
 - `test/unit/use-field-commit.test.ts`
 - `test/unit/properties-panel-routing.test.ts`
 - `test/unit/text-anno-form.test.ts`
@@ -83,6 +88,7 @@ Tests:
 - `test/unit/app-version.test.ts`
 
 **Modified files:**
+
 - `package.json` — add deps + scripts.
 - `src/renderer/state/use-history-reducer.ts` — add `UPDATE_ANNOTATION`, `SET_GLOBAL_STYLE` to `TRANSIENT_ACTIONS`.
 - `src/renderer/model/figure-actions.ts` — add `RESET_FIGURE` action + creator + reducer case (reducer lives here, not in `figure-state.ts`).
@@ -107,6 +113,7 @@ Tests:
 ### Task 1: Centralize app version
 
 **Files:**
+
 - Create: `src/renderer/app-version.ts`
 - Create: `test/unit/app-version.test.ts`
 - Modify: `src/renderer/App.tsx` (one line)
@@ -176,6 +183,7 @@ git commit -m "feat(m8): centralize APP_VERSION constant"
 ### Task 2: Install jsdom + testing-library for UI tests
 
 **Files:**
+
 - Modify: `package.json`
 - Modify: `vitest.config.ts`
 
@@ -226,6 +234,7 @@ git commit -m "chore(m8): add jsdom + testing-library dev deps"
 ### Task 3: Add `RESET_FIGURE` action
 
 **Files:**
+
 - Modify: `src/renderer/model/figure-actions.ts` (action union + creator + reducer case)
 - Modify: `test/unit/figure-actions.test.ts` (append cases)
 
@@ -236,7 +245,10 @@ Used by File → New (Task 14). Existing `RESET_TO_STATE` takes a payload — we
 Append to `test/unit/figure-actions.test.ts`:
 
 ```ts
-import { resetFigureAction, figureReducer } from "../../src/renderer/model/figure-actions";
+import {
+  resetFigureAction,
+  figureReducer,
+} from "../../src/renderer/model/figure-actions";
 import { initialFigureState } from "../../src/renderer/model/figure-state";
 
 describe("RESET_FIGURE", () => {
@@ -304,6 +316,7 @@ git commit -m "feat(m8): add RESET_FIGURE action for File→New"
 ### Task 4: Mark `UPDATE_ANNOTATION` and `SET_GLOBAL_STYLE` transient
 
 **Files:**
+
 - Modify: `src/renderer/state/use-history-reducer.ts`
 - Modify: `test/unit/use-history-reducer.test.ts`
 
@@ -327,10 +340,21 @@ import { DEFAULT_GLOBAL_STYLE } from "../../src/renderer/model/global-style";
 // @vitest-environment jsdom
 describe("transient actions coalesce until commit", () => {
   it("UPDATE_ANNOTATION dispatches do not push history until commit()", () => {
-    const { result } = renderHook(() => useHistoryReducer(initialFigureState()));
+    const { result } = renderHook(() =>
+      useHistoryReducer(initialFigureState()),
+    );
     const seedAnno = {
-      id: "t1", kind: "text" as const, x: 10, y: 10, text: "hi",
-      font: "Arial", sizePt: 12, bold: false, italic: false, color: "#000", z: 1,
+      id: "t1",
+      kind: "text" as const,
+      x: 10,
+      y: 10,
+      text: "hi",
+      font: "Arial",
+      sizePt: 12,
+      bold: false,
+      italic: false,
+      color: "#000",
+      z: 1,
     };
     act(() => result.current[1](addAnnotation(seedAnno)));
     act(() => result.current[2].commit());
@@ -350,11 +374,17 @@ describe("transient actions coalesce until commit", () => {
   });
 
   it("SET_GLOBAL_STYLE is transient", () => {
-    const { result } = renderHook(() => useHistoryReducer(initialFigureState()));
-    const variantA = { ...DEFAULT_GLOBAL_STYLE,
-      letters: { ...DEFAULT_GLOBAL_STYLE.letters, sizePt: 14 } };
-    const variantB = { ...DEFAULT_GLOBAL_STYLE,
-      letters: { ...DEFAULT_GLOBAL_STYLE.letters, sizePt: 16 } };
+    const { result } = renderHook(() =>
+      useHistoryReducer(initialFigureState()),
+    );
+    const variantA = {
+      ...DEFAULT_GLOBAL_STYLE,
+      letters: { ...DEFAULT_GLOBAL_STYLE.letters, sizePt: 14 },
+    };
+    const variantB = {
+      ...DEFAULT_GLOBAL_STYLE,
+      letters: { ...DEFAULT_GLOBAL_STYLE.letters, sizePt: 16 },
+    };
     act(() => result.current[1](setGlobalStyle(variantA)));
     act(() => result.current[1](setGlobalStyle(variantB)));
     act(() => result.current[2].commit());
@@ -411,6 +441,7 @@ git commit -m "feat(m8): coalesce annotation + global-style edits into one histo
 ### Task 5: `useFieldCommit` hook (debounce + commit)
 
 **Files:**
+
 - Create: `src/renderer/hooks/useFieldCommit.ts`
 - Create: `test/unit/use-field-commit.test.ts`
 
@@ -432,11 +463,17 @@ describe("useFieldCommit", () => {
     const commit = vi.fn();
     const { result } = renderHook(() => useFieldCommit(commit, 400));
     act(() => result.current.markDirty());
-    act(() => { vi.advanceTimersByTime(200); });
+    act(() => {
+      vi.advanceTimersByTime(200);
+    });
     act(() => result.current.markDirty());
-    act(() => { vi.advanceTimersByTime(399); });
+    act(() => {
+      vi.advanceTimersByTime(399);
+    });
     expect(commit).not.toHaveBeenCalled();
-    act(() => { vi.advanceTimersByTime(1); });
+    act(() => {
+      vi.advanceTimersByTime(1);
+    });
     expect(commit).toHaveBeenCalledTimes(1);
     vi.useRealTimers();
   });
@@ -448,7 +485,9 @@ describe("useFieldCommit", () => {
     act(() => result.current.markDirty());
     act(() => result.current.flush());
     expect(commit).toHaveBeenCalledTimes(1);
-    act(() => { vi.advanceTimersByTime(1000); });
+    act(() => {
+      vi.advanceTimersByTime(1000);
+    });
     expect(commit).toHaveBeenCalledTimes(1);
     vi.useRealTimers();
   });
@@ -544,6 +583,7 @@ git commit -m "feat(m8): useFieldCommit hook for debounced undo coalescing"
 ### Task 6: Reusable input components
 
 **Files:**
+
 - Create: `src/renderer/components/Properties/inputs/NumberField.tsx`
 - Create: `src/renderer/components/Properties/inputs/ColorField.tsx`
 - Create: `src/renderer/components/Properties/inputs/TextField.tsx`
@@ -610,7 +650,13 @@ interface Props {
 }
 
 export function NumberField({
-  label, value, min, max, step = 1, onChange, onBlur,
+  label,
+  value,
+  min,
+  max,
+  step = 1,
+  onChange,
+  onBlur,
 }: Props): JSX.Element {
   const id = useId();
   return (
@@ -667,19 +713,28 @@ interface Props {
 }
 
 export function TextField({
-  label, value, onChange, onBlur, multiline, placeholder,
+  label,
+  value,
+  onChange,
+  onBlur,
+  multiline,
+  placeholder,
 }: Props): JSX.Element {
   const id = useId();
   const common = {
     id,
     "aria-label": label,
     value,
-    onChange: (
-      e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
-    ) => onChange(e.currentTarget.value),
+    onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
+      onChange(e.currentTarget.value),
     onBlur,
     placeholder,
-    style: { padding: 4, border: "1px solid #BBB", fontSize: 12, width: "100%" },
+    style: {
+      padding: 4,
+      border: "1px solid #BBB",
+      fontSize: 12,
+      width: "100%",
+    },
   };
   return (
     <label
@@ -687,9 +742,11 @@ export function TextField({
       style={{ display: "flex", flexDirection: "column", fontSize: 11, gap: 2 }}
     >
       <span style={{ color: "#555" }}>{label}</span>
-      {multiline === true
-        ? <textarea {...common} rows={3} />
-        : <input type="text" {...common} />}
+      {multiline === true ? (
+        <textarea {...common} rows={3} />
+      ) : (
+        <input type="text" {...common} />
+      )}
     </label>
   );
 }
@@ -702,7 +759,7 @@ import { useId } from "react";
 
 interface Props {
   label: string;
-  value: string;          // "#RRGGBB" or "#RRGGBBAA"
+  value: string; // "#RRGGBB" or "#RRGGBBAA"
   onChange: (hex: string) => void;
   onBlur?: () => void;
   allowAlpha?: boolean;
@@ -716,7 +773,11 @@ function isValidHex(s: string, allowAlpha: boolean): boolean {
 }
 
 export function ColorField({
-  label, value, onChange, onBlur, allowAlpha = false,
+  label,
+  value,
+  onChange,
+  onBlur,
+  allowAlpha = false,
 }: Props): JSX.Element {
   const id = useId();
   // The native picker only emits 6-digit hex; the text input handles 8-digit if allowed.
@@ -735,7 +796,12 @@ export function ColorField({
           value={swatch}
           onChange={(e) => onChange(e.currentTarget.value)}
           onBlur={onBlur}
-          style={{ width: 32, height: 26, border: "1px solid #BBB", padding: 0 }}
+          style={{
+            width: 32,
+            height: 26,
+            border: "1px solid #BBB",
+            padding: 0,
+          }}
         />
         <input
           type="text"
@@ -746,7 +812,12 @@ export function ColorField({
             if (isValidHex(v, allowAlpha)) onChange(v);
           }}
           onBlur={onBlur}
-          style={{ flex: 1, padding: 4, border: "1px solid #BBB", fontSize: 12 }}
+          style={{
+            flex: 1,
+            padding: 4,
+            border: "1px solid #BBB",
+            fontSize: 12,
+          }}
         />
       </span>
     </label>
@@ -759,7 +830,10 @@ export function ColorField({
 ```tsx
 import { useId } from "react";
 
-interface Option<V extends string> { value: V; label: string; }
+interface Option<V extends string> {
+  value: V;
+  label: string;
+}
 interface Props<V extends string> {
   label: string;
   value: V;
@@ -768,7 +842,10 @@ interface Props<V extends string> {
 }
 
 export function SelectField<V extends string>({
-  label, value, options, onChange,
+  label,
+  value,
+  options,
+  onChange,
 }: Props<V>): JSX.Element {
   const id = useId();
   return (
@@ -785,7 +862,9 @@ export function SelectField<V extends string>({
         style={{ padding: 4, border: "1px solid #BBB", fontSize: 12 }}
       >
         {options.map((o) => (
-          <option key={o.value} value={o.value}>{o.label}</option>
+          <option key={o.value} value={o.value}>
+            {o.label}
+          </option>
         ))}
       </select>
     </label>
@@ -813,7 +892,9 @@ const CORNERS: ReadonlyArray<{ id: Corner; symbol: string; title: string }> = [
 
 export function CornerField({ label, value, onChange }: Props): JSX.Element {
   return (
-    <div style={{ display: "flex", flexDirection: "column", fontSize: 11, gap: 2 }}>
+    <div
+      style={{ display: "flex", flexDirection: "column", fontSize: 11, gap: 2 }}
+    >
       <span style={{ color: "#555" }}>{label}</span>
       <div role="group" aria-label={label} style={{ display: "flex" }}>
         {CORNERS.map((c) => (
@@ -829,7 +910,8 @@ export function CornerField({ label, value, onChange }: Props): JSX.Element {
               border: "1px solid #BBB",
               background: value === c.id ? "#0066FF" : "#FFF",
               color: value === c.id ? "#FFF" : "#222",
-              cursor: "pointer", fontSize: 12,
+              cursor: "pointer",
+              fontSize: 12,
             }}
           >
             {c.symbol}
@@ -920,6 +1002,7 @@ git commit -m "feat(m8): reusable controlled input components for Properties pan
 ### Task 7: TextAnnoForm + AnnotationPropertiesForm router
 
 **Files:**
+
 - Create: `src/renderer/components/Properties/TextAnnoForm.tsx`
 - Create: `src/renderer/components/Properties/AnnotationPropertiesForm.tsx`
 - Create: `test/unit/text-anno-form.test.ts`
@@ -1023,7 +1106,8 @@ const toggleBtn = (active: boolean): React.CSSProperties => ({
   border: "1px solid #BBB",
   background: active ? "#0066FF" : "#FFF",
   color: active ? "#FFF" : "#222",
-  cursor: "pointer", fontSize: 12,
+  cursor: "pointer",
+  fontSize: 12,
 });
 
 export function TextAnnoForm({ anno, dispatch, commit }: Props): JSX.Element {
@@ -1034,10 +1118,21 @@ export function TextAnnoForm({ anno, dispatch, commit }: Props): JSX.Element {
   }
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-      <TextField label="Text" value={anno.text} multiline
+      <TextField
+        label="Text"
+        value={anno.text}
+        multiline
         onChange={(text) => patch({ text })}
-        onBlur={commit.flush} />
-      <label style={{ display: "flex", flexDirection: "column", fontSize: 11, gap: 2 }}>
+        onBlur={commit.flush}
+      />
+      <label
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          fontSize: 11,
+          gap: 2,
+        }}
+      >
         <span style={{ color: "#555" }}>Font</span>
         <select
           aria-label="Font"
@@ -1046,36 +1141,70 @@ export function TextAnnoForm({ anno, dispatch, commit }: Props): JSX.Element {
           style={{ padding: 4, border: "1px solid #BBB", fontSize: 12 }}
         >
           {FONT_OPTIONS.map((f) => (
-            <option key={f} value={f}>{f.split(",")[0]}</option>
+            <option key={f} value={f}>
+              {f.split(",")[0]}
+            </option>
           ))}
         </select>
       </label>
-      <NumberField label="Size (pt)" value={anno.sizePt} min={4} max={144}
+      <NumberField
+        label="Size (pt)"
+        value={anno.sizePt}
+        min={4}
+        max={144}
         onChange={(sizePt) => patch({ sizePt })}
-        onBlur={commit.flush} />
+        onBlur={commit.flush}
+      />
       <div style={{ display: "flex", gap: 4 }}>
-        <button type="button" aria-label="Bold"
-          aria-pressed={anno.bold} title="Bold"
+        <button
+          type="button"
+          aria-label="Bold"
+          aria-pressed={anno.bold}
+          title="Bold"
           onClick={() => patch({ bold: !anno.bold }, true)}
-          style={toggleBtn(anno.bold)}>B</button>
-        <button type="button" aria-label="Italic"
-          aria-pressed={anno.italic} title="Italic"
+          style={toggleBtn(anno.bold)}
+        >
+          B
+        </button>
+        <button
+          type="button"
+          aria-label="Italic"
+          aria-pressed={anno.italic}
+          title="Italic"
           onClick={() => patch({ italic: !anno.italic }, true)}
-          style={{ ...toggleBtn(anno.italic), fontStyle: "italic" }}>I</button>
+          style={{ ...toggleBtn(anno.italic), fontStyle: "italic" }}
+        >
+          I
+        </button>
       </div>
-      <ColorField label="Color" value={anno.color}
+      <ColorField
+        label="Color"
+        value={anno.color}
         onChange={(color) => patch({ color })}
-        onBlur={commit.flush} />
-      <ColorField label="Background"
+        onBlur={commit.flush}
+      />
+      <ColorField
+        label="Background"
         value={anno.bgColor ?? "#FFFFFF00"}
         onChange={(bgColor) => patch({ bgColor })}
         onBlur={commit.flush}
-        allowAlpha />
-      <button type="button"
-        onClick={() => { dispatch(removeAnnotation(anno.id)); commit.flush(); }}
-        style={{ padding: "4px 8px", border: "1px solid #BBB",
-                 background: "#FFF", cursor: "pointer", fontSize: 12,
-                 color: "#A00" }}>
+        allowAlpha
+      />
+      <button
+        type="button"
+        onClick={() => {
+          dispatch(removeAnnotation(anno.id));
+          commit.flush();
+        }}
+        style={{
+          padding: "4px 8px",
+          border: "1px solid #BBB",
+          background: "#FFF",
+          cursor: "pointer",
+          fontSize: 12,
+          color: "#A00",
+        }}
+      >
         Delete annotation
       </button>
     </div>
@@ -1099,16 +1228,25 @@ import type { FigureAction } from "../../model/figure-actions";
 import type { FieldCommit } from "../../hooks/useFieldCommit";
 import { TextAnnoForm } from "./TextAnnoForm";
 // Stubs for the not-yet-written forms; Task 8 fills these in.
-function ArrowAnnoForm(_p: { anno: Extract<Annotation, { kind: "arrow" }>;
-  dispatch: Dispatch<FigureAction>; commit: FieldCommit }): JSX.Element {
+function ArrowAnnoForm(_p: {
+  anno: Extract<Annotation, { kind: "arrow" }>;
+  dispatch: Dispatch<FigureAction>;
+  commit: FieldCommit;
+}): JSX.Element {
   return <em>Arrow form coming in Task 8</em>;
 }
-function BoxAnnoForm(_p: { anno: Extract<Annotation, { kind: "box" }>;
-  dispatch: Dispatch<FigureAction>; commit: FieldCommit }): JSX.Element {
+function BoxAnnoForm(_p: {
+  anno: Extract<Annotation, { kind: "box" }>;
+  dispatch: Dispatch<FigureAction>;
+  commit: FieldCommit;
+}): JSX.Element {
   return <em>Box form coming in Task 8</em>;
 }
-function ScalebarAnnoForm(_p: { anno: Extract<Annotation, { kind: "scalebar" }>;
-  dispatch: Dispatch<FigureAction>; commit: FieldCommit }): JSX.Element {
+function ScalebarAnnoForm(_p: {
+  anno: Extract<Annotation, { kind: "scalebar" }>;
+  dispatch: Dispatch<FigureAction>;
+  commit: FieldCommit;
+}): JSX.Element {
   return <em>Scale-bar form coming in Task 8</em>;
 }
 
@@ -1119,13 +1257,21 @@ interface Props {
 }
 
 export function AnnotationPropertiesForm({
-  anno, dispatch, commit,
+  anno,
+  dispatch,
+  commit,
 }: Props): JSX.Element {
   switch (anno.kind) {
-    case "text":     return <TextAnnoForm     anno={anno} dispatch={dispatch} commit={commit} />;
-    case "arrow":    return <ArrowAnnoForm    anno={anno} dispatch={dispatch} commit={commit} />;
-    case "box":      return <BoxAnnoForm      anno={anno} dispatch={dispatch} commit={commit} />;
-    case "scalebar": return <ScalebarAnnoForm anno={anno} dispatch={dispatch} commit={commit} />;
+    case "text":
+      return <TextAnnoForm anno={anno} dispatch={dispatch} commit={commit} />;
+    case "arrow":
+      return <ArrowAnnoForm anno={anno} dispatch={dispatch} commit={commit} />;
+    case "box":
+      return <BoxAnnoForm anno={anno} dispatch={dispatch} commit={commit} />;
+    case "scalebar":
+      return (
+        <ScalebarAnnoForm anno={anno} dispatch={dispatch} commit={commit} />
+      );
   }
 }
 ```
@@ -1143,6 +1289,7 @@ git commit -m "feat(m8): TextAnnoForm + AnnotationPropertiesForm router"
 ### Task 8: Arrow / Box / Scalebar annotation forms
 
 **Files:**
+
 - Create: `src/renderer/components/Properties/ArrowAnnoForm.tsx`
 - Create: `src/renderer/components/Properties/BoxAnnoForm.tsx`
 - Create: `src/renderer/components/Properties/ScalebarAnnoForm.tsx`
@@ -1222,28 +1369,52 @@ interface Props {
 export function ArrowAnnoForm({ anno, dispatch, commit }: Props): JSX.Element {
   function patch(p: Partial<ArrowAnnotation>, immediate = false): void {
     dispatch(updateAnnotation(anno.id, p));
-    if (immediate) commit.flush(); else commit.markDirty();
+    if (immediate) commit.flush();
+    else commit.markDirty();
   }
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-      <ColorField label="Color" value={anno.color}
-        onChange={(color) => patch({ color })} onBlur={commit.flush} />
-      <NumberField label="Thickness (px)" value={anno.thicknessPx} min={1} max={32}
+      <ColorField
+        label="Color"
+        value={anno.color}
+        onChange={(color) => patch({ color })}
+        onBlur={commit.flush}
+      />
+      <NumberField
+        label="Thickness (px)"
+        value={anno.thicknessPx}
+        min={1}
+        max={32}
         onChange={(thicknessPx) => patch({ thicknessPx })}
-        onBlur={commit.flush} />
-      <SelectField label="Arrowhead"
+        onBlur={commit.flush}
+      />
+      <SelectField
+        label="Arrowhead"
         value={anno.head}
-        options={[
-          { value: "none",   label: "None" },
-          { value: "open",   label: "Open" },
-          { value: "filled", label: "Filled" },
-        ] as const}
-        onChange={(head) => patch({ head }, true)} />
-      <button type="button"
-        onClick={() => { dispatch(removeAnnotation(anno.id)); commit.flush(); }}
-        style={{ padding: "4px 8px", border: "1px solid #BBB",
-                 background: "#FFF", cursor: "pointer",
-                 fontSize: 12, color: "#A00" }}>
+        options={
+          [
+            { value: "none", label: "None" },
+            { value: "open", label: "Open" },
+            { value: "filled", label: "Filled" },
+          ] as const
+        }
+        onChange={(head) => patch({ head }, true)}
+      />
+      <button
+        type="button"
+        onClick={() => {
+          dispatch(removeAnnotation(anno.id));
+          commit.flush();
+        }}
+        style={{
+          padding: "4px 8px",
+          border: "1px solid #BBB",
+          background: "#FFF",
+          cursor: "pointer",
+          fontSize: 12,
+          color: "#A00",
+        }}
+      >
         Delete annotation
       </button>
     </div>
@@ -1273,25 +1444,47 @@ interface Props {
 export function BoxAnnoForm({ anno, dispatch, commit }: Props): JSX.Element {
   function patch(p: Partial<BoxAnnotation>, immediate = false): void {
     dispatch(updateAnnotation(anno.id, p));
-    if (immediate) commit.flush(); else commit.markDirty();
+    if (immediate) commit.flush();
+    else commit.markDirty();
   }
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-      <ColorField label="Stroke" value={anno.stroke}
-        onChange={(stroke) => patch({ stroke })} onBlur={commit.flush} />
-      <NumberField label="Stroke width (px)"
-        value={anno.strokeWidthPx} min={0} max={32}
+      <ColorField
+        label="Stroke"
+        value={anno.stroke}
+        onChange={(stroke) => patch({ stroke })}
+        onBlur={commit.flush}
+      />
+      <NumberField
+        label="Stroke width (px)"
+        value={anno.strokeWidthPx}
+        min={0}
+        max={32}
         onChange={(strokeWidthPx) => patch({ strokeWidthPx })}
-        onBlur={commit.flush} />
-      <ColorField label="Fill" value={anno.fill ?? "#00000000"}
+        onBlur={commit.flush}
+      />
+      <ColorField
+        label="Fill"
+        value={anno.fill ?? "#00000000"}
         onChange={(fill) => patch({ fill })}
         onBlur={commit.flush}
-        allowAlpha />
-      <button type="button"
-        onClick={() => { dispatch(removeAnnotation(anno.id)); commit.flush(); }}
-        style={{ padding: "4px 8px", border: "1px solid #BBB",
-                 background: "#FFF", cursor: "pointer",
-                 fontSize: 12, color: "#A00" }}>
+        allowAlpha
+      />
+      <button
+        type="button"
+        onClick={() => {
+          dispatch(removeAnnotation(anno.id));
+          commit.flush();
+        }}
+        style={{
+          padding: "4px 8px",
+          border: "1px solid #BBB",
+          background: "#FFF",
+          cursor: "pointer",
+          fontSize: 12,
+          color: "#A00",
+        }}
+      >
         Delete annotation
       </button>
     </div>
@@ -1320,34 +1513,59 @@ interface Props {
   commit: FieldCommit;
 }
 
-export function ScalebarAnnoForm({ anno, dispatch, commit }: Props): JSX.Element {
+export function ScalebarAnnoForm({
+  anno,
+  dispatch,
+  commit,
+}: Props): JSX.Element {
   function patch(p: Partial<ScaleBarAnnotation>, immediate = false): void {
     dispatch(updateAnnotation(anno.id, p));
-    if (immediate) commit.flush(); else commit.markDirty();
+    if (immediate) commit.flush();
+    else commit.markDirty();
   }
   const corner: Corner = anno.cornerOverride ?? "br";
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-      <NumberField label="Length"
-        value={anno.lengthValue} min={0.001} step={1}
+      <NumberField
+        label="Length"
+        value={anno.lengthValue}
+        min={0.001}
+        step={1}
         onChange={(lengthValue) => patch({ lengthValue })}
-        onBlur={commit.flush} />
-      <SelectField label="Unit"
+        onBlur={commit.flush}
+      />
+      <SelectField
+        label="Unit"
         value={anno.lengthUnit}
-        options={[
-          { value: "um", label: "µm" },
-          { value: "mm", label: "mm" },
-          { value: "px", label: "px" },
-        ] as const}
-        onChange={(lengthUnit) => patch({ lengthUnit }, true)} />
-      <CornerField label="Corner override"
+        options={
+          [
+            { value: "um", label: "µm" },
+            { value: "mm", label: "mm" },
+            { value: "px", label: "px" },
+          ] as const
+        }
+        onChange={(lengthUnit) => patch({ lengthUnit }, true)}
+      />
+      <CornerField
+        label="Corner override"
         value={corner}
-        onChange={(c) => patch({ cornerOverride: c }, true)} />
-      <button type="button"
-        onClick={() => { dispatch(removeAnnotation(anno.id)); commit.flush(); }}
-        style={{ padding: "4px 8px", border: "1px solid #BBB",
-                 background: "#FFF", cursor: "pointer",
-                 fontSize: 12, color: "#A00" }}>
+        onChange={(c) => patch({ cornerOverride: c }, true)}
+      />
+      <button
+        type="button"
+        onClick={() => {
+          dispatch(removeAnnotation(anno.id));
+          commit.flush();
+        }}
+        style={{
+          padding: "4px 8px",
+          border: "1px solid #BBB",
+          background: "#FFF",
+          cursor: "pointer",
+          fontSize: 12,
+          color: "#A00",
+        }}
+      >
         Delete annotation
       </button>
     </div>
@@ -1388,6 +1606,7 @@ git commit -m "feat(m8): Arrow/Box/Scalebar annotation property forms"
 ### Task 9: PanelPropertiesForm
 
 **Files:**
+
 - Create: `src/renderer/components/Properties/PanelPropertiesForm.tsx`
 - Create: `test/unit/panel-properties-form.test.ts`
 
@@ -1458,8 +1677,12 @@ import type { Dispatch } from "react";
 import type { Panel } from "../../model/panels";
 import type { FigureAction } from "../../model/figure-actions";
 import {
-  setPanelFit, rotatePanel90, flipPanelH, flipPanelV,
-  resetPanelTransform, setLetterOverride,
+  setPanelFit,
+  rotatePanel90,
+  flipPanelH,
+  flipPanelV,
+  resetPanelTransform,
+  setLetterOverride,
 } from "../../model/figure-actions";
 import type { FieldCommit } from "../../hooks/useFieldCommit";
 import { SelectField } from "./inputs/SelectField";
@@ -1474,57 +1697,100 @@ interface Props {
 }
 
 const btn: React.CSSProperties = {
-  padding: "4px 8px", border: "1px solid #BBB", background: "#FFF",
-  cursor: "pointer", fontSize: 12,
+  padding: "4px 8px",
+  border: "1px solid #BBB",
+  background: "#FFF",
+  cursor: "pointer",
+  fontSize: 12,
 };
 
 export function PanelPropertiesForm({
-  panel, letterOverride, dispatch, onCalibrate, commit,
+  panel,
+  letterOverride,
+  dispatch,
+  onCalibrate,
+  commit,
 }: Props): JSX.Element {
   const t = panel.transform;
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-      <SelectField label="Fit"
+      <SelectField
+        label="Fit"
         value={t.fit}
-        options={[
-          { value: "contain", label: "Contain" },
-          { value: "cover",   label: "Cover" },
-          { value: "stretch", label: "Stretch" },
-        ] as const}
-        onChange={(fit) => { dispatch(setPanelFit(panel.id, fit)); commit.flush(); }} />
+        options={
+          [
+            { value: "contain", label: "Contain" },
+            { value: "cover", label: "Cover" },
+            { value: "stretch", label: "Stretch" },
+          ] as const
+        }
+        onChange={(fit) => {
+          dispatch(setPanelFit(panel.id, fit));
+          commit.flush();
+        }}
+      />
 
       <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
-        <button type="button" style={btn}
-          onClick={() => { dispatch(rotatePanel90(panel.id)); commit.flush(); }}>
+        <button
+          type="button"
+          style={btn}
+          onClick={() => {
+            dispatch(rotatePanel90(panel.id));
+            commit.flush();
+          }}
+        >
           Rotate 90°
         </button>
-        <button type="button" style={btn} aria-pressed={t.flipH}
-          onClick={() => { dispatch(flipPanelH(panel.id)); commit.flush(); }}>
+        <button
+          type="button"
+          style={btn}
+          aria-pressed={t.flipH}
+          onClick={() => {
+            dispatch(flipPanelH(panel.id));
+            commit.flush();
+          }}
+        >
           Flip H
         </button>
-        <button type="button" style={btn} aria-pressed={t.flipV}
-          onClick={() => { dispatch(flipPanelV(panel.id)); commit.flush(); }}>
+        <button
+          type="button"
+          style={btn}
+          aria-pressed={t.flipV}
+          onClick={() => {
+            dispatch(flipPanelV(panel.id));
+            commit.flush();
+          }}
+        >
           Flip V
         </button>
-        <button type="button" style={btn}
-          onClick={() => { dispatch(resetPanelTransform(panel.id)); commit.flush(); }}>
+        <button
+          type="button"
+          style={btn}
+          onClick={() => {
+            dispatch(resetPanelTransform(panel.id));
+            commit.flush();
+          }}
+        >
           Reset transform
         </button>
       </div>
 
       <div style={{ fontSize: 11, color: "#777", lineHeight: 1.5 }}>
-        Pan: ({t.panX.toFixed(0)}, {t.panY.toFixed(0)}) px<br />
+        Pan: ({t.panX.toFixed(0)}, {t.panY.toFixed(0)}) px
+        <br />
         Zoom: {t.zoom.toFixed(2)}× &middot; Rotation: {t.rotation}°
       </div>
 
-      <TextField label="Subpanel letter"
+      <TextField
+        label="Subpanel letter"
         value={letterOverride ?? ""}
         placeholder="(auto)"
         onChange={(s) => {
           dispatch(setLetterOverride(panel.id, s === "" ? null : s));
           commit.markDirty();
         }}
-        onBlur={commit.flush} />
+        onBlur={commit.flush}
+      />
 
       <button type="button" style={btn} onClick={onCalibrate}>
         Calibrate scale…
@@ -1554,6 +1820,7 @@ git commit -m "feat(m8): PanelPropertiesForm with letter override + calibrate ho
 ### Task 10: CanvasAndGlobalStyleForm
 
 **Files:**
+
 - Create: `src/renderer/components/Properties/CanvasAndGlobalStyleForm.tsx`
 - Create: `test/unit/canvas-and-global-style-form.test.ts`
 
@@ -1620,7 +1887,11 @@ Expected: FAIL — module missing.
 import type { Dispatch } from "react";
 import type { FigureAction } from "../../model/figure-actions";
 import { setGlobalStyle } from "../../model/figure-actions";
-import type { GlobalAnnoStyle, LetterStyle, ScaleBarStyle } from "../../model/global-style";
+import type {
+  GlobalAnnoStyle,
+  LetterStyle,
+  ScaleBarStyle,
+} from "../../model/global-style";
 import type { FieldCommit } from "../../hooks/useFieldCommit";
 import { NumberField } from "./inputs/NumberField";
 import { ColorField } from "./inputs/ColorField";
@@ -1633,7 +1904,9 @@ interface Props {
 }
 
 export function CanvasAndGlobalStyleForm({
-  globalStyle, dispatch, commit,
+  globalStyle,
+  dispatch,
+  commit,
 }: Props): JSX.Element {
   function patchLetters(p: Partial<LetterStyle>, immediate = false): void {
     const next: GlobalAnnoStyle = {
@@ -1641,7 +1914,8 @@ export function CanvasAndGlobalStyleForm({
       letters: { ...globalStyle.letters, ...p },
     };
     dispatch(setGlobalStyle(next));
-    if (immediate) commit.flush(); else commit.markDirty();
+    if (immediate) commit.flush();
+    else commit.markDirty();
   }
   function patchScalebar(p: Partial<ScaleBarStyle>, immediate = false): void {
     const next: GlobalAnnoStyle = {
@@ -1649,42 +1923,74 @@ export function CanvasAndGlobalStyleForm({
       scalebar: { ...globalStyle.scalebar, ...p },
     };
     dispatch(setGlobalStyle(next));
-    if (immediate) commit.flush(); else commit.markDirty();
+    if (immediate) commit.flush();
+    else commit.markDirty();
   }
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-      <h3 style={{ margin: 0, fontSize: 12, color: "#444" }}>Subpanel letters</h3>
-      <NumberField label="Letters size (pt)" value={globalStyle.letters.sizePt}
-        min={4} max={144}
+      <h3 style={{ margin: 0, fontSize: 12, color: "#444" }}>
+        Subpanel letters
+      </h3>
+      <NumberField
+        label="Letters size (pt)"
+        value={globalStyle.letters.sizePt}
+        min={4}
+        max={144}
         onChange={(sizePt) => patchLetters({ sizePt })}
-        onBlur={commit.flush} />
-      <ColorField label="Letters color" value={globalStyle.letters.color}
+        onBlur={commit.flush}
+      />
+      <ColorField
+        label="Letters color"
+        value={globalStyle.letters.color}
         onChange={(color) => patchLetters({ color })}
-        onBlur={commit.flush} />
-      <CornerField label="Letters corner"
+        onBlur={commit.flush}
+      />
+      <CornerField
+        label="Letters corner"
         value={globalStyle.letters.corner}
-        onChange={(c) => patchLetters({ corner: c }, true)} />
+        onChange={(c) => patchLetters({ corner: c }, true)}
+      />
 
-      <h3 style={{ margin: 0, fontSize: 12, color: "#444", marginTop: 8 }}>Scale bar</h3>
-      <NumberField label="Scale-bar thickness (px)"
-        value={globalStyle.scalebar.thicknessPx} min={1} max={32}
+      <h3 style={{ margin: 0, fontSize: 12, color: "#444", marginTop: 8 }}>
+        Scale bar
+      </h3>
+      <NumberField
+        label="Scale-bar thickness (px)"
+        value={globalStyle.scalebar.thicknessPx}
+        min={1}
+        max={32}
         onChange={(thicknessPx) => patchScalebar({ thicknessPx })}
-        onBlur={commit.flush} />
-      <ColorField label="Scale-bar color" value={globalStyle.scalebar.barColor}
+        onBlur={commit.flush}
+      />
+      <ColorField
+        label="Scale-bar color"
+        value={globalStyle.scalebar.barColor}
         onChange={(barColor) => patchScalebar({ barColor, color: barColor })}
-        onBlur={commit.flush} />
-      <NumberField label="Scale-bar label size (pt)"
-        value={globalStyle.scalebar.sizePt} min={4} max={48}
+        onBlur={commit.flush}
+      />
+      <NumberField
+        label="Scale-bar label size (pt)"
+        value={globalStyle.scalebar.sizePt}
+        min={4}
+        max={48}
         onChange={(sizePt) => patchScalebar({ sizePt })}
-        onBlur={commit.flush} />
-      <CornerField label="Scale-bar corner"
+        onBlur={commit.flush}
+      />
+      <CornerField
+        label="Scale-bar corner"
         value={globalStyle.scalebar.corner}
-        onChange={(c) => patchScalebar({ corner: c }, true)} />
-      <label style={{ display: "flex", gap: 6, alignItems: "center", fontSize: 12 }}>
-        <input type="checkbox"
+        onChange={(c) => patchScalebar({ corner: c }, true)}
+      />
+      <label
+        style={{ display: "flex", gap: 6, alignItems: "center", fontSize: 12 }}
+      >
+        <input
+          type="checkbox"
           checked={globalStyle.scalebar.showLabel}
           onChange={(e) =>
-            patchScalebar({ showLabel: e.currentTarget.checked }, true)} />
+            patchScalebar({ showLabel: e.currentTarget.checked }, true)
+          }
+        />
         Show scale-bar label
       </label>
     </div>
@@ -1710,6 +2016,7 @@ git commit -m "feat(m8): CanvasAndGlobalStyleForm for figure-wide style"
 ### Task 11: PropertiesPanel root + mount in App.tsx
 
 **Files:**
+
 - Create: `src/renderer/components/Properties/PropertiesPanel.tsx`
 - Create: `test/unit/properties-panel-routing.test.ts`
 - Modify: `src/renderer/App.tsx`
@@ -1813,7 +2120,12 @@ interface Props {
 }
 
 export function PropertiesPanel({
-  state, focusedPanel, selectedAnno, dispatch, commit, onCalibrate,
+  state,
+  focusedPanel,
+  selectedAnno,
+  dispatch,
+  commit,
+  onCalibrate,
 }: Props): JSX.Element {
   let title: string;
   let body: JSX.Element;
@@ -1821,7 +2133,9 @@ export function PropertiesPanel({
     title = `${selectedAnno.kind[0].toUpperCase()}${selectedAnno.kind.slice(1)} annotation`;
     body = (
       <AnnotationPropertiesForm
-        anno={selectedAnno} dispatch={dispatch} commit={commit}
+        anno={selectedAnno}
+        dispatch={dispatch}
+        commit={commit}
       />
     );
   } else if (focusedPanel?.imageId !== undefined) {
@@ -1839,7 +2153,9 @@ export function PropertiesPanel({
     title = "Figure";
     body = (
       <CanvasAndGlobalStyleForm
-        globalStyle={state.globalStyle} dispatch={dispatch} commit={commit}
+        globalStyle={state.globalStyle}
+        dispatch={dispatch}
+        commit={commit}
       />
     );
   }
@@ -1847,9 +2163,14 @@ export function PropertiesPanel({
     <aside
       data-testid="properties-panel"
       style={{
-        width: 300, padding: 12, borderLeft: "1px solid #DDD",
-        background: "#FAFAFA", overflowY: "auto",
-        display: "flex", flexDirection: "column", gap: 12,
+        width: 300,
+        padding: 12,
+        borderLeft: "1px solid #DDD",
+        background: "#FAFAFA",
+        overflowY: "auto",
+        display: "flex",
+        flexDirection: "column",
+        gap: 12,
         fontFamily: "system-ui, sans-serif",
       }}
     >
@@ -1911,6 +2232,7 @@ pnpm dev
 ```
 
 Manually verify in the running app (do not skip this — type errors won't catch broken JSX layout):
+
 1. Empty figure → right sidebar shows "Figure / Subpanel letters / Scale bar".
 2. Add an image, click the panel → right sidebar shows "Panel … / Fit / Rotate / Subpanel letter".
 3. Add a Text annotation, select it → right sidebar shows the text form.
@@ -1927,6 +2249,7 @@ git commit -m "feat(m8): mount PropertiesPanel sidebar in App"
 ### Task 12: Toast tray + `useToasts` hook
 
 **Files:**
+
 - Create: `src/renderer/hooks/useToasts.ts`
 - Create: `src/renderer/components/Toasts/ToastTray.tsx`
 - Create: `test/unit/toasts.test.ts`
@@ -1950,9 +2273,13 @@ describe("useToasts", () => {
     const { result } = renderHook(() => useToasts(5000));
     act(() => result.current.push({ kind: "error", message: "boom" }));
     expect(result.current.toasts.length).toBe(1);
-    act(() => { vi.advanceTimersByTime(4999); });
+    act(() => {
+      vi.advanceTimersByTime(4999);
+    });
     expect(result.current.toasts.length).toBe(1);
-    act(() => { vi.advanceTimersByTime(1); });
+    act(() => {
+      vi.advanceTimersByTime(1);
+    });
     expect(result.current.toasts.length).toBe(0);
     vi.useRealTimers();
   });
@@ -1960,8 +2287,12 @@ describe("useToasts", () => {
   it("dismiss(id) removes a specific toast immediately", () => {
     const { result } = renderHook(() => useToasts(5000));
     let id1 = "";
-    act(() => { id1 = result.current.push({ kind: "info", message: "a" }); });
-    act(() => { result.current.push({ kind: "info", message: "b" }); });
+    act(() => {
+      id1 = result.current.push({ kind: "info", message: "a" });
+    });
+    act(() => {
+      result.current.push({ kind: "info", message: "b" });
+    });
     expect(result.current.toasts.length).toBe(2);
     act(() => result.current.dismiss(id1));
     expect(result.current.toasts.length).toBe(1);
@@ -2003,7 +2334,9 @@ function newId(): string {
 
 export function useToasts(ttlMs = 5000): UseToasts {
   const [toasts, setToasts] = useState<Toast[]>([]);
-  const timersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+  const timersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(
+    new Map(),
+  );
 
   const dismiss = useCallback((id: string): void => {
     const t = timersRef.current.get(id);
@@ -2012,14 +2345,17 @@ export function useToasts(ttlMs = 5000): UseToasts {
     setToasts((prev) => prev.filter((x) => x.id !== id));
   }, []);
 
-  const push = useCallback((t: Omit<Toast, "id">): string => {
-    const id = newId();
-    const toast: Toast = { id, ...t };
-    setToasts((prev) => [...prev, toast]);
-    const timer = setTimeout(() => dismiss(id), ttlMs);
-    timersRef.current.set(id, timer);
-    return id;
-  }, [ttlMs, dismiss]);
+  const push = useCallback(
+    (t: Omit<Toast, "id">): string => {
+      const id = newId();
+      const toast: Toast = { id, ...t };
+      setToasts((prev) => [...prev, toast]);
+      const timer = setTimeout(() => dismiss(id), ttlMs);
+      timersRef.current.set(id, timer);
+      return id;
+    },
+    [ttlMs, dismiss],
+  );
 
   useEffect(() => {
     return () => {
@@ -2050,8 +2386,8 @@ interface Props {
 }
 
 const COLORS: Record<ToastKind, { bg: string; border: string; fg: string }> = {
-  error:   { bg: "#FFEFEF", border: "#C00", fg: "#700" },
-  info:    { bg: "#EEF4FF", border: "#06C", fg: "#024" },
+  error: { bg: "#FFEFEF", border: "#C00", fg: "#700" },
+  info: { bg: "#EEF4FF", border: "#06C", fg: "#024" },
   success: { bg: "#EFFFF4", border: "#063", fg: "#042" },
 };
 
@@ -2062,31 +2398,52 @@ export function ToastTray({ toasts, onDismiss }: Props): JSX.Element {
       aria-live="polite"
       style={{
         position: "fixed",
-        bottom: 16, right: 16,
-        display: "flex", flexDirection: "column", gap: 8,
-        zIndex: 1000, maxWidth: 360,
+        bottom: 16,
+        right: 16,
+        display: "flex",
+        flexDirection: "column",
+        gap: 8,
+        zIndex: 1000,
+        maxWidth: 360,
         pointerEvents: "none",
       }}
     >
       {toasts.map((t) => {
         const c = COLORS[t.kind];
         return (
-          <div key={t.id}
+          <div
+            key={t.id}
             style={{
-              background: c.bg, border: `1px solid ${c.border}`,
-              color: c.fg, padding: "8px 10px", borderRadius: 4,
-              fontSize: 12, fontFamily: "system-ui, sans-serif",
-              display: "flex", gap: 8, alignItems: "flex-start",
+              background: c.bg,
+              border: `1px solid ${c.border}`,
+              color: c.fg,
+              padding: "8px 10px",
+              borderRadius: 4,
+              fontSize: 12,
+              fontFamily: "system-ui, sans-serif",
+              display: "flex",
+              gap: 8,
+              alignItems: "flex-start",
               pointerEvents: "auto",
               boxShadow: "0 2px 6px rgba(0,0,0,.08)",
-            }}>
+            }}
+          >
             <span style={{ flex: 1, whiteSpace: "pre-wrap" }}>{t.message}</span>
-            <button type="button" aria-label="Dismiss"
+            <button
+              type="button"
+              aria-label="Dismiss"
               onClick={() => onDismiss(t.id)}
               style={{
-                background: "transparent", border: "none",
-                color: c.fg, cursor: "pointer", fontSize: 14, padding: 0,
-              }}>×</button>
+                background: "transparent",
+                border: "none",
+                color: c.fg,
+                cursor: "pointer",
+                fontSize: 14,
+                padding: 0,
+              }}
+            >
+              ×
+            </button>
           </div>
         );
       })}
@@ -2121,6 +2478,7 @@ d) Replace the inline `{error !== null && (<span …>{error}</span>)}` block wit
 ```
 
 e) Add success toasts:
+
 - After successful save: `toasts.push({ kind: "success", message: "Project saved" });`
 - After successful open: `toasts.push({ kind: "success", message: "Project loaded" });`
 
@@ -2145,6 +2503,7 @@ git commit -m "feat(m8): toast tray for errors and success messages"
 ### Task 13: Native menu (main process side)
 
 **Files:**
+
 - Create: `src/main/menu.ts`
 - Create: `test/unit/menu-build.test.ts`
 - Modify: `src/preload/api.ts`
@@ -2170,14 +2529,20 @@ describe("buildMenuTemplate", () => {
     });
     const file = tpl.find((m) => (m.label ?? "").toLowerCase() === "file");
     expect(file).toBeDefined();
-    const labels = (file?.submenu as { label?: string }[])
-      .map((x) => x.label ?? "");
+    const labels = (file?.submenu as { label?: string }[]).map(
+      (x) => x.label ?? "",
+    );
     expect(labels).toEqual(
       expect.arrayContaining(["New", "Open…", "Save", "Save As…"]),
     );
     // Find New and click it to verify it sends the menu:new event.
-    const newItem = (file?.submenu as { label?: string;
-      click?: () => void; accelerator?: string }[]).find((x) => x.label === "New");
+    const newItem = (
+      file?.submenu as {
+        label?: string;
+        click?: () => void;
+        accelerator?: string;
+      }[]
+    ).find((x) => x.label === "New");
     expect(newItem?.accelerator).toBe("CommandOrControl+N");
     newItem?.click?.();
     expect(send).toHaveBeenCalledWith("menu:new");
@@ -2187,8 +2552,9 @@ describe("buildMenuTemplate", () => {
     const tpl = buildMenuTemplate({ isMac: true, send: vi.fn() });
     expect((tpl[0]?.label ?? "").toLowerCase()).toBe("mosaic builder");
     const file = tpl.find((m) => (m.label ?? "").toLowerCase() === "file");
-    const open = (file?.submenu as { label?: string;
-      accelerator?: string }[]).find((x) => x.label === "Open…");
+    const open = (
+      file?.submenu as { label?: string; accelerator?: string }[]
+    ).find((x) => x.label === "Open…");
     expect(open?.accelerator).toBe("CommandOrControl+O");
   });
 
@@ -2196,8 +2562,11 @@ describe("buildMenuTemplate", () => {
     const send = vi.fn();
     const tpl = buildMenuTemplate({ isMac: false, send });
     const edit = tpl.find((m) => (m.label ?? "").toLowerCase() === "edit");
-    const items = edit?.submenu as { label?: string;
-      accelerator?: string; click?: () => void }[];
+    const items = edit?.submenu as {
+      label?: string;
+      accelerator?: string;
+      click?: () => void;
+    }[];
     const undo = items.find((x) => x.label === "Undo");
     const redo = items.find((x) => x.label === "Redo");
     expect(undo?.accelerator).toBe("CommandOrControl+Z");
@@ -2272,21 +2641,34 @@ export interface BuildMenuArgs {
   send: (event: MenuEvent) => void;
 }
 
-export function buildMenuTemplate(
-  { isMac, send }: BuildMenuArgs,
-): MenuItemConstructorOptions[] {
+export function buildMenuTemplate({
+  isMac,
+  send,
+}: BuildMenuArgs): MenuItemConstructorOptions[] {
   const file: MenuItemConstructorOptions = {
     label: "File",
     submenu: [
-      { label: "New", accelerator: "CommandOrControl+N",
-        click: () => send(MENU_EVENTS.new) },
-      { label: "Open…", accelerator: "CommandOrControl+O",
-        click: () => send(MENU_EVENTS.open) },
+      {
+        label: "New",
+        accelerator: "CommandOrControl+N",
+        click: () => send(MENU_EVENTS.new),
+      },
+      {
+        label: "Open…",
+        accelerator: "CommandOrControl+O",
+        click: () => send(MENU_EVENTS.open),
+      },
       { type: "separator" },
-      { label: "Save", accelerator: "CommandOrControl+S",
-        click: () => send(MENU_EVENTS.save) },
-      { label: "Save As…", accelerator: "CommandOrControl+Shift+S",
-        click: () => send(MENU_EVENTS.saveAs) },
+      {
+        label: "Save",
+        accelerator: "CommandOrControl+S",
+        click: () => send(MENU_EVENTS.save),
+      },
+      {
+        label: "Save As…",
+        accelerator: "CommandOrControl+Shift+S",
+        click: () => send(MENU_EVENTS.saveAs),
+      },
       { type: "separator" },
       { label: "Export as PNG…", click: () => send(MENU_EVENTS.exportPng) },
       { label: "Export as JPEG…", click: () => send(MENU_EVENTS.exportJpeg) },
@@ -2299,38 +2681,51 @@ export function buildMenuTemplate(
   const edit: MenuItemConstructorOptions = {
     label: "Edit",
     submenu: [
-      { label: "Undo", accelerator: "CommandOrControl+Z",
-        click: () => send(MENU_EVENTS.undo) },
-      { label: "Redo", accelerator: "CommandOrControl+Shift+Z",
-        click: () => send(MENU_EVENTS.redo) },
+      {
+        label: "Undo",
+        accelerator: "CommandOrControl+Z",
+        click: () => send(MENU_EVENTS.undo),
+      },
+      {
+        label: "Redo",
+        accelerator: "CommandOrControl+Shift+Z",
+        click: () => send(MENU_EVENTS.redo),
+      },
       { type: "separator" },
-      { role: "cut" }, { role: "copy" }, { role: "paste" },
+      { role: "cut" },
+      { role: "copy" },
+      { role: "paste" },
       { role: "selectAll" },
     ],
   };
   const view: MenuItemConstructorOptions = {
     label: "View",
     submenu: [
-      { role: "reload" }, { role: "toggleDevTools" },
+      { role: "reload" },
+      { role: "toggleDevTools" },
       { type: "separator" },
-      { role: "resetZoom" }, { role: "zoomIn" }, { role: "zoomOut" },
+      { role: "resetZoom" },
+      { role: "zoomIn" },
+      { role: "zoomOut" },
       { type: "separator" },
       { role: "togglefullscreen" },
     ],
   };
   const help: MenuItemConstructorOptions = {
     label: "Help",
-    submenu: [
-      { label: "About Mosaic Builder", role: "about" },
-    ],
+    submenu: [{ label: "About Mosaic Builder", role: "about" }],
   };
   if (isMac) {
     const appMenu: MenuItemConstructorOptions = {
       label: "Mosaic Builder",
       submenu: [
-        { role: "about" }, { type: "separator" },
-        { role: "services" }, { type: "separator" },
-        { role: "hide" }, { role: "hideOthers" }, { role: "unhide" },
+        { role: "about" },
+        { type: "separator" },
+        { role: "services" },
+        { type: "separator" },
+        { role: "hide" },
+        { role: "hideOthers" },
+        { role: "unhide" },
         { type: "separator" },
         { role: "quit" },
       ],
@@ -2376,6 +2771,7 @@ pnpm dev
 ```
 
 Open the app menu bar (mac: top of screen; win/linux: window). Verify:
+
 1. File → has New, Open…, Save, Save As…, Export submenu, all four export formats.
 2. Cmd-N (mac) / Ctrl-N (win/linux) — main process console should show no error; renderer needs Task 14 to actually react to the event.
 
@@ -2392,6 +2788,7 @@ git commit -m "feat(m8): native menu with File/Edit/View accelerators"
 ### Task 14: Renderer wires menu events
 
 **Files:**
+
 - Create: `src/renderer/hooks/useMenuEvents.ts`
 - Modify: `src/renderer/App.tsx`
 
@@ -2418,9 +2815,16 @@ describe("useMenuEvents", () => {
       },
     };
     const handlers = {
-      onNew: vi.fn(), onOpen: vi.fn(), onSave: vi.fn(), onSaveAs: vi.fn(),
-      onExportPng: vi.fn(), onExportJpeg: vi.fn(), onExportTiff: vi.fn(),
-      onExportPdf: vi.fn(), onUndo: vi.fn(), onRedo: vi.fn(),
+      onNew: vi.fn(),
+      onOpen: vi.fn(),
+      onSave: vi.fn(),
+      onSaveAs: vi.fn(),
+      onExportPng: vi.fn(),
+      onExportJpeg: vi.fn(),
+      onExportTiff: vi.fn(),
+      onExportPdf: vi.fn(),
+      onUndo: vi.fn(),
+      onRedo: vi.fn(),
     };
     const { unmount } = renderHook(() => useMenuEvents(handlers));
     listener?.("menu:save");
@@ -2465,16 +2869,36 @@ export function useMenuEvents(handlers: MenuEventHandlers): void {
     const unsubscribe = window.api.onMenuEvent((ev) => {
       const h = ref.current;
       switch (ev) {
-        case "menu:new":         h.onNew();        break;
-        case "menu:open":        h.onOpen();       break;
-        case "menu:save":        h.onSave();       break;
-        case "menu:save-as":     h.onSaveAs();     break;
-        case "menu:export-png":  h.onExportPng();  break;
-        case "menu:export-jpeg": h.onExportJpeg(); break;
-        case "menu:export-tiff": h.onExportTiff(); break;
-        case "menu:export-pdf":  h.onExportPdf();  break;
-        case "menu:undo":        h.onUndo();       break;
-        case "menu:redo":        h.onRedo();       break;
+        case "menu:new":
+          h.onNew();
+          break;
+        case "menu:open":
+          h.onOpen();
+          break;
+        case "menu:save":
+          h.onSave();
+          break;
+        case "menu:save-as":
+          h.onSaveAs();
+          break;
+        case "menu:export-png":
+          h.onExportPng();
+          break;
+        case "menu:export-jpeg":
+          h.onExportJpeg();
+          break;
+        case "menu:export-tiff":
+          h.onExportTiff();
+          break;
+        case "menu:export-pdf":
+          h.onExportPdf();
+          break;
+        case "menu:undo":
+          h.onUndo();
+          break;
+        case "menu:redo":
+          h.onRedo();
+          break;
       }
     });
     return unsubscribe;
@@ -2526,10 +2950,14 @@ useMenuEvents({
   onOpen: onOpenProject,
   onSave: onSaveProject,
   onSaveAs,
-  onExportPng:  () => toasts.push({ kind: "info", message: "Use Export → PNG in the toolbar" }),
-  onExportJpeg: () => toasts.push({ kind: "info", message: "Use Export → JPEG in the toolbar" }),
-  onExportTiff: () => toasts.push({ kind: "info", message: "Use Export → TIFF in the toolbar" }),
-  onExportPdf:  () => toasts.push({ kind: "info", message: "Use Export → PDF in the toolbar" }),
+  onExportPng: () =>
+    toasts.push({ kind: "info", message: "Use Export → PNG in the toolbar" }),
+  onExportJpeg: () =>
+    toasts.push({ kind: "info", message: "Use Export → JPEG in the toolbar" }),
+  onExportTiff: () =>
+    toasts.push({ kind: "info", message: "Use Export → TIFF in the toolbar" }),
+  onExportPdf: () =>
+    toasts.push({ kind: "info", message: "Use Export → PDF in the toolbar" }),
   onUndo: history.undo,
   onRedo: history.redo,
 });
@@ -2549,9 +2977,10 @@ pnpm dev
 ```
 
 Verify:
-1. Cmd/Ctrl-N clears the figure (toast: "New figure"). 
-2. Cmd/Ctrl-S opens save dialog. 
-3. Cmd/Ctrl-Shift-S forces a fresh path each time. 
+
+1. Cmd/Ctrl-N clears the figure (toast: "New figure").
+2. Cmd/Ctrl-S opens save dialog.
+3. Cmd/Ctrl-Shift-S forces a fresh path each time.
 4. Cmd/Ctrl-Z / Cmd/Ctrl-Shift-Z undo and redo (was working before via shortcut hook; still works because the menu accelerator and the hook do the same thing — the menu accelerator wins on platforms that support it but functionality is unchanged).
 
 - [ ] **Step 7: Commit**
@@ -2567,6 +2996,7 @@ git commit -m "feat(m8): renderer dispatches menu events to existing actions"
 ### Task 15: App icon assets + generation script
 
 **Files:**
+
 - Create: `resources/icon.png` (1024×1024 RGBA — placeholder OK)
 - Create: `scripts/generate-icons.mjs`
 - Create: `resources/icons/icon.icns` (output)
@@ -2586,7 +3016,8 @@ Use any tool to produce a 1024×1024 PNG with alpha. If you don't have one handy
 // One-off — creates resources/icon.png. Delete after first run.
 import { writeFileSync } from "node:fs";
 import { resolve } from "node:path";
-const W = 1024, H = 1024;
+const W = 1024,
+  H = 1024;
 // Minimal PNG via the Canvas API isn't available in Node; use sharp temporarily.
 // Easier: ship a tiny pre-made PNG. In practice, drop a 1024×1024 PNG by hand.
 console.error("Drop a 1024×1024 RGBA PNG at resources/icon.png and re-run.");
@@ -2610,7 +3041,13 @@ For `.icns`, the build script uses macOS's bundled `iconutil` (no install needed
 ```js
 #!/usr/bin/env node
 import { execFileSync } from "node:child_process";
-import { mkdirSync, readFileSync, writeFileSync, rmSync, existsSync } from "node:fs";
+import {
+  mkdirSync,
+  readFileSync,
+  writeFileSync,
+  rmSync,
+  existsSync,
+} from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import pngToIco from "png-to-ico";
@@ -2629,12 +3066,16 @@ mkdirSync(OUT, { recursive: true });
 //    sips ships with macOS; on Linux/Win this step requires ImageMagick `magick`.
 function resizePng(srcPng, dstPng, size) {
   if (process.platform === "darwin") {
-    execFileSync("sips", ["-z", String(size), String(size), srcPng, "--out", dstPng],
-      { stdio: "inherit" });
+    execFileSync(
+      "sips",
+      ["-z", String(size), String(size), srcPng, "--out", dstPng],
+      { stdio: "inherit" },
+    );
   } else {
     try {
-      execFileSync("magick", [srcPng, "-resize", `${size}x${size}`, dstPng],
-        { stdio: "inherit" });
+      execFileSync("magick", [srcPng, "-resize", `${size}x${size}`, dstPng], {
+        stdio: "inherit",
+      });
     } catch {
       // Fall back to plain copy at full size — electron-builder will resize.
       writeFileSync(dstPng, readFileSync(srcPng));
@@ -2659,12 +3100,17 @@ if (process.platform === "darwin") {
       resizePng(SRC, resolve(tmp, `icon_${s}x${s}@2x.png`), s * 2);
     }
   }
-  execFileSync("iconutil", ["-c", "icns", tmp, "-o", resolve(OUT, "icon.icns")],
-    { stdio: "inherit" });
+  execFileSync(
+    "iconutil",
+    ["-c", "icns", tmp, "-o", resolve(OUT, "icon.icns")],
+    { stdio: "inherit" },
+  );
   rmSync(tmp, { recursive: true, force: true });
 } else {
-  console.warn("iconutil not available; skipping .icns. " +
-    "Re-run on macOS to refresh resources/icons/icon.icns.");
+  console.warn(
+    "iconutil not available; skipping .icns. " +
+      "Re-run on macOS to refresh resources/icons/icon.icns.",
+  );
 }
 
 console.log("Icons regenerated.");
@@ -2698,6 +3144,7 @@ git commit -m "feat(m8): app icon source + multi-format generation script"
 ### Task 16: electron-builder config + package scripts
 
 **Files:**
+
 - Create: `electron-builder.yml`
 - Create: `build/entitlements.mac.plist`
 - Modify: `package.json`
@@ -2795,7 +3242,7 @@ In `package.json` `"scripts"`:
 
 Append to `README.md`:
 
-```md
+````md
 ## Packaging
 
 ```sh
@@ -2805,6 +3252,7 @@ pnpm package:mac # mac-only build (requires macOS host)
 pnpm package:win # windows build (cross-build from any host via electron-builder)
 pnpm package:linux
 ```
+````
 
 ### Mac code-signing (optional)
 
@@ -2821,13 +3269,14 @@ export APPLE_TEAM_ID=ABCD1234
 
 Without these set, the `.dmg` is built unsigned — fine for internal
 testing but Gatekeeper will warn end users.
-```
+
+````
 
 - [ ] **Step 6: Verify build runs (no signing)**
 
 ```bash
 pnpm build
-```
+````
 
 Expected: no errors; `dist/renderer/index.html`, `dist-electron/main/index.js`, `dist-electron/preload/preload.js` all exist.
 
@@ -2857,6 +3306,7 @@ git commit -m "feat(m8): electron-builder packaging for mac/win/linux"
 ### Task 17: Final pass — manual checklist + status doc
 
 **Files:**
+
 - Modify: `README.md` — bump status line to M8.
 
 This is the green-light gate. No code changes — only run the manual checklist end-to-end. Anything that fails goes back to whichever earlier task owns it.

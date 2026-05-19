@@ -16,38 +16,38 @@
 
 ## File Structure
 
-| File | Action | Responsibility |
-|---|---|---|
-| `src/renderer/symbols/library.ts` | **Create** | `SymbolDef` interface, `SYMBOL_LIBRARY` (~24 entries grouped by category), `SYMBOL_LIBRARY_BY_ID`, `SYMBOL_CATEGORIES`. Single source of truth for path data. |
-| `src/renderer/symbols/library.test.ts` | **Create** | (Co-located tests are not the project pattern; this file lives at `test/unit/symbol-library.test.ts` instead — see below.) |
-| `test/unit/symbol-library.test.ts` | **Create** | Unique-id check, every `pathD` parses via `new Path2D()`, all four categories present, each category has at least one entry. |
-| `src/renderer/model/annotations.ts` | **Modify** | Replace `ArrowAnnotation` with `SymbolAnnotation`. Update `AnnotationKind` and the user-facing `Annotation` union. |
-| `src/renderer/model/types.ts` | **Modify** | Update `ResolvedAnnotation` so the symbol kind threads through to the renderer. |
-| `src/renderer/model/canvas-dims.ts` | **Modify** | Replace the arrow branch in `scaleAnnotations` with a symbol branch that scales `x` and `y` only (size/rotation are visual, like `thicknessPx` was for arrows). |
-| `src/renderer/model/relocate-anno.ts` | **Modify** | Replace the `arrow` case in `reprojectAnno` with a `symbol` case. Symbols carry one optional `anchor` (the symbol center) — much simpler than the two-endpoint arrow logic. |
-| `src/renderer/model/figure-state.ts` | (no change) | |
-| `src/renderer/model/figure-actions.ts` | (no change to action shapes) | |
-| `src/renderer/model/schema.ts` | **Modify** | Bump `CURRENT_SCHEMA_VERSION` to 2. Add `MosaicFileV2`. Validator accepts both v1 (with `arrow` annos) and v2 (with `symbol` annos), narrowing on `schemaVersion`. |
-| `src/renderer/model/serialize.ts` | **Modify** | `toMosaicFile` writes v2. `fromMosaicFile` accepts both v1 and v2; for v1 it migrates `arrow` annos in the deserialized state to `symbol` shape. |
-| `src/renderer/model/migrate-v1-to-v2.ts` | **Create** | Pure function `migrateAnnotationsV1ToV2(annotations)` that converts `arrow`-kind annotations to `symbol` shape. Lives next to other model helpers; deliberately small and well-tested. |
-| `test/unit/migrate-v1-to-v2.test.ts` | **Create** | All three head values map to expected symbol ids; midpoint, length, rotation derivation verified for known arrows. |
-| `src/renderer/render/draw-annotations.ts` | **Modify** | Replace `drawArrow` with `drawSymbol`. Use `Path2D` (already on `DrawCtx`-compatible browser canvases — but note: `DrawCtx` does NOT currently expose `Path2D` operations, so this task includes extending that surface). |
-| `src/renderer/render/draw-figure.ts` | **Modify** | Extend `DrawCtx` interface with the methods the symbol path-rendering needs: `fill(path: Path2D): void` and `stroke(path: Path2D): void` overloads. |
-| `src/renderer/components/Toolbar/AnnotationToolbar.tsx` | **Modify** | Replace `"arrow"` with `"symbol"` in the `Tool` union; rename button label/title. |
-| `src/renderer/components/Properties/SymbolAnnoForm.tsx` | **Create** | Properties form for a selected symbol: gallery grid grouped by category, color picker, size input, rotation slider with reset, stroke-width input (only for stroke symbols). Replaces `ArrowAnnoForm.tsx`. |
-| `src/renderer/components/Properties/ArrowAnnoForm.tsx` | **Delete** | |
-| `src/renderer/components/Properties/AnnotationPropertiesForm.tsx` | **Modify** | Swap `arrow` case for `symbol`; render `<SymbolAnnoForm>`. |
-| `src/renderer/components/Annotations/AnnotationInteractionLayer.tsx` | **Modify** | Replace the arrow drag-to-create branch with click-to-place. Replace arrow endpoint handles with: 4 corner resize handles + 1 rotation handle when a symbol is selected. Update `annoBounds` to use a square `sizePx`-by-`sizePx` rect centered at `(x, y)`. |
-| `src/renderer/styles.css` | **Modify** | Add `.symbol-gallery` and `.symbol-gallery-cell` rules. |
-| `test/unit/draw-symbol.test.ts` | **Create** | Replaces `draw-arrow.test.ts`. Verifies translate→rotate→scale→`fill(path)` or `stroke(path)` order using a recorder ctx. |
-| `test/unit/draw-arrow.test.ts` | **Delete** | |
-| `test/unit/figure-actions.test.ts` | **Modify** | Update tests that fabricate `ArrowAnnotation` fixtures to use `SymbolAnnotation`. |
-| `test/unit/relocate-anno.test.ts` | **Modify** | Update arrow tests to symbol shape (one anchor, not two). |
-| `test/unit/draw-figure.test.ts` | **Modify** | Replace any `arrow` annotation fixtures with `symbol` fixtures. |
-| `test/unit/canvas-dims.test.ts` | **Modify** | Replace `arrow` case in `scaleAnnotations` test with `symbol`. |
-| `test/unit/serialize.test.ts` | **Modify** | Add a v1-load round-trip test that asserts arrows are migrated. |
-| `test/unit/symbol-anno-form.test.tsx` | **Create** | Component test: gallery click dispatches `UPDATE_ANNOTATION` with `symbolId`. |
-| `test/unit/annotation-toolbar.test.tsx` | **Modify (if exists; otherwise extend in `App.test`)** | Tool button label is "Symbol" and `data-testid` is `anno-tool-symbol`. |
+| File                                                                 | Action                                                 | Responsibility                                                                                                                                                                                                                                               |
+| -------------------------------------------------------------------- | ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `src/renderer/symbols/library.ts`                                    | **Create**                                             | `SymbolDef` interface, `SYMBOL_LIBRARY` (~24 entries grouped by category), `SYMBOL_LIBRARY_BY_ID`, `SYMBOL_CATEGORIES`. Single source of truth for path data.                                                                                                |
+| `src/renderer/symbols/library.test.ts`                               | **Create**                                             | (Co-located tests are not the project pattern; this file lives at `test/unit/symbol-library.test.ts` instead — see below.)                                                                                                                                   |
+| `test/unit/symbol-library.test.ts`                                   | **Create**                                             | Unique-id check, every `pathD` parses via `new Path2D()`, all four categories present, each category has at least one entry.                                                                                                                                 |
+| `src/renderer/model/annotations.ts`                                  | **Modify**                                             | Replace `ArrowAnnotation` with `SymbolAnnotation`. Update `AnnotationKind` and the user-facing `Annotation` union.                                                                                                                                           |
+| `src/renderer/model/types.ts`                                        | **Modify**                                             | Update `ResolvedAnnotation` so the symbol kind threads through to the renderer.                                                                                                                                                                              |
+| `src/renderer/model/canvas-dims.ts`                                  | **Modify**                                             | Replace the arrow branch in `scaleAnnotations` with a symbol branch that scales `x` and `y` only (size/rotation are visual, like `thicknessPx` was for arrows).                                                                                              |
+| `src/renderer/model/relocate-anno.ts`                                | **Modify**                                             | Replace the `arrow` case in `reprojectAnno` with a `symbol` case. Symbols carry one optional `anchor` (the symbol center) — much simpler than the two-endpoint arrow logic.                                                                                  |
+| `src/renderer/model/figure-state.ts`                                 | (no change)                                            |                                                                                                                                                                                                                                                              |
+| `src/renderer/model/figure-actions.ts`                               | (no change to action shapes)                           |                                                                                                                                                                                                                                                              |
+| `src/renderer/model/schema.ts`                                       | **Modify**                                             | Bump `CURRENT_SCHEMA_VERSION` to 2. Add `MosaicFileV2`. Validator accepts both v1 (with `arrow` annos) and v2 (with `symbol` annos), narrowing on `schemaVersion`.                                                                                           |
+| `src/renderer/model/serialize.ts`                                    | **Modify**                                             | `toMosaicFile` writes v2. `fromMosaicFile` accepts both v1 and v2; for v1 it migrates `arrow` annos in the deserialized state to `symbol` shape.                                                                                                             |
+| `src/renderer/model/migrate-v1-to-v2.ts`                             | **Create**                                             | Pure function `migrateAnnotationsV1ToV2(annotations)` that converts `arrow`-kind annotations to `symbol` shape. Lives next to other model helpers; deliberately small and well-tested.                                                                       |
+| `test/unit/migrate-v1-to-v2.test.ts`                                 | **Create**                                             | All three head values map to expected symbol ids; midpoint, length, rotation derivation verified for known arrows.                                                                                                                                           |
+| `src/renderer/render/draw-annotations.ts`                            | **Modify**                                             | Replace `drawArrow` with `drawSymbol`. Use `Path2D` (already on `DrawCtx`-compatible browser canvases — but note: `DrawCtx` does NOT currently expose `Path2D` operations, so this task includes extending that surface).                                    |
+| `src/renderer/render/draw-figure.ts`                                 | **Modify**                                             | Extend `DrawCtx` interface with the methods the symbol path-rendering needs: `fill(path: Path2D): void` and `stroke(path: Path2D): void` overloads.                                                                                                          |
+| `src/renderer/components/Toolbar/AnnotationToolbar.tsx`              | **Modify**                                             | Replace `"arrow"` with `"symbol"` in the `Tool` union; rename button label/title.                                                                                                                                                                            |
+| `src/renderer/components/Properties/SymbolAnnoForm.tsx`              | **Create**                                             | Properties form for a selected symbol: gallery grid grouped by category, color picker, size input, rotation slider with reset, stroke-width input (only for stroke symbols). Replaces `ArrowAnnoForm.tsx`.                                                   |
+| `src/renderer/components/Properties/ArrowAnnoForm.tsx`               | **Delete**                                             |                                                                                                                                                                                                                                                              |
+| `src/renderer/components/Properties/AnnotationPropertiesForm.tsx`    | **Modify**                                             | Swap `arrow` case for `symbol`; render `<SymbolAnnoForm>`.                                                                                                                                                                                                   |
+| `src/renderer/components/Annotations/AnnotationInteractionLayer.tsx` | **Modify**                                             | Replace the arrow drag-to-create branch with click-to-place. Replace arrow endpoint handles with: 4 corner resize handles + 1 rotation handle when a symbol is selected. Update `annoBounds` to use a square `sizePx`-by-`sizePx` rect centered at `(x, y)`. |
+| `src/renderer/styles.css`                                            | **Modify**                                             | Add `.symbol-gallery` and `.symbol-gallery-cell` rules.                                                                                                                                                                                                      |
+| `test/unit/draw-symbol.test.ts`                                      | **Create**                                             | Replaces `draw-arrow.test.ts`. Verifies translate→rotate→scale→`fill(path)` or `stroke(path)` order using a recorder ctx.                                                                                                                                    |
+| `test/unit/draw-arrow.test.ts`                                       | **Delete**                                             |                                                                                                                                                                                                                                                              |
+| `test/unit/figure-actions.test.ts`                                   | **Modify**                                             | Update tests that fabricate `ArrowAnnotation` fixtures to use `SymbolAnnotation`.                                                                                                                                                                            |
+| `test/unit/relocate-anno.test.ts`                                    | **Modify**                                             | Update arrow tests to symbol shape (one anchor, not two).                                                                                                                                                                                                    |
+| `test/unit/draw-figure.test.ts`                                      | **Modify**                                             | Replace any `arrow` annotation fixtures with `symbol` fixtures.                                                                                                                                                                                              |
+| `test/unit/canvas-dims.test.ts`                                      | **Modify**                                             | Replace `arrow` case in `scaleAnnotations` test with `symbol`.                                                                                                                                                                                               |
+| `test/unit/serialize.test.ts`                                        | **Modify**                                             | Add a v1-load round-trip test that asserts arrows are migrated.                                                                                                                                                                                              |
+| `test/unit/symbol-anno-form.test.tsx`                                | **Create**                                             | Component test: gallery click dispatches `UPDATE_ANNOTATION` with `symbolId`.                                                                                                                                                                                |
+| `test/unit/annotation-toolbar.test.tsx`                              | **Modify (if exists; otherwise extend in `App.test`)** | Tool button label is "Symbol" and `data-testid` is `anno-tool-symbol`.                                                                                                                                                                                       |
 
 ---
 
@@ -76,6 +76,7 @@
 All paths below are designed in a 100×100 viewport, centered at (50, 50), with the "right" orientation (i.e. arrows point at +x, brackets open to the right, ticks lean +x). Path data uses absolute commands with integers or one-decimal floats so it's both compact and readable. Where possible I keep stroke-mode shapes inside a 70×70 inset (15..85) so a default `strokeWidthPx` of 4 doesn't clip the viewport edge.
 
 ### Arrow (6)
+
 1. `arrow-open-right` — Open chevron + shaft. `M 15 50 L 75 50 M 75 50 L 60 35 M 75 50 L 60 65` — fill: `false`.
 2. `arrow-filled-right` — Solid arrow with triangle head. `M 15 45 L 65 45 L 65 30 L 85 50 L 65 70 L 65 55 L 15 55 Z` — fill: `true`.
 3. `arrow-line-right` — Plain line, no head. `M 15 50 L 85 50` — fill: `false`.
@@ -84,6 +85,7 @@ All paths below are designed in a 100×100 viewport, centered at (50, 50), with 
 6. `arrow-thick-right` — Wider arrow. `M 15 38 L 60 38 L 60 20 L 90 50 L 60 80 L 60 62 L 15 62 Z` — fill: `true`.
 
 ### Shape (8)
+
 7. `shape-circle` — `M 85 50 A 35 35 0 1 1 15 50 A 35 35 0 1 1 85 50 Z` — fill: `true`.
 8. `shape-square` — `M 15 15 L 85 15 L 85 85 L 15 85 Z` — fill: `true`.
 9. `shape-triangle` — Equilateral, point up. `M 50 15 L 85 80 L 15 80 Z` — fill: `true`.
@@ -94,12 +96,14 @@ All paths below are designed in a 100×100 viewport, centered at (50, 50), with 
 14. `shape-asterisk` — Six-spoke. `M 47 20 L 53 20 L 53 47 L 80 47 L 80 53 L 53 53 L 53 80 L 47 80 L 47 53 L 20 53 L 20 47 L 47 47 Z M 31 27 L 35 23 L 54 42 L 50 46 Z M 65 23 L 69 27 L 50 46 L 46 42 Z M 31 73 L 27 69 L 46 50 L 50 54 Z M 65 77 L 69 73 L 50 54 L 46 58 Z` — fill: `true`. (Compound: a `+` with a rotated `×`.)
 
 ### Marker (4)
+
 15. `marker-dot` — Small filled circle. `M 65 50 A 15 15 0 1 1 35 50 A 15 15 0 1 1 65 50 Z` — fill: `true`.
 16. `marker-ring` — Small unfilled circle (stroked). `M 65 50 A 15 15 0 1 1 35 50 A 15 15 0 1 1 65 50 Z` — fill: `false`.
 17. `marker-tick` — Checkmark. `M 25 55 L 45 75 L 80 30` — fill: `false`.
 18. `marker-x` — Stroked X. `M 25 25 L 75 75 M 75 25 L 25 75` — fill: `false`.
 
 ### Bracket (6)
+
 19. `bracket-curly-left` — `M 60 15 Q 40 15 40 35 Q 40 50 30 50 Q 40 50 40 65 Q 40 85 60 85` — fill: `false`.
 20. `bracket-curly-right` — `M 40 15 Q 60 15 60 35 Q 60 50 70 50 Q 60 50 60 65 Q 60 85 40 85` — fill: `false`.
 21. `bracket-square-left` — `M 70 15 L 30 15 L 30 85 L 70 85` — fill: `false`.
@@ -114,6 +118,7 @@ Total: 24 entries, 4 categories. Default for new symbols: `arrow-filled-right`.
 ## Task 1: Symbol library + tests
 
 **Files:**
+
 - Create: `src/renderer/symbols/library.ts`
 - Test: `test/unit/symbol-library.test.ts`
 
@@ -159,7 +164,11 @@ describe("SYMBOL_LIBRARY", () => {
   });
 
   it("includes the three migration-target arrow ids", () => {
-    const required = ["arrow-open-right", "arrow-filled-right", "arrow-line-right"];
+    const required = [
+      "arrow-open-right",
+      "arrow-filled-right",
+      "arrow-line-right",
+    ];
     const ids = new Set(SYMBOL_LIBRARY.map((s) => s.id));
     for (const id of required) expect(ids.has(id)).toBe(true);
   });
@@ -240,36 +249,184 @@ export interface SymbolDef {
 
 export const SYMBOL_LIBRARY: readonly SymbolDef[] = [
   // Arrow
-  { id: "arrow-open-right",    label: "Open arrow",    category: "arrow", fill: false, pathD: "M 15 50 L 75 50 M 75 50 L 60 35 M 75 50 L 60 65" },
-  { id: "arrow-filled-right",  label: "Filled arrow",  category: "arrow", fill: true,  pathD: "M 15 45 L 65 45 L 65 30 L 85 50 L 65 70 L 65 55 L 15 55 Z" },
-  { id: "arrow-line-right",    label: "Line",          category: "arrow", fill: false, pathD: "M 15 50 L 85 50" },
-  { id: "arrow-double-right",  label: "Double arrow",  category: "arrow", fill: false, pathD: "M 15 50 L 75 50 M 60 35 L 75 50 L 60 65 M 45 35 L 60 50 L 45 65" },
-  { id: "arrow-thin-right",    label: "Thin arrow",    category: "arrow", fill: true,  pathD: "M 15 48 L 70 48 L 70 38 L 85 50 L 70 62 L 70 52 L 15 52 Z" },
-  { id: "arrow-thick-right",   label: "Thick arrow",   category: "arrow", fill: true,  pathD: "M 15 38 L 60 38 L 60 20 L 90 50 L 60 80 L 60 62 L 15 62 Z" },
+  {
+    id: "arrow-open-right",
+    label: "Open arrow",
+    category: "arrow",
+    fill: false,
+    pathD: "M 15 50 L 75 50 M 75 50 L 60 35 M 75 50 L 60 65",
+  },
+  {
+    id: "arrow-filled-right",
+    label: "Filled arrow",
+    category: "arrow",
+    fill: true,
+    pathD: "M 15 45 L 65 45 L 65 30 L 85 50 L 65 70 L 65 55 L 15 55 Z",
+  },
+  {
+    id: "arrow-line-right",
+    label: "Line",
+    category: "arrow",
+    fill: false,
+    pathD: "M 15 50 L 85 50",
+  },
+  {
+    id: "arrow-double-right",
+    label: "Double arrow",
+    category: "arrow",
+    fill: false,
+    pathD: "M 15 50 L 75 50 M 60 35 L 75 50 L 60 65 M 45 35 L 60 50 L 45 65",
+  },
+  {
+    id: "arrow-thin-right",
+    label: "Thin arrow",
+    category: "arrow",
+    fill: true,
+    pathD: "M 15 48 L 70 48 L 70 38 L 85 50 L 70 62 L 70 52 L 15 52 Z",
+  },
+  {
+    id: "arrow-thick-right",
+    label: "Thick arrow",
+    category: "arrow",
+    fill: true,
+    pathD: "M 15 38 L 60 38 L 60 20 L 90 50 L 60 80 L 60 62 L 15 62 Z",
+  },
 
   // Shape
-  { id: "shape-circle",        label: "Circle",        category: "shape", fill: true,  pathD: "M 85 50 A 35 35 0 1 1 15 50 A 35 35 0 1 1 85 50 Z" },
-  { id: "shape-square",        label: "Square",        category: "shape", fill: true,  pathD: "M 15 15 L 85 15 L 85 85 L 15 85 Z" },
-  { id: "shape-triangle",      label: "Triangle",      category: "shape", fill: true,  pathD: "M 50 15 L 85 80 L 15 80 Z" },
-  { id: "shape-diamond",       label: "Diamond",       category: "shape", fill: true,  pathD: "M 50 15 L 85 50 L 50 85 L 15 50 Z" },
-  { id: "shape-star",          label: "Star",          category: "shape", fill: true,  pathD: "M 50 15 L 60 40 L 87 40 L 65 57 L 73 84 L 50 68 L 27 84 L 35 57 L 13 40 L 40 40 Z" },
-  { id: "shape-plus",          label: "Plus",          category: "shape", fill: true,  pathD: "M 42 20 L 58 20 L 58 42 L 80 42 L 80 58 L 58 58 L 58 80 L 42 80 L 42 58 L 20 58 L 20 42 L 42 42 Z" },
-  { id: "shape-cross",         label: "Cross (X)",     category: "shape", fill: true,  pathD: "M 22 30 L 30 22 L 50 42 L 70 22 L 78 30 L 58 50 L 78 70 L 70 78 L 50 58 L 30 78 L 22 70 L 42 50 Z" },
-  { id: "shape-asterisk",      label: "Asterisk",      category: "shape", fill: true,  pathD: "M 47 20 L 53 20 L 53 47 L 80 47 L 80 53 L 53 53 L 53 80 L 47 80 L 47 53 L 20 53 L 20 47 L 47 47 Z M 31 27 L 35 23 L 54 42 L 50 46 Z M 65 23 L 69 27 L 50 46 L 46 42 Z M 31 73 L 27 69 L 46 50 L 50 54 Z M 65 77 L 69 73 L 50 54 L 46 58 Z" },
+  {
+    id: "shape-circle",
+    label: "Circle",
+    category: "shape",
+    fill: true,
+    pathD: "M 85 50 A 35 35 0 1 1 15 50 A 35 35 0 1 1 85 50 Z",
+  },
+  {
+    id: "shape-square",
+    label: "Square",
+    category: "shape",
+    fill: true,
+    pathD: "M 15 15 L 85 15 L 85 85 L 15 85 Z",
+  },
+  {
+    id: "shape-triangle",
+    label: "Triangle",
+    category: "shape",
+    fill: true,
+    pathD: "M 50 15 L 85 80 L 15 80 Z",
+  },
+  {
+    id: "shape-diamond",
+    label: "Diamond",
+    category: "shape",
+    fill: true,
+    pathD: "M 50 15 L 85 50 L 50 85 L 15 50 Z",
+  },
+  {
+    id: "shape-star",
+    label: "Star",
+    category: "shape",
+    fill: true,
+    pathD:
+      "M 50 15 L 60 40 L 87 40 L 65 57 L 73 84 L 50 68 L 27 84 L 35 57 L 13 40 L 40 40 Z",
+  },
+  {
+    id: "shape-plus",
+    label: "Plus",
+    category: "shape",
+    fill: true,
+    pathD:
+      "M 42 20 L 58 20 L 58 42 L 80 42 L 80 58 L 58 58 L 58 80 L 42 80 L 42 58 L 20 58 L 20 42 L 42 42 Z",
+  },
+  {
+    id: "shape-cross",
+    label: "Cross (X)",
+    category: "shape",
+    fill: true,
+    pathD:
+      "M 22 30 L 30 22 L 50 42 L 70 22 L 78 30 L 58 50 L 78 70 L 70 78 L 50 58 L 30 78 L 22 70 L 42 50 Z",
+  },
+  {
+    id: "shape-asterisk",
+    label: "Asterisk",
+    category: "shape",
+    fill: true,
+    pathD:
+      "M 47 20 L 53 20 L 53 47 L 80 47 L 80 53 L 53 53 L 53 80 L 47 80 L 47 53 L 20 53 L 20 47 L 47 47 Z M 31 27 L 35 23 L 54 42 L 50 46 Z M 65 23 L 69 27 L 50 46 L 46 42 Z M 31 73 L 27 69 L 46 50 L 50 54 Z M 65 77 L 69 73 L 50 54 L 46 58 Z",
+  },
 
   // Marker
-  { id: "marker-dot",          label: "Dot",           category: "marker", fill: true,  pathD: "M 65 50 A 15 15 0 1 1 35 50 A 15 15 0 1 1 65 50 Z" },
-  { id: "marker-ring",         label: "Ring",          category: "marker", fill: false, pathD: "M 65 50 A 15 15 0 1 1 35 50 A 15 15 0 1 1 65 50 Z" },
-  { id: "marker-tick",         label: "Tick",          category: "marker", fill: false, pathD: "M 25 55 L 45 75 L 80 30" },
-  { id: "marker-x",            label: "X",             category: "marker", fill: false, pathD: "M 25 25 L 75 75 M 75 25 L 25 75" },
+  {
+    id: "marker-dot",
+    label: "Dot",
+    category: "marker",
+    fill: true,
+    pathD: "M 65 50 A 15 15 0 1 1 35 50 A 15 15 0 1 1 65 50 Z",
+  },
+  {
+    id: "marker-ring",
+    label: "Ring",
+    category: "marker",
+    fill: false,
+    pathD: "M 65 50 A 15 15 0 1 1 35 50 A 15 15 0 1 1 65 50 Z",
+  },
+  {
+    id: "marker-tick",
+    label: "Tick",
+    category: "marker",
+    fill: false,
+    pathD: "M 25 55 L 45 75 L 80 30",
+  },
+  {
+    id: "marker-x",
+    label: "X",
+    category: "marker",
+    fill: false,
+    pathD: "M 25 25 L 75 75 M 75 25 L 25 75",
+  },
 
   // Bracket
-  { id: "bracket-curly-left",  label: "Curly {",       category: "bracket", fill: false, pathD: "M 60 15 Q 40 15 40 35 Q 40 50 30 50 Q 40 50 40 65 Q 40 85 60 85" },
-  { id: "bracket-curly-right", label: "Curly }",       category: "bracket", fill: false, pathD: "M 40 15 Q 60 15 60 35 Q 60 50 70 50 Q 60 50 60 65 Q 60 85 40 85" },
-  { id: "bracket-square-left", label: "Square [",      category: "bracket", fill: false, pathD: "M 70 15 L 30 15 L 30 85 L 70 85" },
-  { id: "bracket-square-right",label: "Square ]",      category: "bracket", fill: false, pathD: "M 30 15 L 70 15 L 70 85 L 30 85" },
-  { id: "bracket-angle-left",  label: "Angle <",       category: "bracket", fill: false, pathD: "M 70 15 L 30 50 L 70 85" },
-  { id: "bracket-angle-right", label: "Angle >",       category: "bracket", fill: false, pathD: "M 30 15 L 70 50 L 30 85" },
+  {
+    id: "bracket-curly-left",
+    label: "Curly {",
+    category: "bracket",
+    fill: false,
+    pathD: "M 60 15 Q 40 15 40 35 Q 40 50 30 50 Q 40 50 40 65 Q 40 85 60 85",
+  },
+  {
+    id: "bracket-curly-right",
+    label: "Curly }",
+    category: "bracket",
+    fill: false,
+    pathD: "M 40 15 Q 60 15 60 35 Q 60 50 70 50 Q 60 50 60 65 Q 60 85 40 85",
+  },
+  {
+    id: "bracket-square-left",
+    label: "Square [",
+    category: "bracket",
+    fill: false,
+    pathD: "M 70 15 L 30 15 L 30 85 L 70 85",
+  },
+  {
+    id: "bracket-square-right",
+    label: "Square ]",
+    category: "bracket",
+    fill: false,
+    pathD: "M 30 15 L 70 15 L 70 85 L 30 85",
+  },
+  {
+    id: "bracket-angle-left",
+    label: "Angle <",
+    category: "bracket",
+    fill: false,
+    pathD: "M 70 15 L 30 50 L 70 85",
+  },
+  {
+    id: "bracket-angle-right",
+    label: "Angle >",
+    category: "bracket",
+    fill: false,
+    pathD: "M 30 15 L 70 50 L 30 85",
+  },
 ] as const;
 
 export const SYMBOL_LIBRARY_BY_ID: ReadonlyMap<string, SymbolDef> = new Map(
@@ -298,6 +455,7 @@ git commit -m "feat(symbols): add curated symbol library (24 entries, 4 categori
 ## Task 2: SymbolAnnotation type + AnnotationKind union
 
 **Files:**
+
 - Modify: `src/renderer/model/annotations.ts`
 - Modify: `src/renderer/model/types.ts`
 
@@ -391,6 +549,7 @@ Expected: errors in `canvas-dims.ts`, `relocate-anno.ts`, `draw-annotations.ts`,
 ## Task 3: scaleAnnotations symbol case
 
 **Files:**
+
 - Modify: `src/renderer/model/canvas-dims.ts`
 - Test: `test/unit/canvas-dims.test.ts`
 
@@ -421,13 +580,13 @@ Expected: FAIL — implementation still has the arrow branch.
 Open `src/renderer/model/canvas-dims.ts`. Replace the entire `if (a.kind === "arrow")` block (lines ~58-66) with:
 
 ```ts
-    if (a.kind === "symbol") {
-      return {
-        ...a,
-        x: a.x * sx,
-        y: a.y * sy,
-      };
-    }
+if (a.kind === "symbol") {
+  return {
+    ...a,
+    x: a.x * sx,
+    y: a.y * sy,
+  };
+}
 ```
 
 Update the docblock above `scaleAnnotations` (line ~39). Replace the `- arrow: x1, y1, x2, y2` line with `- symbol: x, y` and update the trailing prose: `sizePt, strokeWidthPx, sizePx, rotationDeg are intentionally left alone …`.
@@ -450,6 +609,7 @@ git commit -m "refactor(symbols): scaleAnnotations handles symbol kind"
 ## Task 4: relocate-anno symbol case
 
 **Files:**
+
 - Modify: `src/renderer/model/relocate-anno.ts`
 - Test: `test/unit/relocate-anno.test.ts`
 
@@ -500,6 +660,7 @@ git commit -m "refactor(symbols): relocate-anno handles symbol kind"
 ## Task 5: V1 → V2 migration helper + tests
 
 **Files:**
+
 - Create: `src/renderer/model/migrate-v1-to-v2.ts`
 - Create: `test/unit/migrate-v1-to-v2.test.ts`
 
@@ -514,65 +675,168 @@ import { migrateAnnotationsV1ToV2 } from "../../src/renderer/model/migrate-v1-to
 describe("migrateAnnotationsV1ToV2", () => {
   it("maps head=filled to arrow-filled-right", () => {
     const out = migrateAnnotationsV1ToV2([
-      { id: "a1", kind: "arrow", z: 0, x1: 10, y1: 20, x2: 110, y2: 20, color: "#F00", thicknessPx: 3, head: "filled" },
+      {
+        id: "a1",
+        kind: "arrow",
+        z: 0,
+        x1: 10,
+        y1: 20,
+        x2: 110,
+        y2: 20,
+        color: "#F00",
+        thicknessPx: 3,
+        head: "filled",
+      },
     ]);
     expect(out).toHaveLength(1);
     expect(out[0]).toMatchObject({
-      id: "a1", kind: "symbol", z: 0, symbolId: "arrow-filled-right",
-      x: 60, y: 20, sizePx: 100, rotationDeg: 0, color: "#F00", strokeWidthPx: 3,
+      id: "a1",
+      kind: "symbol",
+      z: 0,
+      symbolId: "arrow-filled-right",
+      x: 60,
+      y: 20,
+      sizePx: 100,
+      rotationDeg: 0,
+      color: "#F00",
+      strokeWidthPx: 3,
     });
   });
 
   it("maps head=open to arrow-open-right", () => {
     const out = migrateAnnotationsV1ToV2([
-      { id: "a2", kind: "arrow", z: 0, x1: 0, y1: 0, x2: 0, y2: 100, color: "#000", thicknessPx: 2, head: "open" },
+      {
+        id: "a2",
+        kind: "arrow",
+        z: 0,
+        x1: 0,
+        y1: 0,
+        x2: 0,
+        y2: 100,
+        color: "#000",
+        thicknessPx: 2,
+        head: "open",
+      },
     ]);
     expect(out[0]).toMatchObject({
-      kind: "symbol", symbolId: "arrow-open-right", x: 0, y: 50, sizePx: 100, rotationDeg: 90,
+      kind: "symbol",
+      symbolId: "arrow-open-right",
+      x: 0,
+      y: 50,
+      sizePx: 100,
+      rotationDeg: 90,
     });
   });
 
   it("maps head=none to arrow-line-right", () => {
     const out = migrateAnnotationsV1ToV2([
-      { id: "a3", kind: "arrow", z: 0, x1: 100, y1: 100, x2: 0, y2: 100, color: "#000", thicknessPx: 1, head: "none" },
+      {
+        id: "a3",
+        kind: "arrow",
+        z: 0,
+        x1: 100,
+        y1: 100,
+        x2: 0,
+        y2: 100,
+        color: "#000",
+        thicknessPx: 1,
+        head: "none",
+      },
     ]);
     expect(out[0]).toMatchObject({
-      kind: "symbol", symbolId: "arrow-line-right", x: 50, y: 100, sizePx: 100, rotationDeg: 180,
+      kind: "symbol",
+      symbolId: "arrow-line-right",
+      x: 50,
+      y: 100,
+      sizePx: 100,
+      rotationDeg: 180,
     });
   });
 
   it("clamps zero-length arrows to sizePx=8", () => {
     const out = migrateAnnotationsV1ToV2([
-      { id: "a4", kind: "arrow", z: 0, x1: 50, y1: 50, x2: 50, y2: 50, color: "#000", thicknessPx: 1, head: "filled" },
+      {
+        id: "a4",
+        kind: "arrow",
+        z: 0,
+        x1: 50,
+        y1: 50,
+        x2: 50,
+        y2: 50,
+        color: "#000",
+        thicknessPx: 1,
+        head: "filled",
+      },
     ]);
-    expect(out[0]).toMatchObject({ kind: "symbol", x: 50, y: 50, sizePx: 8, rotationDeg: 0 });
+    expect(out[0]).toMatchObject({
+      kind: "symbol",
+      x: 50,
+      y: 50,
+      sizePx: 8,
+      rotationDeg: 0,
+    });
   });
 
   it("merges anchor1+anchor2 into a midpoint anchor when arrow is image-bound", () => {
     const out = migrateAnnotationsV1ToV2([
       {
-        id: "a5", kind: "arrow", z: 0, x1: 10, y1: 10, x2: 90, y2: 90,
-        color: "#000", thicknessPx: 2, head: "filled",
-        imageId: "img1", panelId: "p1",
+        id: "a5",
+        kind: "arrow",
+        z: 0,
+        x1: 10,
+        y1: 10,
+        x2: 90,
+        y2: 90,
+        color: "#000",
+        thicknessPx: 2,
+        head: "filled",
+        imageId: "img1",
+        panelId: "p1",
         anchor1: { imgU: 0.1, imgV: 0.2 },
         anchor2: { imgU: 0.5, imgV: 0.4 },
       },
     ]);
     expect(out[0]).toMatchObject({
-      kind: "symbol", imageId: "img1", panelId: "p1",
+      kind: "symbol",
+      imageId: "img1",
+      panelId: "p1",
       anchor: { imgU: 0.3, imgV: 0.30000000000000004 },
     });
   });
 
   it("leaves non-arrow annotations unchanged", () => {
-    const text = { id: "t1", kind: "text" as const, z: 0, x: 0, y: 0, text: "hi", font: "sans", sizePt: 12, bold: false, italic: false, color: "#000" };
+    const text = {
+      id: "t1",
+      kind: "text" as const,
+      z: 0,
+      x: 0,
+      y: 0,
+      text: "hi",
+      font: "sans",
+      sizePt: 12,
+      bold: false,
+      italic: false,
+      color: "#000",
+    };
     const out = migrateAnnotationsV1ToV2([text]);
     expect(out[0]).toEqual(text);
   });
 
   it("returns the same array reference when no arrow annotations are present", () => {
     const arr = [
-      { id: "t1", kind: "text" as const, z: 0, x: 0, y: 0, text: "hi", font: "sans", sizePt: 12, bold: false, italic: false, color: "#000" },
+      {
+        id: "t1",
+        kind: "text" as const,
+        z: 0,
+        x: 0,
+        y: 0,
+        text: "hi",
+        font: "sans",
+        sizePt: 12,
+        bold: false,
+        italic: false,
+        color: "#000",
+      },
     ];
     expect(migrateAnnotationsV1ToV2(arr)).toBe(arr);
   });
@@ -613,8 +877,10 @@ interface V1ArrowAnnotation {
   z: number;
   panelId?: string;
   imageId?: string;
-  x1: number; y1: number;
-  x2: number; y2: number;
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
   anchor1?: ImageAnchor;
   anchor2?: ImageAnchor;
   color: string;
@@ -693,6 +959,7 @@ git commit -m "feat(symbols): v1->v2 annotation migration helper"
 ## Task 6: Schema bump to v2 + serialize migration on load
 
 **Files:**
+
 - Modify: `src/renderer/model/schema.ts`
 - Modify: `src/renderer/model/serialize.ts`
 - Modify: `test/unit/schema.test.ts`
@@ -713,14 +980,46 @@ describe("v1 → v2 migration on fromMosaicFile", () => {
       modifiedAt: "2025-12-01T00:00:00Z",
       canvas: { widthPx: 800, heightPx: 600, background: "#FFFFFF" },
       state: {
-        rows: 1, cols: 1, gutterPx: 4, gutterColor: "#FFFFFF",
-        pool: [], panels: [{ id: "p1", row: 0, col: 0, rowSpan: 1, colSpan: 1 }],
+        rows: 1,
+        cols: 1,
+        gutterPx: 4,
+        gutterColor: "#FFFFFF",
+        pool: [],
+        panels: [{ id: "p1", row: 0, col: 0, rowSpan: 1, colSpan: 1 }],
         annotations: [
-          { id: "a1", kind: "arrow", z: 0, x1: 10, y1: 20, x2: 110, y2: 20, color: "#F00", thicknessPx: 3, head: "filled" },
+          {
+            id: "a1",
+            kind: "arrow",
+            z: 0,
+            x1: 10,
+            y1: 20,
+            x2: 110,
+            y2: 20,
+            color: "#F00",
+            thicknessPx: 3,
+            head: "filled",
+          },
         ],
         globalStyle: {
-          letters: { enabled: true, font: "Arial", sizePt: 14, color: "#000000", paddingPx: 4, bold: true, corner: "tl" },
-          scalebar: { font: "Arial", sizePt: 12, color: "#000000", barColor: "#000000", thicknessPx: 4, paddingPx: 8, showLabel: true, corner: "br" },
+          letters: {
+            enabled: true,
+            font: "Arial",
+            sizePt: 14,
+            color: "#000000",
+            paddingPx: 4,
+            bold: true,
+            corner: "tl",
+          },
+          scalebar: {
+            font: "Arial",
+            sizePt: 12,
+            color: "#000000",
+            barColor: "#000000",
+            thicknessPx: 4,
+            paddingPx: 8,
+            showLabel: true,
+            corner: "br",
+          },
         },
         letterOverrides: {},
       },
@@ -728,7 +1027,12 @@ describe("v1 → v2 migration on fromMosaicFile", () => {
     const { state } = fromMosaicFile(v1);
     expect(state.annotations).toHaveLength(1);
     expect(state.annotations[0]).toMatchObject({
-      kind: "symbol", symbolId: "arrow-filled-right", x: 60, y: 20, sizePx: 100, rotationDeg: 0,
+      kind: "symbol",
+      symbolId: "arrow-filled-right",
+      x: 60,
+      y: 20,
+      sizePx: 100,
+      rotationDeg: 0,
     });
   });
 
@@ -755,21 +1059,54 @@ Open `test/unit/schema.test.ts`. Add tests for the v1 acceptance + v2 default:
 describe("validateMosaicFile schema versions", () => {
   it("accepts a valid v1 file with arrow annotations", () => {
     const v1 = makeMinimalFile(1, [
-      { id: "a1", kind: "arrow", z: 0, x1: 0, y1: 0, x2: 100, y2: 0, color: "#000000", thicknessPx: 2, head: "filled" },
+      {
+        id: "a1",
+        kind: "arrow",
+        z: 0,
+        x1: 0,
+        y1: 0,
+        x2: 100,
+        y2: 0,
+        color: "#000000",
+        thicknessPx: 2,
+        head: "filled",
+      },
     ]);
     expect(validateMosaicFile(v1).ok).toBe(true);
   });
 
   it("accepts a valid v2 file with symbol annotations", () => {
     const v2 = makeMinimalFile(2, [
-      { id: "a1", kind: "symbol", z: 0, symbolId: "arrow-filled-right", x: 50, y: 50, sizePx: 60, rotationDeg: 0, color: "#000000", strokeWidthPx: 2 },
+      {
+        id: "a1",
+        kind: "symbol",
+        z: 0,
+        symbolId: "arrow-filled-right",
+        x: 50,
+        y: 50,
+        sizePx: 60,
+        rotationDeg: 0,
+        color: "#000000",
+        strokeWidthPx: 2,
+      },
     ]);
     expect(validateMosaicFile(v2).ok).toBe(true);
   });
 
   it("rejects a v1 file containing symbol annotations", () => {
     const bad = makeMinimalFile(1, [
-      { id: "a1", kind: "symbol", z: 0, symbolId: "x", x: 0, y: 0, sizePx: 60, rotationDeg: 0, color: "#000000", strokeWidthPx: 2 },
+      {
+        id: "a1",
+        kind: "symbol",
+        z: 0,
+        symbolId: "x",
+        x: 0,
+        y: 0,
+        sizePx: 60,
+        rotationDeg: 0,
+        color: "#000000",
+        strokeWidthPx: 2,
+      },
     ]);
     const r = validateMosaicFile(bad);
     expect(r.ok).toBe(false);
@@ -777,7 +1114,18 @@ describe("validateMosaicFile schema versions", () => {
 
   it("rejects a v2 file containing arrow annotations", () => {
     const bad = makeMinimalFile(2, [
-      { id: "a1", kind: "arrow", z: 0, x1: 0, y1: 0, x2: 100, y2: 0, color: "#000000", thicknessPx: 2, head: "filled" },
+      {
+        id: "a1",
+        kind: "arrow",
+        z: 0,
+        x1: 0,
+        y1: 0,
+        x2: 100,
+        y2: 0,
+        color: "#000000",
+        thicknessPx: 2,
+        head: "filled",
+      },
     ]);
     const r = validateMosaicFile(bad);
     expect(r.ok).toBe(false);
@@ -798,12 +1146,33 @@ function makeMinimalFile(schemaVersion: 1 | 2, annotations: any[]): unknown {
     modifiedAt: "2026-05-09T00:00:00Z",
     canvas: { widthPx: 800, heightPx: 600, background: "#FFFFFF" },
     state: {
-      rows: 1, cols: 1, gutterPx: 0, gutterColor: "#FFFFFF",
-      pool: [], panels: [{ id: "p1", row: 0, col: 0, rowSpan: 1, colSpan: 1 }],
+      rows: 1,
+      cols: 1,
+      gutterPx: 0,
+      gutterColor: "#FFFFFF",
+      pool: [],
+      panels: [{ id: "p1", row: 0, col: 0, rowSpan: 1, colSpan: 1 }],
       annotations,
       globalStyle: {
-        letters: { enabled: true, font: "Arial", sizePt: 14, color: "#000000", paddingPx: 4, bold: true, corner: "tl" },
-        scalebar: { font: "Arial", sizePt: 12, color: "#000000", barColor: "#000000", thicknessPx: 4, paddingPx: 8, showLabel: true, corner: "br" },
+        letters: {
+          enabled: true,
+          font: "Arial",
+          sizePt: 14,
+          color: "#000000",
+          paddingPx: 4,
+          bold: true,
+          corner: "tl",
+        },
+        scalebar: {
+          font: "Arial",
+          sizePt: 12,
+          color: "#000000",
+          barColor: "#000000",
+          thicknessPx: 4,
+          paddingPx: 8,
+          showLabel: true,
+          corner: "br",
+        },
       },
       letterOverrides: {},
     },
@@ -848,40 +1217,43 @@ function validateAnnotations(
   schemaVersion: 1 | 2,
 ): Result<FigureState["annotations"]> {
   // …existing prelude…
-    const k = a.kind;
-    if (k === "text") { /* unchanged */ }
-    else if (k === "arrow") {
-      if (schemaVersion !== 1) {
-        return err(`${path}[${i}].kind: arrow not allowed in v${schemaVersion}`);
-      }
-      // …existing v1 arrow validation unchanged…
+  const k = a.kind;
+  if (k === "text") {
+    /* unchanged */
+  } else if (k === "arrow") {
+    if (schemaVersion !== 1) {
+      return err(`${path}[${i}].kind: arrow not allowed in v${schemaVersion}`);
     }
-    else if (k === "symbol") {
-      if (schemaVersion !== 2) {
-        return err(`${path}[${i}].kind: symbol not allowed in v${schemaVersion}`);
-      }
-      if (
-        !isStr(a.symbolId) ||
-        !isNum(a.x) ||
-        !isNum(a.y) ||
-        !isNum(a.sizePx) ||
-        a.sizePx <= 0 ||
-        !isNum(a.rotationDeg) ||
-        !isStr(a.color) ||
-        !isNum(a.strokeWidthPx) ||
-        a.strokeWidthPx < 0
-      ) {
-        return err(`${path}[${i}]: malformed symbol annotation`);
-      }
-      if (a.anchor !== undefined && !isImageAnchor(a.anchor)) {
-        return err(`${path}[${i}].anchor`);
-      }
+    // …existing v1 arrow validation unchanged…
+  } else if (k === "symbol") {
+    if (schemaVersion !== 2) {
+      return err(`${path}[${i}].kind: symbol not allowed in v${schemaVersion}`);
     }
-    else if (k === "box") { /* unchanged */ }
-    else if (k === "scalebar") { /* unchanged */ }
-    else {
-      return err(`${path}[${i}].kind: must be text|symbol|box|scalebar (or arrow in v1)`);
+    if (
+      !isStr(a.symbolId) ||
+      !isNum(a.x) ||
+      !isNum(a.y) ||
+      !isNum(a.sizePx) ||
+      a.sizePx <= 0 ||
+      !isNum(a.rotationDeg) ||
+      !isStr(a.color) ||
+      !isNum(a.strokeWidthPx) ||
+      a.strokeWidthPx < 0
+    ) {
+      return err(`${path}[${i}]: malformed symbol annotation`);
     }
+    if (a.anchor !== undefined && !isImageAnchor(a.anchor)) {
+      return err(`${path}[${i}].anchor`);
+    }
+  } else if (k === "box") {
+    /* unchanged */
+  } else if (k === "scalebar") {
+    /* unchanged */
+  } else {
+    return err(
+      `${path}[${i}].kind: must be text|symbol|box|scalebar (or arrow in v1)`,
+    );
+  }
   // …existing footer…
 }
 ```
@@ -889,16 +1261,16 @@ function validateAnnotations(
 In the top-level `validateMosaicFile`, change the schemaVersion check:
 
 ```ts
-  if (x.schemaVersion !== 1 && x.schemaVersion !== 2) {
-    return err(`schemaVersion: unsupported (${String(x.schemaVersion)})`);
-  }
-  const sv = x.schemaVersion as 1 | 2;
+if (x.schemaVersion !== 1 && x.schemaVersion !== 2) {
+  return err(`schemaVersion: unsupported (${String(x.schemaVersion)})`);
+}
+const sv = x.schemaVersion as 1 | 2;
 ```
 
 And the call to `validateAnnotations`:
 
 ```ts
-  const ann = validateAnnotations(st.annotations, "state.annotations", sv);
+const ann = validateAnnotations(st.annotations, "state.annotations", sv);
 ```
 
 - [ ] **Step 5: Update `serialize.ts`**
@@ -915,16 +1287,16 @@ Update `toMosaicFile`'s return: change `schemaVersion: 1` to `schemaVersion: 2` 
 Update `fromMosaicFile`'s parameter type: `(file: MosaicFile)` (accept either version). Inside, after destructuring `state`, call the migrator when v1:
 
 ```ts
-  const annotations =
-    file.schemaVersion === 1
-      ? migrateAnnotationsV1ToV2(file.state.annotations as any)
-      : (file.state.annotations as Annotation[]);
-  const state: FigureState = {
-    ...file.state,
-    pool: runtimePool,
-    annotations,
-    outerGutter: file.state.outerGutter ?? true,
-  };
+const annotations =
+  file.schemaVersion === 1
+    ? migrateAnnotationsV1ToV2(file.state.annotations as any)
+    : (file.state.annotations as Annotation[]);
+const state: FigureState = {
+  ...file.state,
+  pool: runtimePool,
+  annotations,
+  outerGutter: file.state.outerGutter ?? true,
+};
 ```
 
 (Add `import type { Annotation } from "./annotations";` at the top.)
@@ -947,6 +1319,7 @@ git commit -m "feat(symbols): bump schema to v2; load-time arrow->symbol migrati
 ## Task 7: Extend DrawCtx for Path2D, swap drawArrow for drawSymbol
 
 **Files:**
+
 - Modify: `src/renderer/render/draw-figure.ts`
 - Modify: `src/renderer/render/draw-annotations.ts`
 - Create: `test/unit/draw-symbol.test.ts`
@@ -965,30 +1338,90 @@ import type { Figure } from "../../src/renderer/model/types";
 import type { SymbolAnnotation } from "../../src/renderer/model/annotations";
 import { DEFAULT_GLOBAL_STYLE } from "../../src/renderer/model/global-style";
 
-interface Call { op: string; args: unknown[]; }
+interface Call {
+  op: string;
+  args: unknown[];
+}
 
-function recorder(): DrawCtx & { calls: Call[]; lastFillStyle: string; lastStrokeStyle: string; lastLineWidth: number } {
+function recorder(): DrawCtx & {
+  calls: Call[];
+  lastFillStyle: string;
+  lastStrokeStyle: string;
+  lastLineWidth: number;
+} {
   const calls: Call[] = [];
   let _fill = "";
   let _stroke = "";
   let _lw = 1;
   const ctx: any = {
     calls,
-    get fillStyle() { return _fill; }, set fillStyle(v: string) { _fill = v; this.lastFillStyle = v; calls.push({ op: "set:fillStyle", args: [v] }); },
-    get strokeStyle() { return _stroke; }, set strokeStyle(v: string) { _stroke = v; this.lastStrokeStyle = v; calls.push({ op: "set:strokeStyle", args: [v] }); },
-    get lineWidth() { return _lw; }, set lineWidth(v: number) { _lw = v; this.lastLineWidth = v; calls.push({ op: "set:lineWidth", args: [v] }); },
-    font: "", textAlign: "left", textBaseline: "top", lineCap: "butt", lineJoin: "miter",
-    fillRect() {}, strokeRect() {}, fillText() {}, measureText() { return { width: 0 }; }, drawImage() {},
-    save() { calls.push({ op: "save", args: [] }); },
-    restore() { calls.push({ op: "restore", args: [] }); },
-    beginPath() { calls.push({ op: "beginPath", args: [] }); },
-    closePath() { calls.push({ op: "closePath", args: [] }); },
-    rect() {}, clip() {},
-    translate(x: number, y: number) { calls.push({ op: "translate", args: [x, y] }); },
-    scale(x: number, y: number) { calls.push({ op: "scale", args: [x, y] }); },
-    rotate(r: number) { calls.push({ op: "rotate", args: [r] }); },
-    moveTo() {}, lineTo() {}, stroke(p?: Path2D) { calls.push({ op: "stroke", args: p === undefined ? [] : ["path"] }); },
-    fill(p?: Path2D) { calls.push({ op: "fill", args: p === undefined ? [] : ["path"] }); },
+    get fillStyle() {
+      return _fill;
+    },
+    set fillStyle(v: string) {
+      _fill = v;
+      this.lastFillStyle = v;
+      calls.push({ op: "set:fillStyle", args: [v] });
+    },
+    get strokeStyle() {
+      return _stroke;
+    },
+    set strokeStyle(v: string) {
+      _stroke = v;
+      this.lastStrokeStyle = v;
+      calls.push({ op: "set:strokeStyle", args: [v] });
+    },
+    get lineWidth() {
+      return _lw;
+    },
+    set lineWidth(v: number) {
+      _lw = v;
+      this.lastLineWidth = v;
+      calls.push({ op: "set:lineWidth", args: [v] });
+    },
+    font: "",
+    textAlign: "left",
+    textBaseline: "top",
+    lineCap: "butt",
+    lineJoin: "miter",
+    fillRect() {},
+    strokeRect() {},
+    fillText() {},
+    measureText() {
+      return { width: 0 };
+    },
+    drawImage() {},
+    save() {
+      calls.push({ op: "save", args: [] });
+    },
+    restore() {
+      calls.push({ op: "restore", args: [] });
+    },
+    beginPath() {
+      calls.push({ op: "beginPath", args: [] });
+    },
+    closePath() {
+      calls.push({ op: "closePath", args: [] });
+    },
+    rect() {},
+    clip() {},
+    translate(x: number, y: number) {
+      calls.push({ op: "translate", args: [x, y] });
+    },
+    scale(x: number, y: number) {
+      calls.push({ op: "scale", args: [x, y] });
+    },
+    rotate(r: number) {
+      calls.push({ op: "rotate", args: [r] });
+    },
+    moveTo() {},
+    lineTo() {},
+    stroke(p?: Path2D) {
+      calls.push({ op: "stroke", args: p === undefined ? [] : ["path"] });
+    },
+    fill(p?: Path2D) {
+      calls.push({ op: "fill", args: p === undefined ? [] : ["path"] });
+    },
   };
   return ctx;
 }
@@ -1007,17 +1440,34 @@ describe("drawSymbol", () => {
   it("for a fill=true symbol, calls translate→rotate→scale→translate(-50,-50)→fill(path)", () => {
     const ctx = recorder();
     const a: SymbolAnnotation = {
-      id: "s1", kind: "symbol", z: 0, symbolId: "arrow-filled-right",
-      x: 100, y: 100, sizePx: 50, rotationDeg: 90, color: "#FF0000", strokeWidthPx: 4,
+      id: "s1",
+      kind: "symbol",
+      z: 0,
+      symbolId: "arrow-filled-right",
+      x: 100,
+      y: 100,
+      sizePx: 50,
+      rotationDeg: 90,
+      color: "#FF0000",
+      strokeWidthPx: 4,
     };
     drawAnnotations(ctx, figure([a]), {
-      panelRectsById: new Map(), panelsById: new Map(), imagesById: new Map(), bitmaps: new Map(),
+      panelRectsById: new Map(),
+      panelsById: new Map(),
+      imagesById: new Map(),
+      bitmaps: new Map(),
     });
     const ops = ctx.calls.map((c) => c.op);
     const i = ops.indexOf("save");
     expect(i).toBeGreaterThanOrEqual(0);
     expect(ops.slice(i, i + 7)).toEqual([
-      "save", "translate", "rotate", "scale", "translate", "set:fillStyle", "fill",
+      "save",
+      "translate",
+      "rotate",
+      "scale",
+      "translate",
+      "set:fillStyle",
+      "fill",
     ]);
     expect(ctx.calls[i + 1]!.args).toEqual([100, 100]);
     expect(ctx.calls[i + 2]!.args).toEqual([(90 * Math.PI) / 180]);
@@ -1029,11 +1479,22 @@ describe("drawSymbol", () => {
   it("for a fill=false symbol, divides strokeWidthPx by scale to keep visual width constant", () => {
     const ctx = recorder();
     const a: SymbolAnnotation = {
-      id: "s2", kind: "symbol", z: 0, symbolId: "arrow-line-right",
-      x: 0, y: 0, sizePx: 50, rotationDeg: 0, color: "#0000FF", strokeWidthPx: 4,
+      id: "s2",
+      kind: "symbol",
+      z: 0,
+      symbolId: "arrow-line-right",
+      x: 0,
+      y: 0,
+      sizePx: 50,
+      rotationDeg: 0,
+      color: "#0000FF",
+      strokeWidthPx: 4,
     };
     drawAnnotations(ctx, figure([a]), {
-      panelRectsById: new Map(), panelsById: new Map(), imagesById: new Map(), bitmaps: new Map(),
+      panelRectsById: new Map(),
+      panelsById: new Map(),
+      imagesById: new Map(),
+      bitmaps: new Map(),
     });
     expect(ctx.lastStrokeStyle).toBe("#0000FF");
     // scale = 50/100 = 0.5, so lineWidth = 4 / 0.5 = 8.
@@ -1045,11 +1506,22 @@ describe("drawSymbol", () => {
   it("renders nothing when symbolId is unknown", () => {
     const ctx = recorder();
     const a: SymbolAnnotation = {
-      id: "s3", kind: "symbol", z: 0, symbolId: "no-such-symbol",
-      x: 0, y: 0, sizePx: 50, rotationDeg: 0, color: "#000", strokeWidthPx: 1,
+      id: "s3",
+      kind: "symbol",
+      z: 0,
+      symbolId: "no-such-symbol",
+      x: 0,
+      y: 0,
+      sizePx: 50,
+      rotationDeg: 0,
+      color: "#000",
+      strokeWidthPx: 1,
     };
     drawAnnotations(ctx, figure([a]), {
-      panelRectsById: new Map(), panelsById: new Map(), imagesById: new Map(), bitmaps: new Map(),
+      panelRectsById: new Map(),
+      panelsById: new Map(),
+      imagesById: new Map(),
+      bitmaps: new Map(),
     });
     const ops = ctx.calls.map((c) => c.op);
     expect(ops).not.toContain("fill");
@@ -1161,6 +1633,7 @@ git commit -m "feat(symbols): drawSymbol renders Path2D with translate/rotate/sc
 ## Task 8: Toolbar — replace "Arrow" with "Symbol"
 
 **Files:**
+
 - Modify: `src/renderer/components/Toolbar/AnnotationToolbar.tsx`
 - Modify: any test that asserted the arrow toolbar button.
 
@@ -1205,6 +1678,7 @@ git commit -m "refactor(symbols): rename Arrow tool to Symbol"
 ## Task 9: Interaction layer — click-to-place + symbol handles
 
 **Files:**
+
 - Modify: `src/renderer/components/Annotations/AnnotationInteractionLayer.tsx`
 - Modify: `test/unit/annotation-interaction-layer.test.tsx`
 
@@ -1213,11 +1687,13 @@ This task is the largest UX change. We'll do it in pieces.
 - [ ] **Step 1: Update existing arrow tests in the interaction-layer test file**
 
 Open `test/unit/annotation-interaction-layer.test.tsx`. Find any test that:
+
 - selects tool "arrow"
 - builds an `arrow` annotation fixture
 - asserts arrow endpoint handles
 
 Rewrite all to symbols:
+
 - Tool "symbol".
 - The creation gesture is a single click: `pointerdown` on (x, y) followed by `pointerup` at the **same** coords (no drag).
 - The dispatched `ADD_ANNOTATION` payload is a `SymbolAnnotation` with `symbolId: "arrow-filled-right"` (default), `x`, `y` at the click position, `sizePx: 60`, `rotationDeg: 0`, default color `#FF0000`, `strokeWidthPx: 2`.
@@ -1234,45 +1710,45 @@ Expected: FAIL.
 Open `src/renderer/components/Annotations/AnnotationInteractionLayer.tsx`. Locate `onLayerPointerDown`. The current arrow/box branch starts a drag. Split it:
 
 ```ts
-    if (activeTool === "symbol") {
-      // Click-to-place: drop a symbol at this point. No drag-to-size.
-      const ann: SymbolAnnotation = {
-        id: newAnnoId(),
-        kind: "symbol",
-        z: Z_SYMBOL,
-        symbolId: lastSymbolIdRef.current ?? DEFAULT_SYMBOL_ID,
-        x: c.fx,
-        y: c.fy,
-        sizePx: DEFAULT_SYMBOL_SIZE,
-        rotationDeg: 0,
-        color: DEFAULT_SYMBOL_COLOR,
-        strokeWidthPx: DEFAULT_SYMBOL_STROKE,
-      };
-      // Image-bind if dropped over an image-bearing panel.
-      const ctx = imageContextAt(c.fx, c.fy, figure, panelRectsById, imagesById);
-      if (ctx !== null && ctx.panel.panelId !== undefined) {
-        const anchor = anchorFromFigure(c.fx, c.fy, ctx);
-        if (anchor !== null) {
-          ann.imageId = ctx.imageId;
-          ann.panelId = ctx.panel.panelId;
-          ann.anchor = anchor;
-        }
-      }
-      dispatch(addAnnotation(ann));
-      onSelectAnnotation(ann.id);
-      return;
+if (activeTool === "symbol") {
+  // Click-to-place: drop a symbol at this point. No drag-to-size.
+  const ann: SymbolAnnotation = {
+    id: newAnnoId(),
+    kind: "symbol",
+    z: Z_SYMBOL,
+    symbolId: lastSymbolIdRef.current ?? DEFAULT_SYMBOL_ID,
+    x: c.fx,
+    y: c.fy,
+    sizePx: DEFAULT_SYMBOL_SIZE,
+    rotationDeg: 0,
+    color: DEFAULT_SYMBOL_COLOR,
+    strokeWidthPx: DEFAULT_SYMBOL_STROKE,
+  };
+  // Image-bind if dropped over an image-bearing panel.
+  const ctx = imageContextAt(c.fx, c.fy, figure, panelRectsById, imagesById);
+  if (ctx !== null && ctx.panel.panelId !== undefined) {
+    const anchor = anchorFromFigure(c.fx, c.fy, ctx);
+    if (anchor !== null) {
+      ann.imageId = ctx.imageId;
+      ann.panelId = ctx.panel.panelId;
+      ann.anchor = anchor;
     }
+  }
+  dispatch(addAnnotation(ann));
+  onSelectAnnotation(ann.id);
+  return;
+}
 
-    // box: begin a drag. (arrow branch is gone.)
-    e.currentTarget.setPointerCapture(e.pointerId);
-    setDrag({
-      pointerId: e.pointerId,
-      kind: "create-box",
-      startFx: c.fx,
-      startFy: c.fy,
-      curFx: c.fx,
-      curFy: c.fy,
-    });
+// box: begin a drag. (arrow branch is gone.)
+e.currentTarget.setPointerCapture(e.pointerId);
+setDrag({
+  pointerId: e.pointerId,
+  kind: "create-box",
+  startFx: c.fx,
+  startFy: c.fy,
+  curFx: c.fx,
+  curFy: c.fy,
+});
 ```
 
 Add the constants and a ref near the existing `DEFAULT_*` constants:
@@ -1289,24 +1765,25 @@ const Z_SYMBOL = 1;
 `lastSymbolIdRef` retains the last user-picked symbol across clicks (so the user can pick "shape-circle" once and click multiple times to drop circles). Add it inside the component:
 
 ```ts
-  const lastSymbolIdRef = useRef<string>(DEFAULT_SYMBOL_ID);
+const lastSymbolIdRef = useRef<string>(DEFAULT_SYMBOL_ID);
 ```
 
 Wire it: when the user updates `symbolId` via the form, the form calls `dispatch(updateAnnotation(...))` directly. Read the updated symbol back in `lastSymbolIdRef` from a `useEffect` that watches `figure.annotations` for the selected annotation:
 
 ```ts
-  useEffect(() => {
-    if (selectedAnnotationId === null) return;
-    const a = figure.annotations.find((x) => x.id === selectedAnnotationId);
-    if (a !== undefined && a.kind === "symbol") {
-      lastSymbolIdRef.current = a.symbolId;
-    }
-  }, [selectedAnnotationId, figure.annotations]);
+useEffect(() => {
+  if (selectedAnnotationId === null) return;
+  const a = figure.annotations.find((x) => x.id === selectedAnnotationId);
+  if (a !== undefined && a.kind === "symbol") {
+    lastSymbolIdRef.current = a.symbolId;
+  }
+}, [selectedAnnotationId, figure.annotations]);
 ```
 
 - [ ] **Step 4: Remove arrow-creation drag branch + arrow-endpoint handles**
 
 In the same file:
+
 1. Remove `case "arrow"` from the `onHitPointerMove` switch and replace with a `case "symbol"`:
 
 ```ts
@@ -1371,12 +1848,24 @@ function onSymbolCornerPointerDown(
   });
 }
 
-function onSymbolCornerPointerMove(e: React.PointerEvent<HTMLDivElement>): void {
-  if (drag === null || drag.kind !== "symbol-corner" || drag.pointerId !== e.pointerId) return;
+function onSymbolCornerPointerMove(
+  e: React.PointerEvent<HTMLDivElement>,
+): void {
+  if (
+    drag === null ||
+    drag.kind !== "symbol-corner" ||
+    drag.pointerId !== e.pointerId
+  )
+    return;
   const c = clientToFigure(e);
   if (c === null) return;
   const start = drag.startAnno;
-  if (start === undefined || start.kind !== "symbol" || drag.movingId === undefined) return;
+  if (
+    start === undefined ||
+    start.kind !== "symbol" ||
+    drag.movingId === undefined
+  )
+    return;
   // Resize from corner: distance from symbol center sets the new sizePx,
   // doubled (since sizePx is the full diagonal-square edge, not a half-extent).
   const cx = start.x;
@@ -1387,8 +1876,14 @@ function onSymbolCornerPointerMove(e: React.PointerEvent<HTMLDivElement>): void 
 }
 
 function onSymbolCornerPointerUp(e: React.PointerEvent<HTMLDivElement>): void {
-  if (drag === null || drag.kind !== "symbol-corner" || drag.pointerId !== e.pointerId) return;
-  if (e.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId);
+  if (
+    drag === null ||
+    drag.kind !== "symbol-corner" ||
+    drag.pointerId !== e.pointerId
+  )
+    return;
+  if (e.currentTarget.hasPointerCapture(e.pointerId))
+    e.currentTarget.releasePointerCapture(e.pointerId);
   setDrag(null);
 }
 
@@ -1414,12 +1909,24 @@ function onSymbolRotatePointerDown(
   });
 }
 
-function onSymbolRotatePointerMove(e: React.PointerEvent<HTMLDivElement>): void {
-  if (drag === null || drag.kind !== "symbol-rotate" || drag.pointerId !== e.pointerId) return;
+function onSymbolRotatePointerMove(
+  e: React.PointerEvent<HTMLDivElement>,
+): void {
+  if (
+    drag === null ||
+    drag.kind !== "symbol-rotate" ||
+    drag.pointerId !== e.pointerId
+  )
+    return;
   const c = clientToFigure(e);
   if (c === null) return;
   const start = drag.startAnno;
-  if (start === undefined || start.kind !== "symbol" || drag.movingId === undefined) return;
+  if (
+    start === undefined ||
+    start.kind !== "symbol" ||
+    drag.movingId === undefined
+  )
+    return;
   const angleRad = Math.atan2(c.fy - start.y, c.fx - start.x);
   const rotationDeg = (angleRad * 180) / Math.PI;
   const patch: Partial<SymbolAnnotation> = { rotationDeg };
@@ -1427,8 +1934,14 @@ function onSymbolRotatePointerMove(e: React.PointerEvent<HTMLDivElement>): void 
 }
 
 function onSymbolRotatePointerUp(e: React.PointerEvent<HTMLDivElement>): void {
-  if (drag === null || drag.kind !== "symbol-rotate" || drag.pointerId !== e.pointerId) return;
-  if (e.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId);
+  if (
+    drag === null ||
+    drag.kind !== "symbol-rotate" ||
+    drag.pointerId !== e.pointerId
+  )
+    return;
+  if (e.currentTarget.hasPointerCapture(e.pointerId))
+    e.currentTarget.releasePointerCapture(e.pointerId);
   setDrag(null);
 }
 ```
@@ -1449,60 +1962,86 @@ Replace the `case "arrow":` in `annoBounds` (lines ~265-271) with:
 In the JSX block where the arrow endpoint handles previously lived, render symbol handles instead:
 
 ```tsx
-{activeTool === "select" &&
-  selected !== undefined &&
-  selected.kind === "symbol" && (
-    <>
-      {(
-        [
-          ["tl", selected.x - selected.sizePx / 2, selected.y - selected.sizePx / 2, "nwse-resize"],
-          ["tr", selected.x + selected.sizePx / 2, selected.y - selected.sizePx / 2, "nesw-resize"],
-          ["bl", selected.x - selected.sizePx / 2, selected.y + selected.sizePx / 2, "nesw-resize"],
-          ["br", selected.x + selected.sizePx / 2, selected.y + selected.sizePx / 2, "nwse-resize"],
-        ] as const
-      ).map(([corner, fx, fy, cursor]) => (
+{
+  activeTool === "select" &&
+    selected !== undefined &&
+    selected.kind === "symbol" && (
+      <>
+        {(
+          [
+            [
+              "tl",
+              selected.x - selected.sizePx / 2,
+              selected.y - selected.sizePx / 2,
+              "nwse-resize",
+            ],
+            [
+              "tr",
+              selected.x + selected.sizePx / 2,
+              selected.y - selected.sizePx / 2,
+              "nesw-resize",
+            ],
+            [
+              "bl",
+              selected.x - selected.sizePx / 2,
+              selected.y + selected.sizePx / 2,
+              "nesw-resize",
+            ],
+            [
+              "br",
+              selected.x + selected.sizePx / 2,
+              selected.y + selected.sizePx / 2,
+              "nwse-resize",
+            ],
+          ] as const
+        ).map(([corner, fx, fy, cursor]) => (
+          <div
+            key={`symbol-handle-${corner}`}
+            data-testid={`anno-symbol-handle-${corner}`}
+            onPointerDown={(e) =>
+              onSymbolCornerPointerDown(e, selected, corner)
+            }
+            onPointerMove={onSymbolCornerPointerMove}
+            onPointerUp={onSymbolCornerPointerUp}
+            onPointerCancel={onSymbolCornerPointerUp}
+            style={{
+              position: "absolute",
+              left: fx * figToCssX - HANDLE_PX / 2,
+              top: fy * figToCssY - HANDLE_PX / 2,
+              width: HANDLE_PX,
+              height: HANDLE_PX,
+              background: "#0066FF",
+              pointerEvents: "auto",
+              cursor,
+              zIndex: 4,
+            }}
+          />
+        ))}
+        {/* Rotation handle: small disc above the top edge. */}
         <div
-          key={`symbol-handle-${corner}`}
-          data-testid={`anno-symbol-handle-${corner}`}
-          onPointerDown={(e) => onSymbolCornerPointerDown(e, selected, corner)}
-          onPointerMove={onSymbolCornerPointerMove}
-          onPointerUp={onSymbolCornerPointerUp}
-          onPointerCancel={onSymbolCornerPointerUp}
+          data-testid="anno-symbol-handle-rotate"
+          onPointerDown={(e) => onSymbolRotatePointerDown(e, selected)}
+          onPointerMove={onSymbolRotatePointerMove}
+          onPointerUp={onSymbolRotatePointerUp}
+          onPointerCancel={onSymbolRotatePointerUp}
           style={{
             position: "absolute",
-            left: fx * figToCssX - HANDLE_PX / 2,
-            top: fy * figToCssY - HANDLE_PX / 2,
+            left: selected.x * figToCssX - HANDLE_PX / 2,
+            top:
+              (selected.y - selected.sizePx / 2 - 16) * figToCssY -
+              HANDLE_PX / 2,
             width: HANDLE_PX,
             height: HANDLE_PX,
+            borderRadius: HANDLE_PX,
             background: "#0066FF",
             pointerEvents: "auto",
-            cursor,
+            cursor: "grab",
             zIndex: 4,
           }}
         />
-      ))}
-      {/* Rotation handle: small disc above the top edge. */}
-      <div
-        data-testid="anno-symbol-handle-rotate"
-        onPointerDown={(e) => onSymbolRotatePointerDown(e, selected)}
-        onPointerMove={onSymbolRotatePointerMove}
-        onPointerUp={onSymbolRotatePointerUp}
-        onPointerCancel={onSymbolRotatePointerUp}
-        style={{
-          position: "absolute",
-          left: selected.x * figToCssX - HANDLE_PX / 2,
-          top: (selected.y - selected.sizePx / 2 - 16) * figToCssY - HANDLE_PX / 2,
-          width: HANDLE_PX,
-          height: HANDLE_PX,
-          borderRadius: HANDLE_PX,
-          background: "#0066FF",
-          pointerEvents: "auto",
-          cursor: "grab",
-          zIndex: 4,
-        }}
-      />
-    </>
-  )}
+      </>
+    );
+}
 ```
 
 - [ ] **Step 8: Update the cursor for the symbol tool**
@@ -1510,12 +2049,16 @@ In the JSX block where the arrow endpoint handles previously lived, render symbo
 In the `cursor` ternary near the bottom of the component, add:
 
 ```ts
-  const cursor =
-    activeTool === "text" ? "text"
-    : activeTool === "symbol" ? "crosshair"
-    : activeTool === "box" ? "crosshair"
-    : activeTool === "scalebar" ? "cell"
-    : "default";
+const cursor =
+  activeTool === "text"
+    ? "text"
+    : activeTool === "symbol"
+      ? "crosshair"
+      : activeTool === "box"
+        ? "crosshair"
+        : activeTool === "scalebar"
+          ? "cell"
+          : "default";
 ```
 
 - [ ] **Step 9: Run the interaction-layer tests**
@@ -1536,6 +2079,7 @@ git commit -m "feat(symbols): click-to-place + corner/rotation handles in intera
 ## Task 10: SymbolAnnoForm component
 
 **Files:**
+
 - Create: `src/renderer/components/Properties/SymbolAnnoForm.tsx`
 - Delete: `src/renderer/components/Properties/ArrowAnnoForm.tsx`
 - Modify: `src/renderer/components/Properties/AnnotationPropertiesForm.tsx`
@@ -1553,7 +2097,9 @@ import { render, fireEvent } from "@testing-library/react";
 import { SymbolAnnoForm } from "../../src/renderer/components/Properties/SymbolAnnoForm";
 import type { SymbolAnnotation } from "../../src/renderer/model/annotations";
 
-const makeAnno = (overrides: Partial<SymbolAnnotation> = {}): SymbolAnnotation => ({
+const makeAnno = (
+  overrides: Partial<SymbolAnnotation> = {},
+): SymbolAnnotation => ({
   id: "s1",
   kind: "symbol",
   z: 0,
@@ -1573,7 +2119,11 @@ describe("SymbolAnnoForm", () => {
   it("renders gallery groups for each category", () => {
     const dispatch = vi.fn();
     const { getAllByTestId } = render(
-      <SymbolAnnoForm anno={makeAnno()} dispatch={dispatch} commit={noopCommit} />,
+      <SymbolAnnoForm
+        anno={makeAnno()}
+        dispatch={dispatch}
+        commit={noopCommit}
+      />,
     );
     expect(getAllByTestId(/^symbol-gallery-group-/).length).toBe(4);
   });
@@ -1581,7 +2131,11 @@ describe("SymbolAnnoForm", () => {
   it("clicking a non-active gallery cell dispatches UPDATE_ANNOTATION with that symbolId", () => {
     const dispatch = vi.fn();
     const { getByTestId } = render(
-      <SymbolAnnoForm anno={makeAnno()} dispatch={dispatch} commit={noopCommit} />,
+      <SymbolAnnoForm
+        anno={makeAnno()}
+        dispatch={dispatch}
+        commit={noopCommit}
+      />,
     );
     fireEvent.click(getByTestId("symbol-gallery-cell-shape-circle"));
     expect(dispatch).toHaveBeenCalledWith({
@@ -1608,17 +2162,29 @@ describe("SymbolAnnoForm", () => {
   it("stroke-width input is disabled for fill symbols", () => {
     const dispatch = vi.fn();
     const { getByTestId } = render(
-      <SymbolAnnoForm anno={makeAnno({ symbolId: "shape-circle" })} dispatch={dispatch} commit={noopCommit} />,
+      <SymbolAnnoForm
+        anno={makeAnno({ symbolId: "shape-circle" })}
+        dispatch={dispatch}
+        commit={noopCommit}
+      />,
     );
-    expect((getByTestId("symbol-stroke-width") as HTMLInputElement).disabled).toBe(true);
+    expect(
+      (getByTestId("symbol-stroke-width") as HTMLInputElement).disabled,
+    ).toBe(true);
   });
 
   it("stroke-width input is enabled for stroke symbols", () => {
     const dispatch = vi.fn();
     const { getByTestId } = render(
-      <SymbolAnnoForm anno={makeAnno({ symbolId: "marker-tick" })} dispatch={dispatch} commit={noopCommit} />,
+      <SymbolAnnoForm
+        anno={makeAnno({ symbolId: "marker-tick" })}
+        dispatch={dispatch}
+        commit={noopCommit}
+      />,
     );
-    expect((getByTestId("symbol-stroke-width") as HTMLInputElement).disabled).toBe(false);
+    expect(
+      (getByTestId("symbol-stroke-width") as HTMLInputElement).disabled,
+    ).toBe(false);
   });
 });
 ```
@@ -1665,7 +2231,9 @@ export function SymbolAnnoForm({ anno, dispatch, commit }: Props): JSX.Element {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
       <div>
-        <div style={{ fontSize: 11, fontWeight: 600, marginBottom: 4 }}>Symbol</div>
+        <div style={{ fontSize: 11, fontWeight: 600, marginBottom: 4 }}>
+          Symbol
+        </div>
         <div className="symbol-gallery">
           {SYMBOL_CATEGORIES.map((cat) => (
             <div
@@ -1777,16 +2345,16 @@ Open `src/renderer/components/Properties/AnnotationPropertiesForm.tsx`. Replace 
 import { SymbolAnnoForm } from "./SymbolAnnoForm";
 // (delete the ArrowAnnoForm import)
 
-  switch (anno.kind) {
-    case "text":
-      return <TextAnnoForm anno={anno} dispatch={dispatch} commit={commit} />;
-    case "symbol":
-      return <SymbolAnnoForm anno={anno} dispatch={dispatch} commit={commit} />;
-    case "box":
-      return <BoxAnnoForm anno={anno} dispatch={dispatch} commit={commit} />;
-    case "scalebar":
-      return <ScalebarAnnoForm anno={anno} dispatch={dispatch} commit={commit} />;
-  }
+switch (anno.kind) {
+  case "text":
+    return <TextAnnoForm anno={anno} dispatch={dispatch} commit={commit} />;
+  case "symbol":
+    return <SymbolAnnoForm anno={anno} dispatch={dispatch} commit={commit} />;
+  case "box":
+    return <BoxAnnoForm anno={anno} dispatch={dispatch} commit={commit} />;
+  case "scalebar":
+    return <ScalebarAnnoForm anno={anno} dispatch={dispatch} commit={commit} />;
+}
 ```
 
 - [ ] **Step 5: Add CSS for the gallery**
@@ -1795,8 +2363,16 @@ Open `src/renderer/styles.css`. Append:
 
 ```css
 /* Symbol gallery (properties panel) */
-.symbol-gallery { display: flex; flex-direction: column; gap: 8px; }
-.symbol-gallery-group { display: flex; flex-direction: column; gap: 4px; }
+.symbol-gallery {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.symbol-gallery-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
 .symbol-gallery-label {
   font-size: 10px;
   text-transform: uppercase;
@@ -1816,17 +2392,19 @@ Open `src/renderer/styles.css`. Append:
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: var(--c-surface, #FFF);
-  border: 1px solid var(--c-border, #DDD);
+  background: var(--c-surface, #fff);
+  border: 1px solid var(--c-border, #ddd);
   border-radius: 4px;
   color: var(--c-text, #333);
   cursor: pointer;
   padding: 0;
 }
-.symbol-gallery-cell:hover { background: var(--c-surface-hover, #F4F4F4); }
+.symbol-gallery-cell:hover {
+  background: var(--c-surface-hover, #f4f4f4);
+}
 .symbol-gallery-cell.is-active {
-  border-color: var(--c-accent, #0066FF);
-  box-shadow: 0 0 0 1px var(--c-accent, #0066FF) inset;
+  border-color: var(--c-accent, #0066ff);
+  box-shadow: 0 0 0 1px var(--c-accent, #0066ff) inset;
 }
 ```
 
@@ -1855,6 +2433,7 @@ git commit -m "feat(symbols): SymbolAnnoForm with category-grouped gallery + rot
 ## Task 11: Update remaining tests + clean up
 
 **Files:**
+
 - Modify: `test/unit/figure-actions.test.ts`
 - Modify: any other test that still references `kind: "arrow"` or `ArrowAnnotation`.
 
@@ -1900,6 +2479,7 @@ Run: `pnpm dev`
 - [ ] **Step 2: Verify symbol creation flow**
 
 In the app:
+
 1. Click the **Symbol** button in the annotation toolbar.
 2. Click somewhere on the canvas.
 3. Confirm a red filled-right arrow symbol appears at the click point.
@@ -1953,6 +2533,7 @@ Use the project's preferred PR command (e.g. `gh pr create`) with title:
 > feat(qa-feedback): replace arrow with curated symbol library (spec 06)
 
 Body should include:
+
 - Link to `docs/superpowers/specs/2026-05-08-qa-feedback/06-symbol-library.md`.
 - Acceptance criteria from that spec, each checked.
 - Note on the schemaVersion bump (v1 → v2) and migration path.

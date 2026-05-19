@@ -13,10 +13,12 @@
 ## File Structure
 
 **New files:**
+
 - `src/renderer/model/canvas-dims.ts` — pure helpers `computeCanvasDims` and `scaleAnnotations`. Kept separate from `figure-actions.ts` so the unit tests are focused and the reducer file doesn't grow.
 - `test/unit/canvas-dims.test.ts` — tests for the two pure helpers.
 
 **Modified files:**
+
 - `src/renderer/model/figure-state.ts` — add `canvas: { widthPx; heightPx }` field; initialize at `MIN_CANVAS_W/H`.
 - `src/renderer/model/figure-actions.ts` — recompute canvas + scale annotations in 4 actions.
 - `src/renderer/model/serialize.ts` — read `state.canvas`; map to/from on-disk top-level `file.canvas`.
@@ -29,6 +31,7 @@
 ## Task 1: Add canvas field to FigureState
 
 **Files:**
+
 - Modify: `src/renderer/model/figure-state.ts`
 - Modify: `test/unit/figure-state.test.ts`
 
@@ -37,10 +40,10 @@
 Edit `test/unit/figure-state.test.ts`. Inside the existing `describe("initialFigureState — M6 shape", ...)` block, add this `it` block after the existing two:
 
 ```typescript
-  it("includes a canvas with default 800x600 dims", () => {
-    const s = initialFigureState();
-    expect(s.canvas).toEqual({ widthPx: 800, heightPx: 600 });
-  });
+it("includes a canvas with default 800x600 dims", () => {
+  const s = initialFigureState();
+  expect(s.canvas).toEqual({ widthPx: 800, heightPx: 600 });
+});
 ```
 
 - [ ] **Step 2: Run the test to verify it fails**
@@ -53,14 +56,17 @@ Expected: FAIL — `Property 'canvas' does not exist on type 'FigureState'` (Typ
 Edit `src/renderer/model/figure-state.ts`. After the `letterOverrides` field in the `FigureState` interface, add:
 
 ```typescript
-  /**
-   * Figure pixel dimensions. Derived from `pool + rows + cols + gutterPx`
-   * by `computeCanvasDims` and recomputed inside the reducer whenever
-   * those inputs change. Stored (rather than recomputed at every render)
-   * because annotation coordinates need a stable previous value to scale
-   * against on every recompute.
-   */
-  canvas: { widthPx: number; heightPx: number };
+/**
+ * Figure pixel dimensions. Derived from `pool + rows + cols + gutterPx`
+ * by `computeCanvasDims` and recomputed inside the reducer whenever
+ * those inputs change. Stored (rather than recomputed at every render)
+ * because annotation coordinates need a stable previous value to scale
+ * against on every recompute.
+ */
+canvas: {
+  widthPx: number;
+  heightPx: number;
+}
 ```
 
 Add at the top of the file, alongside the other constants:
@@ -119,6 +125,7 @@ in the recompute on pool/grid changes."
 ## Task 2: Pure helper — computeCanvasDims
 
 **Files:**
+
 - Create: `src/renderer/model/canvas-dims.ts`
 - Create: `test/unit/canvas-dims.test.ts`
 
@@ -263,6 +270,7 @@ height. Falls back to MIN 800x600 for an empty pool."
 ## Task 3: Pure helper — scaleAnnotations
 
 **Files:**
+
 - Modify: `src/renderer/model/canvas-dims.ts`
 - Modify: `test/unit/canvas-dims.test.ts`
 
@@ -458,6 +466,7 @@ Scales figure-pixel coordinates of text/arrow/box annotations by per-axis
 ## Task 4: Recompute canvas + scale annotations in the reducer
 
 **Files:**
+
 - Modify: `src/renderer/model/figure-actions.ts`
 - Modify: `test/unit/figure-actions.test.ts`
 
@@ -567,11 +576,13 @@ Add this private helper near the other helpers at the bottom of the file (above 
  * proportionally if dims actually changed. Returns the same `next`
  * reference when dims are unchanged so React identity checks see no churn.
  */
-function applyCanvasResize(
-  prev: FigureState,
-  next: FigureState,
-): FigureState {
-  const dims = computeCanvasDims(next.pool, next.rows, next.cols, next.gutterPx);
+function applyCanvasResize(prev: FigureState, next: FigureState): FigureState {
+  const dims = computeCanvasDims(
+    next.pool,
+    next.rows,
+    next.cols,
+    next.gutterPx,
+  );
   if (
     dims.widthPx === prev.canvas.widthPx &&
     dims.heightPx === prev.canvas.heightPx
@@ -600,30 +611,30 @@ In `case "ADD_TO_POOL"`:
 In `case "REMOVE_FROM_POOL"`, change the final `return { ... }` block to:
 
 ```typescript
-      return applyCanvasResize(s, {
-        ...s,
-        pool: s.pool.filter((p) => p.id !== a.imageId),
-        panels,
-        annotations,
-      });
+return applyCanvasResize(s, {
+  ...s,
+  pool: s.pool.filter((p) => p.id !== a.imageId),
+  panels,
+  annotations,
+});
 ```
 
 In `case "RESIZE_GRID"`, change the return to:
 
 ```typescript
-      return applyCanvasResize(s, {
-        ...s,
-        rows,
-        cols,
-        panels: r.panels,
-        letterOverrides,
-      });
+return applyCanvasResize(s, {
+  ...s,
+  rows,
+  cols,
+  panels: r.panels,
+  letterOverrides,
+});
 ```
 
 In `case "SET_GUTTER_PX"`, change the final return to:
 
 ```typescript
-      return applyCanvasResize(s, { ...s, gutterPx });
+return applyCanvasResize(s, { ...s, gutterPx });
 ```
 
 - [ ] **Step 4: Run the tests to verify they pass**
@@ -653,6 +664,7 @@ preserved so React doesn't re-render unnecessarily."
 ## Task 5: Round-trip canvas through serializer
 
 **Files:**
+
 - Modify: `src/renderer/model/serialize.ts`
 - Modify: `src/renderer/state/load-project.ts`
 - Modify: `test/unit/serialize.test.ts`
@@ -683,7 +695,9 @@ describe("serialize — canvas comes from state.canvas", () => {
     expect(file.canvas.background).toBe("#FFFFFF");
     // on-disk state should NOT carry a nested canvas (would duplicate the
     // top-level field and confuse round-trip parity)
-    expect((file.state as unknown as { canvas?: unknown }).canvas).toBeUndefined();
+    expect(
+      (file.state as unknown as { canvas?: unknown }).canvas,
+    ).toBeUndefined();
   });
 
   it("fromMosaicFile puts file.canvas onto state.canvas", () => {
@@ -766,7 +780,10 @@ In the same file, replace the body of `fromMosaicFile`:
 export function fromMosaicFile(file: MosaicFileV1): FromMosaicResult {
   const relinkHints: RelinkHint[] = [];
   const runtimePool = file.state.pool.map((item) => {
-    const { relPath, sha256, ...rest } = item as unknown as ImagePoolItem & { relPath?: string; sha256?: string };
+    const { relPath, sha256, ...rest } = item as unknown as ImagePoolItem & {
+      relPath?: string;
+      sha256?: string;
+    };
     const hint: RelinkHint = { imageId: rest.id, filePath: rest.filePath };
     if (relPath !== undefined) hint.relPath = relPath;
     if (sha256 !== undefined) hint.sha256 = sha256;
@@ -822,6 +839,7 @@ load identically because top-level file.canvas was always populated."
 ## Task 6: Wire App.tsx to use state.canvas
 
 **Files:**
+
 - Modify: `src/renderer/App.tsx`
 
 - [ ] **Step 1: Replace constants with derived values**
@@ -843,17 +861,17 @@ Remove `FIGURE_PX_W` and `FIGURE_PX_H`. Keep `CANVAS_BG`, `CANVAS_CSS_W`, `CANVA
 Find the `figure = useMemo(...)` block (~line 81). Replace with:
 
 ```typescript
-  const figure = useMemo(
-    () =>
-      deriveFigure(state, {
-        canvas: {
-          widthPx: state.canvas.widthPx,
-          heightPx: state.canvas.heightPx,
-          background: CANVAS_BG,
-        },
-      }),
-    [state],
-  );
+const figure = useMemo(
+  () =>
+    deriveFigure(state, {
+      canvas: {
+        widthPx: state.canvas.widthPx,
+        heightPx: state.canvas.heightPx,
+        background: CANVAS_BG,
+      },
+    }),
+  [state],
+);
 ```
 
 (`state` already includes `canvas` so the dependency is correct via the existing `[state]` dep.)
@@ -863,16 +881,16 @@ Find the `figure = useMemo(...)` block (~line 81). Replace with:
 Find the `onSaveProject` callback (~line 288). Replace the `toMosaicFile` invocation:
 
 ```typescript
-    const file = toMosaicFile({
-      state,
-      canvas: {
-        widthPx: state.canvas.widthPx,
-        heightPx: state.canvas.heightPx,
-        background: CANVAS_BG,
-      },
-      mosaicPath: projectPath ?? "untitled.mosaic",
-      appVersion: APP_VERSION,
-    });
+const file = toMosaicFile({
+  state,
+  canvas: {
+    widthPx: state.canvas.widthPx,
+    heightPx: state.canvas.heightPx,
+    background: CANVAS_BG,
+  },
+  mosaicPath: projectPath ?? "untitled.mosaic",
+  appVersion: APP_VERSION,
+});
 ```
 
 (The serializer reads `state.canvas` for dims now; `inp.canvas` is only used for `background`. Keeping the same shape avoids an unrelated refactor.)
@@ -901,6 +919,7 @@ Expected: PASS — no tests should regress.
 - [ ] **Step 7: Manual sanity check (dev server)**
 
 Run: `pnpm dev`
+
 - Add a small image (e.g. <800×600). Confirm the grid still renders and looks normal.
 - Add a large TIFF (e.g. ≥4000×3000). Confirm the grid renders. The on-screen size of the editor box should stay the same (CSS-bound to 800×600), but the image inside should look sharp now (no visible blurriness).
 - Export PNG. Open the saved file. It should be ≥4000×3000 (or larger, depending on grid dims) and the image should be at full resolution.
@@ -932,6 +951,7 @@ This task confirms the no-compression-on-export rule from the spec. No code chan
 - [ ] **Step 1: Inspect export paths**
 
 Read these files (to internalize the chain):
+
 - `src/renderer/render/export-renderer.ts` — uses `figure.canvas.widthPx/heightPx` for the OffscreenCanvas. Already correct.
 - `src/renderer/export/png.ts` — `convertToBlob({ type: "image/png" })`. Lossless by spec.
 - `src/renderer/export/tiff.ts` — `UTIF.encodeImage(rgba, w, h)`. Uncompressed (per the file's own comment).
@@ -941,6 +961,7 @@ Read these files (to internalize the chain):
 - [ ] **Step 2: Manual sanity check**
 
 Run `pnpm dev`. Add a 4000×3000 TIFF, place it in a single panel of a 1×1 grid. Export PNG.
+
 - Open the resulting PNG in a viewer. Confirm dims ≥ 4000×3000.
 - Zoom into the panel content. Confirm visible detail matches the source TIFF (no blur, no posterization).
 
@@ -957,6 +978,7 @@ This task does not produce code changes. Skip the commit step.
 ## Task 8: Cleanup pass
 
 **Files:**
+
 - Modify: `src/renderer/model/figure-state.ts` (potentially)
 - Modify: `src/renderer/App.tsx` (potentially)
 
@@ -973,16 +995,19 @@ Expected: zero matches. Test fixtures (`test/`) may legitimately keep these.
 - [ ] **Step 2: Run full test suite + typecheck + lint**
 
 Run these in sequence:
+
 ```
 pnpm typecheck
 pnpm test
 pnpm lint
 ```
+
 Expected: all PASS.
 
 - [ ] **Step 3: Final manual smoke test**
 
 Run: `pnpm dev`. Walk through:
+
 1. New empty figure — confirm 800×600 canvas appears normal.
 2. Add small image → grid renders, no resolution issue.
 3. Add large TIFF → grid still fits the same on-screen box, image is sharp.
@@ -1010,6 +1035,7 @@ If nothing needed cleaning, skip the commit.
 ## Self-Review Notes
 
 **Spec coverage:**
+
 - "Compute canvas from pool + grid + gutter" → Task 2.
 - "Recompute on ADD_TO_POOL/REMOVE_FROM_POOL/RESIZE_GRID/SET_GUTTER_PX" → Task 4.
 - "Scale annotations proportionally" → Task 3 (helper) + Task 4 (wiring).
@@ -1022,6 +1048,7 @@ If nothing needed cleaning, skip the commit.
 - "Acceptance criteria" → Task 6 Step 7 (manual) + Task 7 Step 2 (manual).
 
 **Type/name consistency:**
+
 - `MIN_CANVAS_W` / `MIN_CANVAS_H` exported from `figure-state.ts`, imported by `canvas-dims.ts`. Same names throughout.
 - `computeCanvasDims(pool, rows, cols, gutterPx)` signature consistent across helper, reducer, and tests.
 - `scaleAnnotations(annotations, sx, sy)` consistent.
@@ -1029,6 +1056,7 @@ If nothing needed cleaning, skip the commit.
 - `FigureState.canvas` shape `{ widthPx; heightPx }` consistent with `FigureCanvas` type minus `background` (background remains a derive-time input).
 
 **Risk/edge case audit:**
+
 - `RESET_FIGURE` returns `initialFigureState()` which has `canvas` initialized — fine.
 - `RESET_TO_STATE` requires the caller to pass a fully-formed state (including `canvas`); this is what serializer load now does. Existing test fixtures that build hand-rolled states for this action need a `canvas` field. Task 4 Step 5 catches them.
 - React identity: `applyCanvasResize` returns the same `prev.canvas` object when dims don't change, so `useMemo([state])` gates can short-circuit downstream.

@@ -84,7 +84,9 @@ describe("editor-renderer: pool propagation", () => {
         scale: () => {},
       }) as unknown) as HTMLCanvasElement["getContext"];
 
-    drawFigureSpy = vi.spyOn(drawFigureModule, "drawFigure").mockImplementation(() => {});
+    drawFigureSpy = vi
+      .spyOn(drawFigureModule, "drawFigure")
+      .mockImplementation(() => {});
 
     // jsdom rAF can be flaky; use a microtask flush instead.
     let pending: FrameRequestCallback | null = null;
@@ -112,7 +114,11 @@ describe("editor-renderer: pool propagation", () => {
   it("threads the pool to drawFigure when setPool + setFigure are wired", async () => {
     const r = createEditorRenderer(canvas);
     r.setPool(calibratedPool);
-    r.setImages(new Map([["img-cal", { width: 100, height: 100 } as unknown as ImageBitmap]]));
+    r.setImages(
+      new Map([
+        ["img-cal", { width: 100, height: 100 } as unknown as ImageBitmap],
+      ]),
+    );
     r.setFigure(FIG);
     // Flush queued microtasks (the rAF callbacks).
     await Promise.resolve();

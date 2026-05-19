@@ -578,10 +578,8 @@ function validateLayout(
   if (x.kind === "uniform") {
     const cw: unknown = x.colWeights;
     const rw: unknown = x.rowWeights;
-    if (!Array.isArray(cw))
-      return err(`${path}.colWeights: expected array`);
-    if (!Array.isArray(rw))
-      return err(`${path}.rowWeights: expected array`);
+    if (!Array.isArray(cw)) return err(`${path}.colWeights: expected array`);
+    if (!Array.isArray(rw)) return err(`${path}.rowWeights: expected array`);
     if (cw.length !== cols)
       return err(`${path}.colWeights: length must equal cols (${cols})`);
     if (rw.length !== rows)

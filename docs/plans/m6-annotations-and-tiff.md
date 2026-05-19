@@ -13,6 +13,7 @@
 **Working directory:** `/Users/erikvlcak/Desktop/mosaic-builder/`. Branch off `main`. Build a feature branch (e.g. `feat/m6-annotations-and-tiff`) and merge once the manual checklist passes.
 
 **Predecessor state (M5):**
+
 - [src/renderer/model/panels.ts](../../src/renderer/model/panels.ts) — `Panel` carries `id, row, col, rowSpan, colSpan, imageId?, transform?` with `transform === undefined` ⇔ `imageId === undefined`.
 - [src/renderer/model/pool.ts](../../src/renderer/model/pool.ts) — `ImagePoolItem` only has `id, filename, filePath, mime, width, height`. **No `bitDepth`, no `calibration`, no `sha256`.** M6 extends this.
 - [src/renderer/model/figure-state.ts](../../src/renderer/model/figure-state.ts) — `FigureState` holds `pool`, `panels`, `rows`, `cols`, `gutterPx`, `gutterColor`. **No annotations slot.** M6 adds `annotations: Annotation[]` and `globalStyle: GlobalAnnoStyle`.
@@ -62,7 +63,7 @@ Five concerns, five layers:
 5. **Multi-format export** (`export/png.ts`, `export/jpeg.ts`, `export/tiff.ts`, `export/pdf.ts`). All four call `renderFigureToImageBitmap(figure, images)` to produce one `ImageBitmap` from the offscreen pipeline, then encode. PNG/JPEG use `OffscreenCanvas.convertToBlob`; TIFF goes through `UTIF.encodeImage` + IFD assembly; PDF uses `pdf-lib`. The IPC channels and main-side `fs-write` paths add one entry per format with a refactored `writeBytesToPath(filePath, bytes, allowedExt)` helper.
 
 `★ Insight ─────────────────────────────────────`
-Annotations on a panel are stored in **figure-canvas coordinates**, not in image-source coordinates. This means a scale bar drawn at `(x=20, y=panelH-20)` keeps its position when the user pans/zooms inside the panel — but its *length* recomputes because the formula reads `panel.transform.zoom` live. That is the design the source plan calls out: "bar length recomputed on zoom". Storing endpoints in image coords would mean the bar moves with the image, which is wrong for a figure-overlay element.
+Annotations on a panel are stored in **figure-canvas coordinates**, not in image-source coordinates. This means a scale bar drawn at `(x=20, y=panelH-20)` keeps its position when the user pans/zooms inside the panel — but its _length_ recomputes because the formula reads `panel.transform.zoom` live. That is the design the source plan calls out: "bar length recomputed on zoom". Storing endpoints in image coords would mean the bar moves with the image, which is wrong for a figure-overlay element.
 `─────────────────────────────────────────────────`
 
 ---
@@ -106,28 +107,32 @@ The extra fields default to `bitDepth: 8` and `calibration: undefined` for PNG/J
 export type AnnotationKind = "text" | "arrow" | "box" | "scalebar";
 
 export interface BaseAnnotation {
-  id: string;          // crypto.randomUUID()
-  panelId?: string;    // omit for figure-global text/arrows/boxes (M6: scale bars REQUIRE panelId; others are optional)
-  z: number;           // higher draws on top; ties broken by array index
+  id: string; // crypto.randomUUID()
+  panelId?: string; // omit for figure-global text/arrows/boxes (M6: scale bars REQUIRE panelId; others are optional)
+  z: number; // higher draws on top; ties broken by array index
   kind: AnnotationKind;
 }
 
 export interface TextAnnotation extends BaseAnnotation {
   kind: "text";
   /** figure-canvas px (top-left origin). Anchored at the text's top-left. */
-  x: number; y: number;
+  x: number;
+  y: number;
   text: string;
-  font: string;        // CSS font-family
-  sizePt: number;      // points; converted to px via dpi at draw time (px = pt * dpi/72)
+  font: string; // CSS font-family
+  sizePt: number; // points; converted to px via dpi at draw time (px = pt * dpi/72)
   bold: boolean;
   italic: boolean;
-  color: string;       // "#RRGGBB" or "#RRGGBBAA"
-  bgColor?: string;    // optional pad-rect fill
+  color: string; // "#RRGGBB" or "#RRGGBBAA"
+  bgColor?: string; // optional pad-rect fill
 }
 
 export interface ArrowAnnotation extends BaseAnnotation {
   kind: "arrow";
-  x1: number; y1: number; x2: number; y2: number;   // figure-canvas px
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number; // figure-canvas px
   color: string;
   thicknessPx: number;
   head: "none" | "open" | "filled";
@@ -135,7 +140,10 @@ export interface ArrowAnnotation extends BaseAnnotation {
 
 export interface BoxAnnotation extends BaseAnnotation {
   kind: "box";
-  x: number; y: number; w: number; h: number;       // figure-canvas px (top-left + size)
+  x: number;
+  y: number;
+  w: number;
+  h: number; // figure-canvas px (top-left + size)
   stroke: string;
   strokeWidthPx: number;
   fill?: string;
@@ -143,7 +151,7 @@ export interface BoxAnnotation extends BaseAnnotation {
 
 export interface ScaleBarAnnotation extends BaseAnnotation {
   kind: "scalebar";
-  panelId: string;     // REQUIRED — calibration is per-image-on-panel
+  panelId: string; // REQUIRED — calibration is per-image-on-panel
   /** Bar length in `lengthUnit`. e.g. 50, 100, 1.0. */
   lengthValue: number;
   lengthUnit: "um" | "mm" | "px";
@@ -170,7 +178,7 @@ export interface LetterStyle {
   color: string;
   bgColor?: string;
   corner: Corner;
-  paddingPx: number;   // distance from panel edge
+  paddingPx: number; // distance from panel edge
   bold: boolean;
 }
 
@@ -225,10 +233,10 @@ export interface FigureState {
   gutterColor: string;
 
   // NEW in M6:
-  annotations: Annotation[];          // append-only insertion order; rendered in z-then-array order
-  globalStyle: GlobalAnnoStyle;       // figure-wide letter + scale-bar style
+  annotations: Annotation[]; // append-only insertion order; rendered in z-then-array order
+  globalStyle: GlobalAnnoStyle; // figure-wide letter + scale-bar style
   /** Optional per-panel override for the auto-letter; rendered when globalStyle.letters.enabled. */
-  letterOverrides: Record<string, string>;   // panelId → override (e.g. "A1")
+  letterOverrides: Record<string, string>; // panelId → override (e.g. "A1")
 }
 ```
 
@@ -285,20 +293,24 @@ import * as UTIF from "utif";
 
 interface DecodeRequest {
   reqId: string;
-  buffer: ArrayBuffer;       // transferred, not copied
+  buffer: ArrayBuffer; // transferred, not copied
 }
 
 interface DecodeResponse {
   reqId: string;
   ok: true;
-  rgba: Uint8ClampedArray;   // length = width * height * 4
+  rgba: Uint8ClampedArray; // length = width * height * 4
   width: number;
   height: number;
   bitDepth: 8 | 16;
   calibration?: Calibration;
 }
 
-interface DecodeError { reqId: string; ok: false; message: string; }
+interface DecodeError {
+  reqId: string;
+  ok: false;
+  message: string;
+}
 
 self.onmessage = (e: MessageEvent<DecodeRequest>) => {
   try {
@@ -307,7 +319,7 @@ self.onmessage = (e: MessageEvent<DecodeRequest>) => {
     if (ifds.length === 0) throw new Error("no IFD");
     const ifd0 = ifds[0]!;
     UTIF.decodeImage(buffer, ifd0);
-    const rgba = UTIF.toRGBA8(ifd0);   // Uint8Array, RGBA, 8-bit
+    const rgba = UTIF.toRGBA8(ifd0); // Uint8Array, RGBA, 8-bit
     const width = ifd0.width as number;
     const height = ifd0.height as number;
     const bitDepth = (ifd0.t258?.[0] ?? 8) >= 16 ? 16 : 8;
@@ -315,16 +327,29 @@ self.onmessage = (e: MessageEvent<DecodeRequest>) => {
     const out: DecodeResponse = {
       reqId,
       ok: true,
-      rgba: new Uint8ClampedArray(rgba.buffer, rgba.byteOffset, rgba.byteLength),
-      width, height, bitDepth, calibration,
+      rgba: new Uint8ClampedArray(
+        rgba.buffer,
+        rgba.byteOffset,
+        rgba.byteLength,
+      ),
+      width,
+      height,
+      bitDepth,
+      calibration,
     };
     // Transfer the rgba buffer to avoid a copy.
-    (self as unknown as { postMessage: (m: unknown, t?: Transferable[]) => void })
-      .postMessage(out, [out.rgba.buffer]);
+    (
+      self as unknown as {
+        postMessage: (m: unknown, t?: Transferable[]) => void;
+      }
+    ).postMessage(out, [out.rgba.buffer]);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    (self as unknown as { postMessage: (m: unknown) => void })
-      .postMessage({ reqId: e.data.reqId, ok: false, message: msg } satisfies DecodeError);
+    (self as unknown as { postMessage: (m: unknown) => void }).postMessage({
+      reqId: e.data.reqId,
+      ok: false,
+      message: msg,
+    } satisfies DecodeError);
   }
 };
 ```
@@ -344,7 +369,8 @@ self.onmessage = (e: MessageEvent<DecodeRequest>) => {
 export function readCalibrationFromIFD(ifd: UtifIfd): Calibration | undefined {
   const xres = ratioToFloat(ifd.t282);
   const unitTag = (ifd.t296?.[0] ?? 1) as 1 | 2 | 3;
-  if (xres === undefined || xres <= 0 || !Number.isFinite(xres)) return undefined;
+  if (xres === undefined || xres <= 0 || !Number.isFinite(xres))
+    return undefined;
   if (unitTag === 1) return undefined; // "no absolute unit"
   if (unitTag === 2) {
     // pixels per inch → pixels per µm: 1 in = 25400 µm
@@ -355,10 +381,10 @@ export function readCalibrationFromIFD(ifd: UtifIfd): Calibration | undefined {
 }
 
 interface UtifIfd {
-  t282?: [number, number] | number[];      // rational
+  t282?: [number, number] | number[]; // rational
   t283?: [number, number] | number[];
   t296?: number[];
-  t258?: number[];                         // BitsPerSample
+  t258?: number[]; // BitsPerSample
   width: number;
   height: number;
 }
@@ -384,7 +410,7 @@ export type DecodedImage = {
 
 export async function decodeImageBytes(
   bytes: Uint8Array,
-  mime: ImageMime,                  // now widened to include image/tiff
+  mime: ImageMime, // now widened to include image/tiff
 ): Promise<DecodedImage> {
   if (mime === "image/tiff") {
     const r = await decodeTiffViaWorker(bytes.buffer);
@@ -396,7 +422,9 @@ export async function decodeImageBytes(
 }
 
 async function rgbaToImageBitmap(
-  rgba: Uint8ClampedArray, w: number, h: number,
+  rgba: Uint8ClampedArray,
+  w: number,
+  h: number,
 ): Promise<ImageBitmap> {
   const data = new ImageData(rgba, w, h);
   return createImageBitmap(data);
@@ -423,16 +451,17 @@ export type ResolvedAnnotation =
   | (ArrowAnnotation & { kind: "arrow" })
   | (BoxAnnotation & { kind: "box" })
   | (ScaleBarAnnotation & { kind: "scalebar"; resolvedPanelId: string })
-  | (LetterAnnotation & { kind: "letter" });   // synthesised from row-major auto + override
+  | (LetterAnnotation & { kind: "letter" }); // synthesised from row-major auto + override
 
 interface LetterAnnotation extends BaseAnnotation {
   kind: "letter";
   panelId: string;
-  text: string;        // resolved: override || cellLabel(...)
+  text: string; // resolved: override || cellLabel(...)
 }
 ```
 
 `deriveFigure` returns letters as a separate pass — for each panel in row-major order, if `globalStyle.letters.enabled`:
+
 - compute `tlIndex = p.row * cols + p.col` (existing logic in [figure-derivations.ts:15](../../src/renderer/model/figure-derivations.ts#L15)),
 - `auto = cellLabel(tlIndex)`,
 - `text = letterOverrides[p.id] ?? auto`,
@@ -447,8 +476,8 @@ export interface Figure {
   canvas: FigureCanvas;
   grid: FigureGrid;
   panels: HardCodedPanel[];
-  annotations: ResolvedAnnotation[];   // NEW
-  globalStyle: GlobalAnnoStyle;        // NEW (drawAnnotations needs corner + style)
+  annotations: ResolvedAnnotation[]; // NEW
+  globalStyle: GlobalAnnoStyle; // NEW (drawAnnotations needs corner + style)
 }
 ```
 
@@ -483,11 +512,21 @@ export function drawAnnotations(
   const sorted = [...figure.annotations].sort((a, b) => a.z - b.z);
   for (const a of sorted) {
     switch (a.kind) {
-      case "letter":   drawLetter(ctx, a, figure, deps); break;
-      case "text":     drawText(ctx, a, figure, deps); break;
-      case "arrow":    drawArrow(ctx, a); break;
-      case "box":      drawBox(ctx, a); break;
-      case "scalebar": drawScaleBar(ctx, a, figure, deps); break;
+      case "letter":
+        drawLetter(ctx, a, figure, deps);
+        break;
+      case "text":
+        drawText(ctx, a, figure, deps);
+        break;
+      case "arrow":
+        drawArrow(ctx, a);
+        break;
+      case "box":
+        drawBox(ctx, a);
+        break;
+      case "scalebar":
+        drawScaleBar(ctx, a, figure, deps);
+        break;
     }
   }
 }
@@ -513,19 +552,27 @@ export function scaleBarFigurePx(
   lengthUnit: "um" | "mm" | "px",
   calibration: Calibration | undefined,
   panelTransform: PanelTransform,
-  panelW: number, panelH: number,
-  imgW: number, imgH: number,
+  panelW: number,
+  panelH: number,
+  imgW: number,
+  imgH: number,
 ): number {
-  const { w: rw, h: rh } = rotatedImageDims(imgW, imgH, panelTransform.rotation);
+  const { w: rw, h: rh } = rotatedImageDims(
+    imgW,
+    imgH,
+    panelTransform.rotation,
+  );
   const S = effectivePanelScale(panelTransform, panelW, panelH, rw, rh);
   if (lengthUnit === "px") return lengthValue * S;
   if (calibration === undefined) return 0;
   const valueInUm = lengthUnit === "mm" ? lengthValue * 1000 : lengthValue;
   // calibration.unit is "um" | "mm" | "px"; convert to "src px per µm".
   const srcPxPerUm =
-    calibration.unit === "um" ? calibration.pixelsPerUnit
-    : calibration.unit === "mm" ? calibration.pixelsPerUnit / 1000
-    : 0; // "px" calibration with µm length is undefined; return 0.
+    calibration.unit === "um"
+      ? calibration.pixelsPerUnit
+      : calibration.unit === "mm"
+        ? calibration.pixelsPerUnit / 1000
+        : 0; // "px" calibration with µm length is undefined; return 0.
   return valueInUm * srcPxPerUm * S;
 }
 ```
@@ -547,6 +594,7 @@ The label (e.g. `"50 µm"`) draws above the bar by `sizePx + 2`. Symmetric for t
 After the panel-pass loop ends ([draw-figure.ts:62-77](../../src/renderer/render/draw-figure.ts#L62-L77)), call `drawAnnotations(ctx, figure, deps)`. Compute `panelRectsById` and `imagesById` once per call; pass `bitmaps` through from the existing `images: Map<string, ImageBitmap>` parameter.
 
 `DrawCtx` adds three new methods used by annotations:
+
 ```ts
 moveTo(x: number, y: number): void;
 lineTo(x: number, y: number): void;
@@ -583,6 +631,7 @@ A 5-button group (`Select | Text | Arrow | Box | Scale bar`) plus a checkbox `[ 
 ### `src/renderer/components/Annotations/AnnotationInteractionLayer.tsx` — new
 
 A sibling of `PanelInteractionLayer` mounted over the entire figure (not just the focused panel). When the active tool is:
+
 - `select`: clicks select an annotation (sets `selectedAnnotationId`); drag moves it; delete key removes it.
 - `text`: click in any panel/figure-area places a new `TextAnnotation` with `text: ""` and immediately enters an inline edit mode (a positioned `<input>` styled to match).
 - `arrow`: click-down records `(x1, y1)`; click-up commits `(x2, y2)`. Pointer-move during drag draws a preview line on a transient overlay (DOM, not canvas).
@@ -638,7 +687,10 @@ export async function renderFigureToOffscreen(
   images: Map<string, ImageBitmap>,
   dpi: number = 300,
 ): Promise<OffscreenRender> {
-  const off = new OffscreenCanvas(figure.canvas.widthPx, figure.canvas.heightPx);
+  const off = new OffscreenCanvas(
+    figure.canvas.widthPx,
+    figure.canvas.heightPx,
+  );
   const ctx = off.getContext("2d");
   if (ctx === null) throw new Error("renderFigureToOffscreen: no 2D context");
   drawFigure(ctx, figure, images);
@@ -651,7 +703,10 @@ export async function renderFigureToPngBlob(
   figure: Figure,
   images: Map<string, ImageBitmap>,
 ): Promise<Blob> {
-  const off = new OffscreenCanvas(figure.canvas.widthPx, figure.canvas.heightPx);
+  const off = new OffscreenCanvas(
+    figure.canvas.widthPx,
+    figure.canvas.heightPx,
+  );
   const ctx = off.getContext("2d");
   if (ctx === null) throw new Error("renderFigureToPngBlob: no 2D context");
   drawFigure(ctx, figure, images);
@@ -665,7 +720,7 @@ export async function renderFigureToPngBlob(
 export async function exportFigureAsJpeg(
   figure: Figure,
   images: Map<string, ImageBitmap>,
-  quality: number,        // 0.50..1.00
+  quality: number, // 0.50..1.00
 ): Promise<ExportResult>;
 ```
 
@@ -682,6 +737,7 @@ export async function exportFigureAsTiff(
 ```
 
 Pipeline:
+
 1. `renderFigureToOffscreen` → `ImageBitmap`.
 2. Draw the bitmap to a fresh `OffscreenCanvas`, `getImageData(0,0,w,h)` → `Uint8ClampedArray` (RGBA, 8-bit).
 3. `UTIF.encodeImage(rgba.buffer, w, h)` → TIFF bytes.
@@ -700,6 +756,7 @@ export async function exportFigureAsPdf(
 ```
 
 Pipeline:
+
 1. `renderFigureToPngBlob` → PNG bytes.
 2. `PDFDocument.create()`. Compute page size: if `figure.canvas` had a `physical` mode (M6 keeps the M5 pixel-mode `widthPx/heightPx`; physical mode arrives later — M6 takes `dpi` as an argument with default 300, computes `pageWidthPt = (widthPx / dpi) * 72`).
 3. `addPage([wPt, hPt])`, `embedPng(bytes)`, `drawImage(img, { x: 0, y: 0, width: wPt, height: hPt })`.
@@ -709,13 +766,15 @@ Pipeline:
 ### `src/main/fs-write.ts` — generalise
 
 Replace the single `writePngFile` with:
+
 ```ts
 export async function writeBytesToPath(
   filePath: string,
   bytes: Uint8Array,
-  allowedExt: readonly string[],   // e.g. [".png"], [".jpg", ".jpeg"], [".tif", ".tiff"], [".pdf"]
+  allowedExt: readonly string[], // e.g. [".png"], [".jpg", ".jpeg"], [".tif", ".tiff"], [".pdf"]
 ): Promise<void>;
 ```
+
 `writePngFile` remains as a one-liner wrapper for back-compat with existing tests until they're updated in Task 9.
 
 ### `src/main/dialogs.ts` — extend
@@ -734,14 +793,18 @@ export const API_CHANNELS = {
   exportPng: "mosaic:export-png",
   exportJpeg: "mosaic:export-jpeg",
   exportTiff: "mosaic:export-tiff",
-  exportPdf:  "mosaic:export-pdf",
+  exportPdf: "mosaic:export-pdf",
   openImages: "mosaic:open-images",
 } as const;
 
 // Generic result type — the renderer-side error mapping is unchanged.
 export type ExportResult =
   | { ok: true; filePath: string; bytesWritten: number }
-  | { ok: false; reason: "canceled" | "render-failed" | "ipc-failed" | "write-failed"; message?: string };
+  | {
+      ok: false;
+      reason: "canceled" | "render-failed" | "ipc-failed" | "write-failed";
+      message?: string;
+    };
 
 // Open images now returns mime widened to include image/tiff.
 export type OpenImagesMime = "image/png" | "image/jpeg" | "image/tiff";
@@ -772,6 +835,7 @@ Each task ends with `pnpm typecheck && pnpm test && pnpm lint` exiting 0.
 ### Task 1: Extend the data model — annotations, calibration, global style
 
 **Files:**
+
 - Edit: [src/renderer/model/pool.ts](../../src/renderer/model/pool.ts) — add `bitDepth`, `calibration`; widen `ImageMime`.
 - Create: [src/renderer/model/annotations.ts](../../src/renderer/model/annotations.ts).
 - Create: [src/renderer/model/global-style.ts](../../src/renderer/model/global-style.ts).
@@ -788,6 +852,7 @@ Each task ends with `pnpm typecheck && pnpm test && pnpm lint` exiting 0.
 ### Task 2: Annotation actions in the reducer
 
 **Files:**
+
 - Edit: [src/renderer/model/figure-actions.ts](../../src/renderer/model/figure-actions.ts).
 - Edit: [test/unit/figure-actions.test.ts](../../test/unit/figure-actions.test.ts).
 
@@ -820,6 +885,7 @@ Each task ends with `pnpm typecheck && pnpm test && pnpm lint` exiting 0.
 ### Task 3: Pure scale-bar math + `effectivePanelScale`
 
 **Files:**
+
 - Edit: [src/renderer/render/coords.ts](../../src/renderer/render/coords.ts) — add `effectivePanelScale`.
 - Create: [src/renderer/render/scalebar.ts](../../src/renderer/render/scalebar.ts).
 - Create: [test/unit/scalebar.test.ts](../../test/unit/scalebar.test.ts).
@@ -840,6 +906,7 @@ Each task ends with `pnpm typecheck && pnpm test && pnpm lint` exiting 0.
 ### Task 4: TIFF worker + decode dispatch
 
 **Files:**
+
 - Add: `utif` dependency. `pnpm add utif` and `pnpm add -D @types/utif` (or hand-typed module declaration if no types ship — `src/renderer/types/utif.d.ts`).
 - Create: [src/renderer/image/tiff-worker.ts](../../src/renderer/image/tiff-worker.ts).
 - Create: [src/renderer/image/tiff-worker-host.ts](../../src/renderer/image/tiff-worker-host.ts).
@@ -869,6 +936,7 @@ Each task ends with `pnpm typecheck && pnpm test && pnpm lint` exiting 0.
 ### Task 5: Annotation render — letters first
 
 **Files:**
+
 - Edit: [src/renderer/render/draw-figure.ts](../../src/renderer/render/draw-figure.ts) — extend `DrawCtx` with new methods; call `drawAnnotations` after the panel pass.
 - Create: [src/renderer/render/draw-annotations.ts](../../src/renderer/render/draw-annotations.ts).
 - Edit: [src/renderer/model/figure-derivations.ts](../../src/renderer/model/figure-derivations.ts) — emit `letter` annotations + carry `globalStyle`.
@@ -888,6 +956,7 @@ Each task ends with `pnpm typecheck && pnpm test && pnpm lint` exiting 0.
 ### Task 6: Arrows + scale bars
 
 **Files:**
+
 - Edit: [src/renderer/render/draw-annotations.ts](../../src/renderer/render/draw-annotations.ts) — add `drawArrow`, `drawScaleBar`.
 - Edit: [test/unit/draw-figure.test.ts](../../test/unit/draw-figure.test.ts) — assert arrow head shapes, scale-bar geometry calls.
 - Edit: [test/unit/scalebar.test.ts](../../test/unit/scalebar.test.ts) — wire to a fake DrawCtx for an integration check.
@@ -905,6 +974,7 @@ Each task ends with `pnpm typecheck && pnpm test && pnpm lint` exiting 0.
 ### Task 7: Editor wiring — toolbar, interaction layer, calibration modal
 
 **Files:**
+
 - Create: [src/renderer/components/Toolbar/AnnotationToolbar.tsx](../../src/renderer/components/Toolbar/AnnotationToolbar.tsx).
 - Create: [src/renderer/components/Annotations/AnnotationInteractionLayer.tsx](../../src/renderer/components/Annotations/AnnotationInteractionLayer.tsx).
 - Create: [src/renderer/components/Annotations/CalibrationModal.tsx](../../src/renderer/components/Annotations/CalibrationModal.tsx).
@@ -921,6 +991,7 @@ Each task ends with `pnpm typecheck && pnpm test && pnpm lint` exiting 0.
 ### Task 8: Replace M2 fixtures + propagate Figure shape changes
 
 **Files:**
+
 - Edit: every test that builds a `Figure` literal — they now need `annotations: []` and `globalStyle: DEFAULT_GLOBAL_STYLE`. Search: `rg "kind: \"image\"|kind: \"placeholder\"" test/`.
 - Edit: [src/renderer/model/hardcoded.ts](../../src/renderer/model/hardcoded.ts) — `Figure` shape.
 - Edit: [test/unit/figure-derivations.test.ts](../../test/unit/figure-derivations.test.ts) — assert annotations + globalStyle pass-through.
@@ -932,6 +1003,7 @@ Each task ends with `pnpm typecheck && pnpm test && pnpm lint` exiting 0.
 ### Task 9: Multi-format export
 
 **Files:**
+
 - Edit: [src/renderer/render/export-renderer.ts](../../src/renderer/render/export-renderer.ts) — add `renderFigureToOffscreen`; keep `renderFigureToPngBlob` as a passthrough.
 - Create: [src/renderer/export/jpeg.ts](../../src/renderer/export/jpeg.ts).
 - Create: [src/renderer/export/tiff.ts](../../src/renderer/export/tiff.ts).
@@ -995,6 +1067,7 @@ Each task ends with `pnpm typecheck && pnpm test && pnpm lint` exiting 0.
 18. Stress: 30 image pool, all 16 panels filled (4×4 grid), 5 annotations per panel. Editor stays > 30 fps; export completes under 30s for each format.
 
 **Automated coverage targets:**
+
 - `figure-actions.test.ts` — ≥ 14 new cases for annotation actions + reducer side-effects.
 - `scalebar.test.ts` — ≥ 8 cases.
 - `tiff-decode.test.ts` — ≥ 5 cases.

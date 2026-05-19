@@ -137,7 +137,15 @@ function rewrite(input: Uint8Array, dpi: number): Uint8Array {
   const haveAll = xResIdx >= 0 && yResIdx >= 0 && resUnitIdx >= 0;
 
   if (haveAll) {
-    return rewriteInPlace(input, io, entriesStart, xResIdx, yResIdx, resUnitIdx, dpi);
+    return rewriteInPlace(
+      input,
+      io,
+      entriesStart,
+      xResIdx,
+      yResIdx,
+      resUnitIdx,
+      dpi,
+    );
   }
   return rebuildIFD(input, io, ifd0Offset, entryCount, entriesStart, dpi, {
     xResIdx,
@@ -177,7 +185,12 @@ function rewriteInPlace(
 }
 
 /** Overwrites the 8-byte rational payload pointed to by an entry. */
-function patchRational(out: Uint8Array, io: IO, entryOff: number, dpi: number): void {
+function patchRational(
+  out: Uint8Array,
+  io: IO,
+  entryOff: number,
+  dpi: number,
+): void {
   const type = io.readU16(entryOff + 2);
   if (type !== TYPE_RATIONAL) {
     // Wrong type — skip rather than corrupt.
@@ -194,7 +207,12 @@ function patchRational(out: Uint8Array, io: IO, entryOff: number, dpi: number): 
 }
 
 /** SHORT count=1 fits inline in the value-field slot. */
-function patchShort(out: Uint8Array, io: IO, entryOff: number, v: number): void {
+function patchShort(
+  out: Uint8Array,
+  io: IO,
+  entryOff: number,
+  v: number,
+): void {
   const type = io.readU16(entryOff + 2);
   if (type !== TYPE_SHORT) return;
   const count = io.readU32(entryOff + 4);
@@ -248,13 +266,28 @@ function rebuildIFD(
     value: number;
   }> = [];
   if (existing.xResIdx < 0) {
-    insertions.push({ tag: TAG_X_RES, type: TYPE_RATIONAL, count: 1, value: dpi });
+    insertions.push({
+      tag: TAG_X_RES,
+      type: TYPE_RATIONAL,
+      count: 1,
+      value: dpi,
+    });
   }
   if (existing.yResIdx < 0) {
-    insertions.push({ tag: TAG_Y_RES, type: TYPE_RATIONAL, count: 1, value: dpi });
+    insertions.push({
+      tag: TAG_Y_RES,
+      type: TYPE_RATIONAL,
+      count: 1,
+      value: dpi,
+    });
   }
   if (existing.resUnitIdx < 0) {
-    insertions.push({ tag: TAG_RES_UNIT, type: TYPE_SHORT, count: 1, value: 2 });
+    insertions.push({
+      tag: TAG_RES_UNIT,
+      type: TYPE_SHORT,
+      count: 1,
+      value: 2,
+    });
   }
 
   // For tags that already exist, also patch them via in-place rules so
@@ -278,7 +311,10 @@ function rebuildIFD(
   out.set(input, 0);
 
   // Build merged entries (sorted by tag).
-  const merged: Array<{ tag: number; entryWriter: (entryOff: number) => void }> = [];
+  const merged: Array<{
+    tag: number;
+    entryWriter: (entryOff: number) => void;
+  }> = [];
   for (const e of existingEntries) {
     merged.push({
       tag: e.tag,

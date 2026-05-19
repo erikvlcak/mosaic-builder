@@ -446,7 +446,7 @@ describe("drawAnnotations", () => {
           row: 0,
           col: 0,
           kind: "placeholder",
-          label: "(empty)",
+          label: "",
         },
       ],
       annotations,

@@ -60,6 +60,7 @@
 ## Task 1: Define the M2 figure types
 
 **Files:**
+
 - Create: `src/renderer/model/types.ts`
 
 The full `Project`/`Panel` model from the project plan is bigger than M2 needs. We define a minimal `Figure` subset here — only what M2 renders and exports. M5+ will expand it (transforms, fit modes, annotations).
@@ -149,6 +150,7 @@ git commit -m "feat(model): minimal Figure type for M2 (M2.1)"
 ## Task 2: Pure panel-rect layout math
 
 **Files:**
+
 - Create: `src/renderer/render/coords.ts`
 - Test: `test/unit/figure-layout.test.ts` (extend)
 
@@ -180,7 +182,12 @@ describe("computePanelRects", () => {
     expect(rects[0]).toEqual({ x: 12, y: 12, w: 382, h: 282 });
     expect(rects[1]).toEqual({ x: 12 + 382 + 12, y: 12, w: 382, h: 282 });
     expect(rects[2]).toEqual({ x: 12, y: 12 + 282 + 12, w: 382, h: 282 });
-    expect(rects[3]).toEqual({ x: 12 + 382 + 12, y: 12 + 282 + 12, w: 382, h: 282 });
+    expect(rects[3]).toEqual({
+      x: 12 + 382 + 12,
+      y: 12 + 282 + 12,
+      w: 382,
+      h: 282,
+    });
   });
 
   it("handles odd remainders by giving extra px to trailing cells", () => {
@@ -267,6 +274,7 @@ git commit -m "feat(render): computePanelRects pure layout (M2.2)"
 ## Task 3: Bundled fixture PNG
 
 **Files:**
+
 - Create: `resources/fixtures/sample.png`
 - Modify: `vite.config.ts`
 
@@ -291,14 +299,15 @@ If `pngjs` is not available (likely), build a 256×256 PNG using only Node's `zl
 import { writeFileSync, mkdirSync } from "node:fs";
 import { deflateSync, crc32 } from "node:zlib";
 
-const W = 256, H = 256;
+const W = 256,
+  H = 256;
 // Diagonal gradient so the test image is visually distinguishable.
 const raw = Buffer.alloc(H * (1 + W * 3));
 for (let y = 0; y < H; y++) {
   raw[y * (1 + W * 3)] = 0; // filter byte: None
   for (let x = 0; x < W; x++) {
     const o = y * (1 + W * 3) + 1 + x * 3;
-    raw[o]     = x;
+    raw[o] = x;
     raw[o + 1] = y;
     raw[o + 2] = (x + y) >> 1;
   }
@@ -306,7 +315,8 @@ for (let y = 0; y < H; y++) {
 const idat = deflateSync(raw);
 
 function chunk(type, data) {
-  const len = Buffer.alloc(4); len.writeUInt32BE(data.length, 0);
+  const len = Buffer.alloc(4);
+  len.writeUInt32BE(data.length, 0);
   const t = Buffer.from(type, "ascii");
   const c = Buffer.alloc(4);
   c.writeUInt32BE(crc32(Buffer.concat([t, data])), 0);
@@ -315,12 +325,20 @@ function chunk(type, data) {
 
 const sig = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
 const ihdr = Buffer.alloc(13);
-ihdr.writeUInt32BE(W, 0); ihdr.writeUInt32BE(H, 4);
-ihdr[8] = 8;   // bit depth
-ihdr[9] = 2;   // color type: truecolor RGB
-ihdr[10] = 0; ihdr[11] = 0; ihdr[12] = 0;
+ihdr.writeUInt32BE(W, 0);
+ihdr.writeUInt32BE(H, 4);
+ihdr[8] = 8; // bit depth
+ihdr[9] = 2; // color type: truecolor RGB
+ihdr[10] = 0;
+ihdr[11] = 0;
+ihdr[12] = 0;
 
-const png = Buffer.concat([sig, chunk("IHDR", ihdr), chunk("IDAT", idat), chunk("IEND", Buffer.alloc(0))]);
+const png = Buffer.concat([
+  sig,
+  chunk("IHDR", ihdr),
+  chunk("IDAT", idat),
+  chunk("IEND", Buffer.alloc(0)),
+]);
 mkdirSync("resources/fixtures", { recursive: true });
 writeFileSync("resources/fixtures/sample.png", png);
 console.log("wrote resources/fixtures/sample.png", png.length, "bytes");
@@ -398,6 +416,7 @@ git commit -m "feat(resources): bundled 256x256 PNG fixture + serve via publicDi
 ## Task 4: Image loader and the hard-coded figure literal
 
 **Files:**
+
 - Create: `src/renderer/image/load-image.ts`
 - Create: `src/renderer/model/hardcoded.ts`
 
@@ -465,6 +484,7 @@ git commit -m "feat(image): loadImageBitmap + hard-coded 2x2 figure literal (M2.
 ## Task 5: Shared `drawFigure` routine
 
 **Files:**
+
 - Create: `src/renderer/render/draw-figure.ts`
 - Test: `test/unit/draw-figure.test.ts`
 
@@ -478,13 +498,23 @@ Create `test/unit/draw-figure.test.ts`:
 
 ```ts
 import { describe, it, expect } from "vitest";
-import { drawFigure, type DrawCtx } from "../../src/renderer/render/draw-figure";
+import {
+  drawFigure,
+  type DrawCtx,
+} from "../../src/renderer/render/draw-figure";
 import type { Figure } from "../../src/renderer/model/types";
 
-interface Call { op: string; args: unknown[]; }
+interface Call {
+  op: string;
+  args: unknown[];
+}
 function makeRecorder(): DrawCtx & { calls: Call[] } {
   const calls: Call[] = [];
-  const rec = (op: string) => (...args: unknown[]) => { calls.push({ op, args }); };
+  const rec =
+    (op: string) =>
+    (...args: unknown[]) => {
+      calls.push({ op, args });
+    };
   return {
     calls,
     fillStyle: "",
@@ -576,7 +606,10 @@ export interface DrawCtx {
   fillText(text: string, x: number, y: number): void;
   drawImage(
     img: CanvasImageSource,
-    dx: number, dy: number, dw: number, dh: number,
+    dx: number,
+    dy: number,
+    dw: number,
+    dh: number,
   ): void;
   save(): void;
   restore(): void;
@@ -669,6 +702,7 @@ git commit -m "feat(render): shared drawFigure routine for editor + export (M2.5
 ## Task 6: Editor renderer mounted on `<canvas>`
 
 **Files:**
+
 - Create: `src/renderer/render/editor-renderer.ts`
 - Create: `src/renderer/components/Canvas/EditorCanvas.tsx`
 
@@ -724,8 +758,14 @@ export function createEditorRenderer(
   }
 
   return {
-    setFigure(next: Figure): void { figure = next; schedule(); },
-    setImages(next: Map<string, ImageBitmap>): void { images = next; schedule(); },
+    setFigure(next: Figure): void {
+      figure = next;
+      schedule();
+    },
+    setImages(next: Map<string, ImageBitmap>): void {
+      images = next;
+      schedule();
+    },
     dispose(): void {
       disposed = true;
       if (rafHandle !== null) cancelAnimationFrame(rafHandle);
@@ -741,7 +781,10 @@ Create `src/renderer/components/Canvas/EditorCanvas.tsx`:
 ```tsx
 import { useEffect, useRef } from "react";
 import type { Figure } from "../../model/types";
-import { createEditorRenderer, type EditorRenderer } from "../../render/editor-renderer";
+import {
+  createEditorRenderer,
+  type EditorRenderer,
+} from "../../render/editor-renderer";
 
 interface Props {
   figure: Figure;
@@ -756,11 +799,18 @@ export function EditorCanvas({ figure, images }: Props): JSX.Element {
     if (canvasRef.current === null) return;
     const r = createEditorRenderer(canvasRef.current);
     rendererRef.current = r;
-    return () => { r.dispose(); rendererRef.current = null; };
+    return () => {
+      r.dispose();
+      rendererRef.current = null;
+    };
   }, []);
 
-  useEffect(() => { rendererRef.current?.setFigure(figure); }, [figure]);
-  useEffect(() => { rendererRef.current?.setImages(images); }, [images]);
+  useEffect(() => {
+    rendererRef.current?.setFigure(figure);
+  }, [figure]);
+  useEffect(() => {
+    rendererRef.current?.setImages(images);
+  }, [images]);
 
   return (
     <canvas
@@ -796,6 +846,7 @@ git commit -m "feat(render): editor renderer + EditorCanvas component (M2.6)"
 ## Task 7: Wire the editor into `App.tsx`
 
 **Files:**
+
 - Modify: `src/renderer/App.tsx`
 
 Replace the M1 ping demo with the actual M2 UI: title, the canvas, and a placeholder for the export button (added in Task 10).
@@ -805,7 +856,11 @@ Replace the M1 ping demo with the actual M2 UI: title, the canvas, and a placeho
 ```tsx
 import { useEffect, useState } from "react";
 import { EditorCanvas } from "./components/Canvas/EditorCanvas";
-import { HARDCODED_FIGURE, SAMPLE_IMAGE_ID, SAMPLE_IMAGE_URL } from "./model/hardcoded";
+import {
+  HARDCODED_FIGURE,
+  SAMPLE_IMAGE_ID,
+  SAMPLE_IMAGE_URL,
+} from "./model/hardcoded";
 import { loadImageBitmap } from "./image/load-image";
 
 export function App(): JSX.Element {
@@ -823,7 +878,9 @@ export function App(): JSX.Element {
         if (cancelled) return;
         setLoadError(err instanceof Error ? err.message : String(err));
       });
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   return (
@@ -869,6 +926,7 @@ git commit -m "feat(renderer): replace ping demo with EditorCanvas (M2.7)"
 ## Task 8: Export renderer (`OffscreenCanvas` → PNG blob)
 
 **Files:**
+
 - Create: `src/renderer/render/export-renderer.ts`
 - Create: `src/renderer/export/png.ts`
 
@@ -889,7 +947,10 @@ export async function renderFigureToPngBlob(
   figure: Figure,
   images: Map<string, ImageBitmap>,
 ): Promise<Blob> {
-  const off = new OffscreenCanvas(figure.canvas.widthPx, figure.canvas.heightPx);
+  const off = new OffscreenCanvas(
+    figure.canvas.widthPx,
+    figure.canvas.heightPx,
+  );
   const ctx = off.getContext("2d");
   if (ctx === null) {
     throw new Error("renderFigureToPngBlob: failed to get 2D context");
@@ -907,7 +968,11 @@ import { renderFigureToPngBlob } from "../render/export-renderer";
 
 export type ExportPngResult =
   | { ok: true; filePath: string; bytesWritten: number }
-  | { ok: false; reason: "canceled" | "render-failed" | "ipc-failed"; message?: string };
+  | {
+      ok: false;
+      reason: "canceled" | "render-failed" | "ipc-failed";
+      message?: string;
+    };
 
 const DEFAULT_NAME = "mosaic-figure.png";
 
@@ -947,7 +1012,8 @@ describe.skipIf(!HAS_OFFSCREEN)("renderFigureToPngBlob", () => {
     const { renderFigureToPngBlob } = await import(
       "../../src/renderer/render/export-renderer"
     );
-    const figure = (await import("../../src/renderer/model/hardcoded")).HARDCODED_FIGURE;
+    const figure = (await import("../../src/renderer/model/hardcoded"))
+      .HARDCODED_FIGURE;
 
     const blob = await renderFigureToPngBlob(figure, new Map());
     expect(blob.type).toBe("image/png");
@@ -973,6 +1039,7 @@ git commit -m "feat(export): OffscreenCanvas PNG export pipeline (M2.8)"
 ## Task 9: Main-process file dialog and writer
 
 **Files:**
+
 - Create: `src/main/dialogs.ts`
 - Create: `src/main/fs-write.ts`
 - Test: `test/unit/dialogs.test.ts`, `test/unit/fs-write.test.ts`
@@ -1001,9 +1068,9 @@ describe("writePngFile", () => {
   });
 
   it("rejects paths whose extension is not .png", async () => {
-    await expect(writePngFile("/tmp/foo.txt", new Uint8Array([1]))).rejects.toThrow(
-      /\.png/i,
-    );
+    await expect(
+      writePngFile("/tmp/foo.txt", new Uint8Array([1])),
+    ).rejects.toThrow(/\.png/i);
   });
 });
 ```
@@ -1075,14 +1142,19 @@ import { describe, it, expect, vi } from "vitest";
 
 vi.mock("electron", () => ({
   dialog: {
-    showSaveDialog: vi.fn().mockResolvedValue({ canceled: false, filePath: "/tmp/x.png" }),
+    showSaveDialog: vi
+      .fn()
+      .mockResolvedValue({ canceled: false, filePath: "/tmp/x.png" }),
   },
 }));
 
 describe("pickPngSavePath", () => {
   it("forwards filters and returns canonical shape", async () => {
     const { pickPngSavePath } = await import("../../src/main/dialogs");
-    const r = await pickPngSavePath({ parentWindow: null, defaultName: "x.png" });
+    const r = await pickPngSavePath({
+      parentWindow: null,
+      defaultName: "x.png",
+    });
     expect(r).toEqual({ canceled: false, filePath: "/tmp/x.png" });
   });
 });
@@ -1105,6 +1177,7 @@ git commit -m "feat(main): pickPngSavePath + writePngFile with tests (M2.9)"
 ## Task 10: Extend the IPC contract for `exportPng`
 
 **Files:**
+
 - Modify: `src/preload/api.ts`
 - Modify: `src/preload/preload.ts`
 - Modify: `src/main/index.ts`
@@ -1251,6 +1324,7 @@ git commit -m "feat(ipc): exportPng channel — bytes -> save dialog -> disk (M2
 ## Task 11: Export button in the toolbar
 
 **Files:**
+
 - Create: `src/renderer/components/Toolbar/ExportButton.tsx`
 - Modify: `src/renderer/App.tsx`
 
@@ -1294,7 +1368,9 @@ export function ExportButton({ figure, images }: Props): JSX.Element {
     <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
       <button
         type="button"
-        onClick={() => { void onClick(); }}
+        onClick={() => {
+          void onClick();
+        }}
         disabled={status.kind === "exporting"}
         data-testid="export-png"
       >
@@ -1342,6 +1418,7 @@ git commit -m "feat(ui): Export as PNG button wired to IPC (M2.11)"
 ## Task 12: End-to-end manual verification
 
 **Files:**
+
 - (verification only — no source changes)
 
 This task is the M2 demo gate. The spec calls for "End-to-end pixel out" — we confirm by exporting and inspecting the file.
@@ -1420,11 +1497,13 @@ on-screen figure pixel-for-pixel. Editor + export share drawFigure().
 **Placeholder scan:** No "TBD" / "implement later" / "similar to" / "appropriate error handling" found. Every code step shows runnable code.
 
 **Type / name consistency:**
+
 - `ExportPngResult` shape is identical in `src/preload/api.ts`, `src/renderer/export/png.ts`, and the main-process handler. ✓
 - `SAMPLE_IMAGE_ID` constant flows from `hardcoded.ts` → `App.tsx` → `images` Map → `drawFigure`. ✓
 - `pickPngSavePath` signature matches both its definition and call site in `index.ts`. ✓
 
 **Out-of-scope (deferred to later milestones, intentionally):**
+
 - File-dialog import (PNG/JPEG load via tray) → M3.
 - Configurable grid + merge → M4.
 - Per-panel pan/zoom/rotate/flip → M5.

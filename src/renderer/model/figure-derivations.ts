@@ -12,17 +12,7 @@ export interface DeriveOptions {
   canvas: FigureCanvas;
 }
 
-/**
- * Placeholder cells display this in the panel-pass. Letters are no longer
- * folded into the placeholder label — they go through the annotation pass
- * (so toggling `globalStyle.letters.enabled` doesn't require a re-derive).
- */
-const PLACEHOLDER_LABEL = "(empty)";
-
-export function deriveFigure(
-  state: FigureState,
-  opts: DeriveOptions,
-): Figure {
+export function deriveFigure(state: FigureState, opts: DeriveOptions): Figure {
   // Hidden panels are filtered out of the rendered figure: from the
   // export's perspective they're identical to holes (no placeholder, no
   // letter, no anchored annotation). They survive in `state.panels` so
@@ -51,7 +41,7 @@ export function deriveFigure(
       row: p.row,
       col: p.col,
       kind: "placeholder" as const,
-      label: PLACEHOLDER_LABEL,
+      label: "",
       rowSpan: p.rowSpan,
       colSpan: p.colSpan,
     };

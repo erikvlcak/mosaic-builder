@@ -4,7 +4,7 @@
 
 **Goal:** Replace the M3 fixed 2×2 grid + per-cell `placements` map with a configurable rows×cols grid (1..10 each) whose unit of identity is a **rectangular panel** (rowSpan/colSpan). The user can change rows, cols, gutter px, and gutter color; shift-click cells to multi-select; press **Merge / `M`** to fuse a rectangular selection of 1×1 panels into a single panel; press **Unmerge / `U`** to split a merged panel back into 1×1s. Drag-and-drop, swap, and replace continue to work, but operate on **panel ids** rather than cell coordinates.
 
-**Architecture:** The figure model gains a first-class `Panel` type (`{ id, row, col, rowSpan, colSpan, imageId? }`) and `FigureState.placements: Map<CellKey, imageId>` is replaced by `FigureState.panels: Panel[]`. A grid invariant — *every cell `(r,c)` in `[0,rows)×[0,cols)` is covered by exactly one panel, panels don't overlap* — is enforced by every reducer branch and asserted in tests. New reducer actions: `RESIZE_GRID`, `SET_GUTTER_PX`, `SET_GUTTER_COLOR`, `MERGE_CELLS`, `UNMERGE_PANEL`. Existing actions (`PLACE_FROM_TRAY`, `SWAP_CELLS`, `REPLACE_FROM_TRAY`) are ported from cell-keyed to panel-id-keyed (`PLACE_INTO_PANEL`, `SWAP_PANELS`, `REPLACE_INTO_PANEL`). `computePanelRects` is updated to span multiple cells; the renderer's `HardCodedPanel` gains optional `rowSpan`/`colSpan` (default 1). Multi-select for merge is **ephemeral** — it lives in component-local React state, not in `FigureState`, so M5/M7's undo doesn't have to wrap selection. New UI: a `GridControls` panel (rows/cols/gutter pickers) in the header and a `MergeControls` toolbar with `M`/`U` keyboard shortcuts. dnd-kit is still deferred to a later milestone — native HTML5 DnD continues to suffice.
+**Architecture:** The figure model gains a first-class `Panel` type (`{ id, row, col, rowSpan, colSpan, imageId? }`) and `FigureState.placements: Map<CellKey, imageId>` is replaced by `FigureState.panels: Panel[]`. A grid invariant — _every cell `(r,c)` in `[0,rows)×[0,cols)` is covered by exactly one panel, panels don't overlap_ — is enforced by every reducer branch and asserted in tests. New reducer actions: `RESIZE_GRID`, `SET_GUTTER_PX`, `SET_GUTTER_COLOR`, `MERGE_CELLS`, `UNMERGE_PANEL`. Existing actions (`PLACE_FROM_TRAY`, `SWAP_CELLS`, `REPLACE_FROM_TRAY`) are ported from cell-keyed to panel-id-keyed (`PLACE_INTO_PANEL`, `SWAP_PANELS`, `REPLACE_INTO_PANEL`). `computePanelRects` is updated to span multiple cells; the renderer's `HardCodedPanel` gains optional `rowSpan`/`colSpan` (default 1). Multi-select for merge is **ephemeral** — it lives in component-local React state, not in `FigureState`, so M5/M7's undo doesn't have to wrap selection. New UI: a `GridControls` panel (rows/cols/gutter pickers) in the header and a `MergeControls` toolbar with `M`/`U` keyboard shortcuts. dnd-kit is still deferred to a later milestone — native HTML5 DnD continues to suffice.
 
 **Tech Stack:** TypeScript 5.6 strict (`noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`), React 18.3 (`useReducer`, `useState`, native HTML5 DnD, keyboard `useEffect`), HTML5 Canvas 2D + `OffscreenCanvas` (already in M3), Vitest.
 
@@ -45,7 +45,7 @@
 
 - `test/unit/panels.test.ts` — `panelCovers`, `findPanelAt` (returns the merged panel for any inner cell), `assertPanelsCoverGrid` (passes on default 2×2; throws on overlap; throws on gap).
 - `test/unit/grid-resize.test.ts` — shrink past a panel returns its image id as released; shrink across a merged panel splits it into 1×1s in the surviving area; grow appends fresh 1×1 panels in row-major order.
-- `test/unit/merge.test.ts` — `canMergeSelection` accepts a contiguous rectangle of 1×1 panels; rejects non-rectangular L-shapes; rejects when any included cell is part of a merged panel; `mergePanels` produces one panel with the rect bounds and discards the constituents (preserving `imageId` of the top-left cell only — others are released to the tray); `unmergePanel` re-creates rowSpan*colSpan 1×1 panels with the merged panel's `imageId` going to the top-left.
+- `test/unit/merge.test.ts` — `canMergeSelection` accepts a contiguous rectangle of 1×1 panels; rejects non-rectangular L-shapes; rejects when any included cell is part of a merged panel; `mergePanels` produces one panel with the rect bounds and discards the constituents (preserving `imageId` of the top-left cell only — others are released to the tray); `unmergePanel` re-creates rowSpan\*colSpan 1×1 panels with the merged panel's `imageId` going to the top-left.
 - `test/unit/figure-actions.test.ts` — extend with `RESIZE_GRID`, `SET_GUTTER_PX`, `SET_GUTTER_COLOR`, `MERGE_CELLS`, `UNMERGE_PANEL`, plus port existing assertions to `PLACE_INTO_PANEL`, `SWAP_PANELS`, `REPLACE_INTO_PANEL`.
 - `test/unit/figure-derivations.test.ts` — extend: a merged panel emits a single `HardCodedPanel` with `rowSpan>1`/`colSpan>1`; placeholder label of the merged panel matches the row-major index of its top-left cell.
 - `test/unit/figure-layout.test.ts` — extend `computePanelRects` to assert merged-panel rect math with internal gutters absorbed: a 1×3 merged panel on a 2×3 grid spans the full content width minus the outer gutter on both sides.
@@ -74,6 +74,7 @@
 ## Task 0: Define the `Panel` type and invariant helpers
 
 **Files:**
+
 - Create: `src/renderer/model/panels.ts`
 - Test: `test/unit/panels.test.ts`
 
@@ -115,11 +116,7 @@ describe("panelCovers", () => {
 
 describe("findPanelAt", () => {
   it("returns the merged panel for any cell inside it", () => {
-    const ps: Panel[] = [
-      def("a", 0, 0, 2, 2),
-      def("b", 0, 2),
-      def("c", 1, 2),
-    ];
+    const ps: Panel[] = [def("a", 0, 0, 2, 2), def("b", 0, 2), def("c", 1, 2)];
     expect(findPanelAt(ps, 0, 0)?.id).toBe("a");
     expect(findPanelAt(ps, 1, 1)?.id).toBe("a");
     expect(findPanelAt(ps, 0, 2)?.id).toBe("b");
@@ -266,6 +263,7 @@ git commit -m "feat(model): Panel type + grid-coverage invariant helpers (M4.0)"
 ## Task 1: Cell-label helper for grids beyond 26 cells
 
 **Files:**
+
 - Create: `src/renderer/render/letters.ts`
 - Test: `test/unit/letters.test.ts`
 
@@ -346,6 +344,7 @@ git commit -m "feat(render): cellLabel handles A..Z, AA..CV for up-to-10x10 grid
 ## Task 2: Replace `placements` with `panels` in FigureState
 
 **Files:**
+
 - Modify: `src/renderer/model/figure-state.ts`
 
 Switch the underlying state shape to `panels: Panel[]`. This task only updates the `FigureState` type and `initialFigureState()` — every reducer branch still references `placements` and so will break. We fix them in Task 3 (same commit window — see commit at end of Task 3).
@@ -451,6 +450,7 @@ export { figureReducer } from "./figure-actions";
 ## Task 3: Port the reducer to panel-id-keyed actions
 
 **Files:**
+
 - Modify: `src/renderer/model/figure-actions.ts`
 - Modify: `test/unit/figure-actions.test.ts`
 
@@ -606,7 +606,9 @@ describe("figureReducer (panel-id actions)", () => {
     s = figureReducer(s, replaceIntoPanel("b", p1));
     expect(s.panels.find((p) => p.id === p1)?.imageId).toBe("b");
     const placedIds = new Set(
-      s.panels.map((p) => p.imageId).filter((x): x is string => x !== undefined),
+      s.panels
+        .map((p) => p.imageId)
+        .filter((x): x is string => x !== undefined),
     );
     expect(placedIds.has("a")).toBe(false);
     expect(s.pool.map((i) => i.id)).toContain("a");
@@ -787,6 +789,7 @@ Note: typecheck still fails after this commit. We unblock build in Task 5.
 ## Task 4: Add grid-config reducer actions
 
 **Files:**
+
 - Modify: `src/renderer/model/figure-actions.ts`
 - Create: `src/renderer/model/grid-resize.ts`
 - Test: `test/unit/grid-resize.test.ts`
@@ -802,9 +805,7 @@ Create `test/unit/grid-resize.test.ts`:
 
 ```ts
 import { describe, it, expect, beforeEach } from "vitest";
-import {
-  __resetPanelIdsForTests,
-} from "../../src/renderer/model/figure-state";
+import { __resetPanelIdsForTests } from "../../src/renderer/model/figure-state";
 import { resizePanels } from "../../src/renderer/model/grid-resize";
 import type { Panel } from "../../src/renderer/model/panels";
 import { assertPanelsCoverGrid } from "../../src/renderer/model/panels";
@@ -961,7 +962,10 @@ export function resizePanels(
       continue;
     }
     const fullyInside =
-      r0 === p.row && c0 === p.col && r1 === p.row + p.rowSpan && c1 === p.col + p.colSpan;
+      r0 === p.row &&
+      c0 === p.col &&
+      r1 === p.row + p.rowSpan &&
+      c1 === p.col + p.colSpan;
     if (fullyInside) {
       out.push(p);
       for (let r = r0; r < r1; r++)
@@ -969,11 +973,18 @@ export function resizePanels(
       continue;
     }
     // Split: merged panel partially clipped — emit 1x1 panels.
-    const tlInside = p.row >= 0 && p.row < toRows && p.col >= 0 && p.col < toCols;
+    const tlInside =
+      p.row >= 0 && p.row < toRows && p.col >= 0 && p.col < toCols;
     let imageAssigned = false;
     for (let r = r0; r < r1; r++) {
       for (let c = c0; c < c1; c++) {
-        const np: Panel = { id: freshId(), row: r, col: c, rowSpan: 1, colSpan: 1 };
+        const np: Panel = {
+          id: freshId(),
+          row: r,
+          col: c,
+          rowSpan: 1,
+          colSpan: 1,
+        };
         if (tlInside && r === p.row && c === p.col && p.imageId !== undefined) {
           np.imageId = p.imageId;
           imageAssigned = true;
@@ -989,7 +1000,13 @@ export function resizePanels(
   for (let r = 0; r < toRows; r++) {
     for (let c = 0; c < toCols; c++) {
       if (cover[r * toCols + c] === null) {
-        const np: Panel = { id: freshId(), row: r, col: c, rowSpan: 1, colSpan: 1 };
+        const np: Panel = {
+          id: freshId(),
+          row: r,
+          col: c,
+          rowSpan: 1,
+          colSpan: 1,
+        };
         out.push(np);
       }
     }
@@ -1093,60 +1110,63 @@ function isHexColor(s: string): boolean {
 Append to `test/unit/figure-actions.test.ts` (inside the `describe("figureReducer (panel-id actions)")` block, before the closing `});`):
 
 ```ts
-  it("RESIZE_GRID grows the grid and adds 1x1 panels", () => {
-    const s0 = initialFigureState();
-    const s1 = figureReducer(
-      s0,
-      { type: "RESIZE_GRID", rows: 3, cols: 3 } as const,
-    );
-    expect(s1.rows).toBe(3);
-    expect(s1.cols).toBe(3);
-    expect(s1.panels).toHaveLength(9);
-  });
+it("RESIZE_GRID grows the grid and adds 1x1 panels", () => {
+  const s0 = initialFigureState();
+  const s1 = figureReducer(s0, {
+    type: "RESIZE_GRID",
+    rows: 3,
+    cols: 3,
+  } as const);
+  expect(s1.rows).toBe(3);
+  expect(s1.cols).toBe(3);
+  expect(s1.panels).toHaveLength(9);
+});
 
-  it("RESIZE_GRID clamps to 1..10", () => {
-    const s0 = initialFigureState();
-    const s1 = figureReducer(
-      s0,
-      { type: "RESIZE_GRID", rows: 99, cols: 0 } as const,
-    );
-    expect(s1.rows).toBe(10);
-    expect(s1.cols).toBe(1);
-  });
+it("RESIZE_GRID clamps to 1..10", () => {
+  const s0 = initialFigureState();
+  const s1 = figureReducer(s0, {
+    type: "RESIZE_GRID",
+    rows: 99,
+    cols: 0,
+  } as const);
+  expect(s1.rows).toBe(10);
+  expect(s1.cols).toBe(1);
+});
 
-  it("RESIZE_GRID is no-op when the shape is unchanged", () => {
-    const s0 = initialFigureState();
-    const s1 = figureReducer(
-      s0,
-      { type: "RESIZE_GRID", rows: 2, cols: 2 } as const,
-    );
-    expect(s1).toBe(s0);
-  });
+it("RESIZE_GRID is no-op when the shape is unchanged", () => {
+  const s0 = initialFigureState();
+  const s1 = figureReducer(s0, {
+    type: "RESIZE_GRID",
+    rows: 2,
+    cols: 2,
+  } as const);
+  expect(s1).toBe(s0);
+});
 
-  it("SET_GUTTER_PX clamps and updates", () => {
-    let s = initialFigureState();
-    s = figureReducer(s, { type: "SET_GUTTER_PX", gutterPx: 20 } as const);
-    expect(s.gutterPx).toBe(20);
-    s = figureReducer(s, { type: "SET_GUTTER_PX", gutterPx: -5 } as const);
-    expect(s.gutterPx).toBe(0);
-    s = figureReducer(s, { type: "SET_GUTTER_PX", gutterPx: 999 } as const);
-    expect(s.gutterPx).toBe(40);
-  });
+it("SET_GUTTER_PX clamps and updates", () => {
+  let s = initialFigureState();
+  s = figureReducer(s, { type: "SET_GUTTER_PX", gutterPx: 20 } as const);
+  expect(s.gutterPx).toBe(20);
+  s = figureReducer(s, { type: "SET_GUTTER_PX", gutterPx: -5 } as const);
+  expect(s.gutterPx).toBe(0);
+  s = figureReducer(s, { type: "SET_GUTTER_PX", gutterPx: 999 } as const);
+  expect(s.gutterPx).toBe(40);
+});
 
-  it("SET_GUTTER_COLOR accepts hex and rejects junk", () => {
-    let s = initialFigureState();
-    s = figureReducer(
-      s,
-      { type: "SET_GUTTER_COLOR", gutterColor: "#000000" } as const,
-    );
-    expect(s.gutterColor).toBe("#000000");
-    const before = s;
-    s = figureReducer(
-      s,
-      { type: "SET_GUTTER_COLOR", gutterColor: "purple" } as const,
-    );
-    expect(s).toBe(before);
-  });
+it("SET_GUTTER_COLOR accepts hex and rejects junk", () => {
+  let s = initialFigureState();
+  s = figureReducer(s, {
+    type: "SET_GUTTER_COLOR",
+    gutterColor: "#000000",
+  } as const);
+  expect(s.gutterColor).toBe("#000000");
+  const before = s;
+  s = figureReducer(s, {
+    type: "SET_GUTTER_COLOR",
+    gutterColor: "purple",
+  } as const);
+  expect(s).toBe(before);
+});
 ```
 
 - [ ] **Step 7: Run the full reducer test file**
@@ -1166,6 +1186,7 @@ git commit -m "feat(model): RESIZE_GRID + SET_GUTTER_* actions; pure resizePanel
 ## Task 5: Update `figure-derivations.ts` to emit `rowSpan`/`colSpan`
 
 **Files:**
+
 - Modify: `src/renderer/model/types.ts`
 - Modify: `src/renderer/model/figure-derivations.ts`
 - Modify: `test/unit/figure-derivations.test.ts`
@@ -1214,7 +1235,10 @@ import {
   figureReducer,
   __resetPanelIdsForTests,
 } from "../../src/renderer/model/figure-state";
-import { addToPool, placeIntoPanel } from "../../src/renderer/model/figure-actions";
+import {
+  addToPool,
+  placeIntoPanel,
+} from "../../src/renderer/model/figure-actions";
 import { findPanelAt } from "../../src/renderer/model/panels";
 import { deriveFigure } from "../../src/renderer/model/figure-derivations";
 
@@ -1250,10 +1274,17 @@ describe("deriveFigure", () => {
 
   it("derives image panels for occupied panels", () => {
     let s = initialFigureState();
-    s = figureReducer(s, addToPool({
-      id: "img-1", filename: "x.png", filePath: "/x", mime: "image/png",
-      width: 1, height: 1,
-    }));
+    s = figureReducer(
+      s,
+      addToPool({
+        id: "img-1",
+        filename: "x.png",
+        filePath: "/x",
+        mime: "image/png",
+        width: 1,
+        height: 1,
+      }),
+    );
     const pid = findPanelAt(s.panels, 0, 1)?.id;
     if (pid === undefined) throw new Error("no panel at (0,1)");
     s = figureReducer(s, placeIntoPanel("img-1", pid));
@@ -1305,10 +1336,7 @@ export interface DeriveOptions {
   canvas: FigureCanvas;
 }
 
-export function deriveFigure(
-  state: FigureState,
-  opts: DeriveOptions,
-): Figure {
+export function deriveFigure(state: FigureState, opts: DeriveOptions): Figure {
   const panels: HardCodedPanel[] = state.panels.map((p) => {
     const tlIndex = p.row * state.cols + p.col;
     if (p.imageId !== undefined) {
@@ -1365,10 +1393,11 @@ git commit -m "feat(model): deriveFigure emits rowSpan/colSpan from Panel state 
 ## Task 6: Update `computePanelRects` for merged panels
 
 **Files:**
+
 - Modify: `src/renderer/render/coords.ts`
 - Modify: `test/unit/figure-layout.test.ts`
 
-A merged panel covering `colSpan` cells should occupy *all* the cells' widths *plus* the `(colSpan - 1)` internal gutters that those cells would otherwise have between them. Same for `rowSpan` and heights. This matches the user mental model: "the gutter disappears inside the merged panel, but stays on its outer edges".
+A merged panel covering `colSpan` cells should occupy _all_ the cells' widths _plus_ the `(colSpan - 1)` internal gutters that those cells would otherwise have between them. Same for `rowSpan` and heights. This matches the user mental model: "the gutter disappears inside the merged panel, but stays on its outer edges".
 
 Formula:
 
@@ -1393,7 +1422,14 @@ describe("computePanelRects with merged panels", () => {
       grid: { rows: 2, cols: 2, gutterPx: 12, gutterColor: "#FFFFFF" },
       panels: [
         // hero: row 0, col 0..1
-        { row: 0, col: 0, kind: "placeholder", label: "A", rowSpan: 1, colSpan: 2 },
+        {
+          row: 0,
+          col: 0,
+          kind: "placeholder",
+          label: "A",
+          rowSpan: 1,
+          colSpan: 2,
+        },
         { row: 1, col: 0, kind: "placeholder", label: "C" },
         { row: 1, col: 1, kind: "placeholder", label: "D" },
       ],
@@ -1412,7 +1448,14 @@ describe("computePanelRects with merged panels", () => {
       canvas: { widthPx: 800, heightPx: 600, background: "#FFFFFF" },
       grid: { rows: 2, cols: 2, gutterPx: 12, gutterColor: "#FFFFFF" },
       panels: [
-        { row: 0, col: 0, kind: "placeholder", label: "A", rowSpan: 2, colSpan: 1 },
+        {
+          row: 0,
+          col: 0,
+          kind: "placeholder",
+          label: "A",
+          rowSpan: 2,
+          colSpan: 1,
+        },
         { row: 0, col: 1, kind: "placeholder", label: "B" },
         { row: 1, col: 1, kind: "placeholder", label: "D" },
       ],
@@ -1506,6 +1549,7 @@ git commit -m "feat(render): computePanelRects spans merged cells, absorbs inter
 ## Task 7: Port `dispatch-drop` to panel ids
 
 **Files:**
+
 - Modify: `src/renderer/dnd/dispatch-drop.ts`
 - Modify: `test/unit/dispatch-drop.test.ts`
 - Modify: `src/renderer/dnd/drag-payload.ts`
@@ -1602,16 +1646,29 @@ import {
   __resetPanelIdsForTests,
   type FigureState,
 } from "../../src/renderer/model/figure-state";
-import { addToPool, placeIntoPanel } from "../../src/renderer/model/figure-actions";
+import {
+  addToPool,
+  placeIntoPanel,
+} from "../../src/renderer/model/figure-actions";
 import { findPanelAt } from "../../src/renderer/model/panels";
 import { dispatchDrop } from "../../src/renderer/dnd/dispatch-drop";
 import type { ImagePoolItem } from "../../src/renderer/model/pool";
 
 const IMG_A: ImagePoolItem = {
-  id: "a", filename: "a.png", filePath: "/x", mime: "image/png", width: 1, height: 1,
+  id: "a",
+  filename: "a.png",
+  filePath: "/x",
+  mime: "image/png",
+  width: 1,
+  height: 1,
 };
 const IMG_B: ImagePoolItem = {
-  id: "b", filename: "b.png", filePath: "/x", mime: "image/png", width: 1, height: 1,
+  id: "b",
+  filename: "b.png",
+  filePath: "/x",
+  mime: "image/png",
+  width: 1,
+  height: 1,
 };
 
 function panelIdAt(s: FigureState, row: number, col: number): string {
@@ -1633,7 +1690,11 @@ describe("dispatchDrop", () => {
       from: { kind: "tray", imageId: "a" },
       targetPanelId: pid,
     });
-    expect(action).toEqual({ type: "PLACE_INTO_PANEL", imageId: "a", panelId: pid });
+    expect(action).toEqual({
+      type: "PLACE_INTO_PANEL",
+      imageId: "a",
+      panelId: pid,
+    });
   });
 
   it("tray → occupied panel emits REPLACE_INTO_PANEL", () => {
@@ -1752,6 +1813,7 @@ git commit -m "feat(dnd): drag/drop keys on panel ids instead of cell coords (M4
 ## Task 8: Update `GridCells.tsx` to render one drop target per panel
 
 **Files:**
+
 - Modify: `src/renderer/components/Grid/GridCells.tsx`
 
 The overlay now renders one absolutely-positioned `<div>` per **panel** (not per cell). A merged 1×2 panel produces one drop target spanning two cells. Selection (for merge) happens on a separate, finer-grained overlay drawn behind the drop targets — see Task 9.
@@ -1920,6 +1982,7 @@ git commit -m "feat(ui): GridCells renders one drop target per panel (M4.7)"
 ## Task 9: Merge selection — pure logic + hook
 
 **Files:**
+
 - Create: `src/renderer/model/merge.ts`
 - Create: `src/renderer/hooks/useMergeSelection.ts`
 - Test: `test/unit/merge.test.ts`
@@ -1968,7 +2031,8 @@ describe("canMergeSelection", () => {
       { row: 0, col: 1 },
     ]);
     expect(r.ok).toBe(true);
-    if (r.ok) expect(r.rect).toEqual({ row: 0, col: 0, rowSpan: 1, colSpan: 2 });
+    if (r.ok)
+      expect(r.rect).toEqual({ row: 0, col: 0, rowSpan: 1, colSpan: 2 });
   });
 
   it("accepts a 2x2 rectangle", () => {
@@ -2121,9 +2185,13 @@ export function canMergeSelection(
   panels: readonly Panel[],
   selection: readonly CellCoord[],
 ): MergeCheck {
-  if (selection.length < 2) return { ok: false, reason: "select at least 2 cells" };
+  if (selection.length < 2)
+    return { ok: false, reason: "select at least 2 cells" };
 
-  let minRow = Infinity, maxRow = -Infinity, minCol = Infinity, maxCol = -Infinity;
+  let minRow = Infinity,
+    maxRow = -Infinity,
+    minCol = Infinity,
+    maxCol = -Infinity;
   for (const c of selection) {
     if (c.row < minRow) minRow = c.row;
     if (c.row > maxRow) maxRow = c.row;
@@ -2139,7 +2207,8 @@ export function canMergeSelection(
   const seen = new Set<string>();
   for (const c of selection) {
     const k = `${c.row},${c.col}`;
-    if (seen.has(k)) return { ok: false, reason: "duplicate cell in selection" };
+    if (seen.has(k))
+      return { ok: false, reason: "duplicate cell in selection" };
     seen.add(k);
     const p = findPanelAt(panels, c.row, c.col);
     if (p === null) return { ok: false, reason: "cell out of grid" };
@@ -2200,8 +2269,18 @@ export function unmergePanel(
   const out = panels.filter((p) => p.id !== panelId);
   for (let r = target.row; r < target.row + target.rowSpan; r++) {
     for (let c = target.col; c < target.col + target.colSpan; c++) {
-      const p: Panel = { id: freshId(), row: r, col: c, rowSpan: 1, colSpan: 1 };
-      if (r === target.row && c === target.col && target.imageId !== undefined) {
+      const p: Panel = {
+        id: freshId(),
+        row: r,
+        col: c,
+        rowSpan: 1,
+        colSpan: 1,
+      };
+      if (
+        r === target.row &&
+        c === target.col &&
+        target.imageId !== undefined
+      ) {
         p.imageId = target.imageId;
       }
       out.push(p);
@@ -2281,6 +2360,7 @@ git commit -m "feat(model): canMergeSelection + mergePanels/unmergePanel + selec
 ## Task 10: MERGE_CELLS / UNMERGE_PANEL reducer actions
 
 **Files:**
+
 - Modify: `src/renderer/model/figure-actions.ts`
 - Modify: `test/unit/figure-actions.test.ts`
 
@@ -2291,62 +2371,62 @@ The reducer composes the pure `mergePanels`/`unmergePanel` from Task 9.
 Append to `test/unit/figure-actions.test.ts` (inside the `describe`):
 
 ```ts
-  it("MERGE_CELLS merges a contiguous rectangle of 1x1 panels", () => {
-    let s = initialFigureState();
-    s = figureReducer(s, {
-      type: "MERGE_CELLS",
-      cells: [
-        { row: 0, col: 0 },
-        { row: 0, col: 1 },
-      ],
-    } as const);
-    expect(s.panels).toHaveLength(3);
-    const merged = s.panels.find((p) => p.colSpan === 2);
-    expect(merged?.row).toBe(0);
-    expect(merged?.col).toBe(0);
-    expect(merged?.rowSpan).toBe(1);
-  });
+it("MERGE_CELLS merges a contiguous rectangle of 1x1 panels", () => {
+  let s = initialFigureState();
+  s = figureReducer(s, {
+    type: "MERGE_CELLS",
+    cells: [
+      { row: 0, col: 0 },
+      { row: 0, col: 1 },
+    ],
+  } as const);
+  expect(s.panels).toHaveLength(3);
+  const merged = s.panels.find((p) => p.colSpan === 2);
+  expect(merged?.row).toBe(0);
+  expect(merged?.col).toBe(0);
+  expect(merged?.rowSpan).toBe(1);
+});
 
-  it("MERGE_CELLS is a no-op on an L-shape", () => {
-    const s0 = initialFigureState();
-    const s1 = figureReducer(s0, {
-      type: "MERGE_CELLS",
-      cells: [
-        { row: 0, col: 0 },
-        { row: 0, col: 1 },
-        { row: 1, col: 0 },
-      ],
-    } as const);
-    expect(s1).toBe(s0);
-  });
+it("MERGE_CELLS is a no-op on an L-shape", () => {
+  const s0 = initialFigureState();
+  const s1 = figureReducer(s0, {
+    type: "MERGE_CELLS",
+    cells: [
+      { row: 0, col: 0 },
+      { row: 0, col: 1 },
+      { row: 1, col: 0 },
+    ],
+  } as const);
+  expect(s1).toBe(s0);
+});
 
-  it("UNMERGE_PANEL splits a merged panel back to 1x1s", () => {
-    let s = initialFigureState();
-    s = figureReducer(s, {
-      type: "MERGE_CELLS",
-      cells: [
-        { row: 0, col: 0 },
-        { row: 0, col: 1 },
-      ],
-    } as const);
-    const merged = s.panels.find((p) => p.colSpan === 2);
-    if (merged === undefined) throw new Error("expected merged");
-    s = figureReducer(s, {
-      type: "UNMERGE_PANEL",
-      panelId: merged.id,
-    } as const);
-    expect(s.panels).toHaveLength(4);
-    expect(s.panels.every((p) => p.rowSpan === 1 && p.colSpan === 1)).toBe(true);
-  });
+it("UNMERGE_PANEL splits a merged panel back to 1x1s", () => {
+  let s = initialFigureState();
+  s = figureReducer(s, {
+    type: "MERGE_CELLS",
+    cells: [
+      { row: 0, col: 0 },
+      { row: 0, col: 1 },
+    ],
+  } as const);
+  const merged = s.panels.find((p) => p.colSpan === 2);
+  if (merged === undefined) throw new Error("expected merged");
+  s = figureReducer(s, {
+    type: "UNMERGE_PANEL",
+    panelId: merged.id,
+  } as const);
+  expect(s.panels).toHaveLength(4);
+  expect(s.panels.every((p) => p.rowSpan === 1 && p.colSpan === 1)).toBe(true);
+});
 
-  it("UNMERGE_PANEL is a no-op on an unknown panelId", () => {
-    const s0 = initialFigureState();
-    const s1 = figureReducer(s0, {
-      type: "UNMERGE_PANEL",
-      panelId: "ghost",
-    } as const);
-    expect(s1).toBe(s0);
-  });
+it("UNMERGE_PANEL is a no-op on an unknown panelId", () => {
+  const s0 = initialFigureState();
+  const s1 = figureReducer(s0, {
+    type: "UNMERGE_PANEL",
+    panelId: "ghost",
+  } as const);
+  expect(s1).toBe(s0);
+});
 ```
 
 Also extend the imports at the top to include the new action creators (added in step 3 below):
@@ -2373,7 +2453,12 @@ Expected: FAIL — `mergeCells`/`unmergePanelAction` not exported.
 Open `src/renderer/model/figure-actions.ts`. Add to imports:
 
 ```ts
-import { canMergeSelection, mergePanels, unmergePanel, type CellCoord } from "./merge";
+import {
+  canMergeSelection,
+  mergePanels,
+  unmergePanel,
+  type CellCoord,
+} from "./merge";
 ```
 
 Extend the `FigureAction` union with two new variants (after the existing ones):
@@ -2429,6 +2514,7 @@ git commit -m "feat(model): MERGE_CELLS / UNMERGE_PANEL reducer actions (M4.9)"
 ## Task 11: GridControls + MergeControls UI components
 
 **Files:**
+
 - Create: `src/renderer/components/Toolbar/GridControls.tsx`
 - Create: `src/renderer/components/Toolbar/MergeControls.tsx`
 
@@ -2605,6 +2691,7 @@ git commit -m "feat(ui): GridControls + MergeControls toolbar components (M4.10)
 ## Task 12: Keyboard shortcuts hook (M, U, Escape)
 
 **Files:**
+
 - Create: `src/renderer/hooks/useKeyboardShortcuts.ts`
 
 `M` triggers merge; `U` triggers unmerge; `Escape` clears the merge selection. The hook ignores keys when focus is in an `<input>`, `<textarea>`, or contenteditable to keep the gutter inputs typeable.
@@ -2667,10 +2754,12 @@ git commit -m "feat(ui): keyboard shortcuts hook for M/U/Escape (M4.11)"
 ## Task 13: Wire GridControls + MergeControls + selection overlay in `App.tsx`
 
 **Files:**
+
 - Modify: `src/renderer/App.tsx`
 - Modify: `src/renderer/components/Grid/GridCells.tsx` (add a selection overlay layer)
 
 Two visible changes in the UI:
+
 - Header gains the `GridControls` and `MergeControls` rows.
 - The grid overlay gains a per-cell selection layer behind the per-panel drop layer. Shift-click a cell to toggle it in/out of the merge selection (with a visible selection ring).
 
@@ -2705,56 +2794,58 @@ Add this just after the imports:
 import { cellKey } from "../../model/figure-state";
 ```
 
-Inside the returned JSX, add a new sibling `<div>` *before* the existing panels mapping. This sibling renders a fine-grained per-cell layer used only for shift-click selection (and visual selection rings):
+Inside the returned JSX, add a new sibling `<div>` _before_ the existing panels mapping. This sibling renders a fine-grained per-cell layer used only for shift-click selection (and visual selection rings):
 
 ```tsx
-      {/* Selection layer — one box per cell, shift-click to toggle.
-          Sits underneath the per-panel drop layer; only handles shift-click. */}
-      {Array.from({ length: state.rows * state.cols }).map((_, idx) => {
-        const row = Math.floor(idx / state.cols);
-        const col = idx % state.cols;
-        const k = cellKey(row, col);
-        const sel = selection.has(k);
+{
+  /* Selection layer — one box per cell, shift-click to toggle.
+          Sits underneath the per-panel drop layer; only handles shift-click. */
+}
+{
+  Array.from({ length: state.rows * state.cols }).map((_, idx) => {
+    const row = Math.floor(idx / state.cols);
+    const col = idx % state.cols;
+    const k = cellKey(row, col);
+    const sel = selection.has(k);
 
-        // Compute single-cell rect inline, so this layer doesn't need the panels.
-        const availW = figurePxW - state.gutterPx * (state.cols + 1);
-        const availH = figurePxH - state.gutterPx * (state.rows + 1);
-        const cellW = Math.floor(availW / state.cols);
-        const cellH = Math.floor(availH / state.rows);
-        const x = state.gutterPx + col * (cellW + state.gutterPx);
-        const y = state.gutterPx + row * (cellH + state.gutterPx);
+    // Compute single-cell rect inline, so this layer doesn't need the panels.
+    const availW = figurePxW - state.gutterPx * (state.cols + 1);
+    const availH = figurePxH - state.gutterPx * (state.rows + 1);
+    const cellW = Math.floor(availW / state.cols);
+    const cellH = Math.floor(availH / state.rows);
+    const x = state.gutterPx + col * (cellW + state.gutterPx);
+    const y = state.gutterPx + row * (cellH + state.gutterPx);
 
-        function onClick(e: React.MouseEvent<HTMLDivElement>): void {
-          if (!e.shiftKey) return;
-          // Shift-click toggles selection; stop propagation so the panel
-          // layer's onClick (which handles "focus this panel") does not fire.
-          e.stopPropagation();
-          onCellShiftClick(row, col);
-        }
+    function onClick(e: React.MouseEvent<HTMLDivElement>): void {
+      if (!e.shiftKey) return;
+      // Shift-click toggles selection; stop propagation so the panel
+      // layer's onClick (which handles "focus this panel") does not fire.
+      e.stopPropagation();
+      onCellShiftClick(row, col);
+    }
 
-        return (
-          <div
-            key={`sel-${k}`}
-            onClick={onClick}
-            data-testid={`cell-sel-${row}-${col}`}
-            style={{
-              position: "absolute",
-              left: x * sx,
-              top: y * sy,
-              width: cellW * sx,
-              height: cellH * sy,
-              pointerEvents: "auto",
-              boxSizing: "border-box",
-              outline: sel
-                ? "2px solid #FFC400"
-                : "1px dashed transparent",
-              outlineOffset: -2,
-              background: sel ? "rgba(255,196,0,0.10)" : "transparent",
-              transition: "outline-color 80ms ease, background 80ms ease",
-            }}
-          />
-        );
-      })}
+    return (
+      <div
+        key={`sel-${k}`}
+        onClick={onClick}
+        data-testid={`cell-sel-${row}-${col}`}
+        style={{
+          position: "absolute",
+          left: x * sx,
+          top: y * sy,
+          width: cellW * sx,
+          height: cellH * sy,
+          pointerEvents: "auto",
+          boxSizing: "border-box",
+          outline: sel ? "2px solid #FFC400" : "1px dashed transparent",
+          outlineOffset: -2,
+          background: sel ? "rgba(255,196,0,0.10)" : "transparent",
+          transition: "outline-color 80ms ease, background 80ms ease",
+        }}
+      />
+    );
+  });
+}
 ```
 
 In the existing per-panel mapping, add an `onClick` handler that calls `onPanelClick(panel.id)` (without shift, so the selection layer's `stopPropagation` keeps shift-clicks out of focus). Add to the panel `<div>` props:
@@ -2787,10 +2878,7 @@ import { GridControls } from "./components/Toolbar/GridControls";
 import { MergeControls } from "./components/Toolbar/MergeControls";
 import { Tray } from "./components/Sidebar/Tray";
 import { GridCells, type DropEvent } from "./components/Grid/GridCells";
-import {
-  initialFigureState,
-  type FigureState,
-} from "./model/figure-state";
+import { initialFigureState, type FigureState } from "./model/figure-state";
 import {
   addToPool,
   figureReducer,
@@ -3046,12 +3134,12 @@ git commit -m "feat(ui): wire grid + merge controls; selection overlay; M/U shor
 
 **Files:** none — this task is verification only.
 
-The source plan calls for "a recorded GIF and a manual-test checklist that passes" at every milestone end. Run the dev app, work through this checklist, fix anything broken, *then* commit a recording (optional).
+The source plan calls for "a recorded GIF and a manual-test checklist that passes" at every milestone end. Run the dev app, work through this checklist, fix anything broken, _then_ commit a recording (optional).
 
 - [ ] **Step 1: Launch dev**
 
 Run: `pnpm dev`
-Expected: Electron window opens with the M3 layout *plus* a "Rows / Cols / Gutter / Color" row and "Merge / Unmerge" buttons in the header. Default grid is still 2×2 with 12px gutter.
+Expected: Electron window opens with the M3 layout _plus_ a "Rows / Cols / Gutter / Color" row and "Merge / Unmerge" buttons in the header. Default grid is still 2×2 with 12px gutter.
 
 - [ ] **Step 2: Resize the grid**
 
@@ -3077,7 +3165,7 @@ Shift-click cell **(0,0)**, then shift-click cell **(0,1)**. Expected: both show
 
 - [ ] **Step 6: Unmerge**
 
-Click the merged panel (no shift). Expected: green focus ring appears; the **Unmerge** button enables. Press **U** *or* click Unmerge. Expected: panel splits back into two 1×1s. Place an image into the merged panel, then unmerge. Expected: the image stays with the **top-left** cell after the split; the other cell is empty.
+Click the merged panel (no shift). Expected: green focus ring appears; the **Unmerge** button enables. Press **U** _or_ click Unmerge. Expected: panel splits back into two 1×1s. Place an image into the merged panel, then unmerge. Expected: the image stays with the **top-left** cell after the split; the other cell is empty.
 
 - [ ] **Step 7: Cancel via Escape**
 

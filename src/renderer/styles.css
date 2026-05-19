@@ -318,17 +318,17 @@ body {
 .tool-ribbon {
   background: var(--c-surface-muted);
   border-bottom: 1px solid var(--c-divider);
-  padding: 8px 12px;
+  padding: 4px 12px;
   display: flex;
-  align-items: stretch;
-  gap: 10px;
+  align-items: center;
+  gap: 8px;
   flex-wrap: wrap;
 }
 
 .tool-group {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
   min-width: 0;
 }
 .tool-group-label {
@@ -337,19 +337,12 @@ body {
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--c-text-faint);
-  padding-left: 2px;
   user-select: none;
 }
 .tool-group-body {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: 6px;
-  background: var(--c-surface);
-  border: 1px solid var(--c-border);
-  border-radius: var(--r-md);
-  padding: 5px 8px;
-  box-shadow: var(--sh-sm);
-  min-height: 32px;
 }
 
 /* Tray refinements */

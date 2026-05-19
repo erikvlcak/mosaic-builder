@@ -30,8 +30,9 @@ beforeAll(() => {
         this.pointerType = init.pointerType ?? "mouse";
       }
     }
-    (window as unknown as { PointerEvent: typeof PointerEventPolyfill }).PointerEvent =
-      PointerEventPolyfill;
+    (
+      window as unknown as { PointerEvent: typeof PointerEventPolyfill }
+    ).PointerEvent = PointerEventPolyfill;
   }
 });
 
@@ -119,7 +120,9 @@ function dispatchDrag(
   type: "dragOver" | "drop",
   clientX: number,
   clientY: number,
-  dataTransfer: ReturnType<typeof trayDataTransfer> | { types: string[]; getData: () => string },
+  dataTransfer:
+    | ReturnType<typeof trayDataTransfer>
+    | { types: string[]; getData: () => string },
 ): void {
   const ev =
     type === "dragOver" ? createEvent.dragOver(el) : createEvent.drop(el);

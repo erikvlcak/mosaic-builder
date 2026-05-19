@@ -9,7 +9,10 @@ import {
   setGutterPx,
   resetToState,
 } from "../../src/renderer/model/figure-actions";
-import { toMosaicFile, fromMosaicFile } from "../../src/renderer/model/serialize";
+import {
+  toMosaicFile,
+  fromMosaicFile,
+} from "../../src/renderer/model/serialize";
 import { validateMosaicFile } from "../../src/renderer/model/schema";
 import { combinedReducer } from "../../src/renderer/state/use-history-reducer";
 import type { Combined } from "../../src/renderer/state/use-history-reducer";
@@ -29,8 +32,13 @@ describe("M7 round-trip — reducer × history × serialize × validate", () => 
     combined = combinedReducer(combined, {
       kind: "dispatch",
       action: addToPool({
-        id: "img1", filename: "a.png", filePath: "/tmp/proj/a.png",
-        mime: "image/png", width: 100, height: 100, bitDepth: 8,
+        id: "img1",
+        filename: "a.png",
+        filePath: "/tmp/proj/a.png",
+        mime: "image/png",
+        width: 100,
+        height: 100,
+        bitDepth: 8,
       }),
     });
     const firstPanel = combined.state.panels[0]!;
@@ -75,7 +83,9 @@ describe("M7 round-trip — reducer × history × serialize × validate", () => 
       action: resetToState(r.state),
     });
     expect(combined.state.gutterPx).toBe(20);
-    expect(combined.state.panels.find((p) => p.id === firstPanel.id)?.imageId).toBe("img1");
+    expect(
+      combined.state.panels.find((p) => p.id === firstPanel.id)?.imageId,
+    ).toBe("img1");
     // RESET_TO_STATE clears history.
     expect(combined.history.past.length).toBe(0);
     expect(combined.history.future.length).toBe(0);
@@ -84,10 +94,17 @@ describe("M7 round-trip — reducer × history × serialize × validate", () => 
   it("relink hint preserves sha256 + relPath through save/load", () => {
     const state = {
       ...initialFigureState(),
-      pool: [{
-        id: "img1", filename: "a.png", filePath: "/tmp/proj/a.png",
-        mime: "image/png" as const, width: 1, height: 1, bitDepth: 8 as const,
-      }],
+      pool: [
+        {
+          id: "img1",
+          filename: "a.png",
+          filePath: "/tmp/proj/a.png",
+          mime: "image/png" as const,
+          width: 1,
+          height: 1,
+          bitDepth: 8 as const,
+        },
+      ],
     };
     const file = toMosaicFile({
       state,

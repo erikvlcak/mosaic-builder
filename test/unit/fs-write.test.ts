@@ -34,7 +34,9 @@ describe("writeBytesToPath", () => {
   it("accepts case-insensitively (uppercase extension)", async () => {
     const dir = await mkdtemp(path.join(tmpdir(), "mosaic-test-"));
     const out = path.join(dir, "out.PDF");
-    await writeBytesToPath(out, new Uint8Array([0x25, 0x50, 0x44, 0x46]), [".pdf"]);
+    await writeBytesToPath(out, new Uint8Array([0x25, 0x50, 0x44, 0x46]), [
+      ".pdf",
+    ]);
     const back = await readFile(out);
     expect(back.length).toBe(4);
   });

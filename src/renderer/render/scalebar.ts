@@ -45,7 +45,11 @@ export function scaleBarFigurePx(
     return 0;
   }
 
-  const { w: rw, h: rh } = rotatedImageDims(imgW, imgH, panelTransform.rotation);
+  const { w: rw, h: rh } = rotatedImageDims(
+    imgW,
+    imgH,
+    panelTransform.rotation,
+  );
   const S = effectivePanelScale(panelTransform, panelW, panelH, rw, rh);
   if (!Number.isFinite(S) || S < 0) return 0;
 

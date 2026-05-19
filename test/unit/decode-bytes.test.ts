@@ -93,7 +93,9 @@ describe("decodeImageBytes", () => {
   });
 
   it("routes image/tiff through the worker host and returns its metadata", async () => {
-    const bytes = new Uint8Array([0x49, 0x49, 0x2a, 0x00, 0x08, 0x00, 0x00, 0x00]);
+    const bytes = new Uint8Array([
+      0x49, 0x49, 0x2a, 0x00, 0x08, 0x00, 0x00, 0x00,
+    ]);
     const r = await decodeImageBytes(bytes, "image/tiff");
     expect(decodeTiffViaWorker).toHaveBeenCalledTimes(1);
     expect(r.bitDepth).toBe(16);
@@ -102,11 +104,15 @@ describe("decodeImageBytes", () => {
       pixelsPerUnit: 0.000645,
       source: "tiff-meta",
     });
-    expect((r.bitmap as unknown as { _src: string })._src).toBe("imagedata:1x1");
+    expect((r.bitmap as unknown as { _src: string })._src).toBe(
+      "imagedata:1x1",
+    );
   });
 
   it("decodeImageBytes propagates TIFF worker errors", async () => {
-    const bytes = new Uint8Array([0x49, 0x49, 0x2a, 0x00, 0x08, 0x00, 0x00, 0x00]);
+    const bytes = new Uint8Array([
+      0x49, 0x49, 0x2a, 0x00, 0x08, 0x00, 0x00, 0x00,
+    ]);
     vi.mocked(decodeTiffViaWorker).mockRejectedValueOnce(
       new Error("tiff-worker boom"),
     );

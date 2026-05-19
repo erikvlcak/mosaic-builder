@@ -35,7 +35,8 @@ describe("canMergeSelection", () => {
       { row: 0, col: 1 },
     ]);
     expect(r.ok).toBe(true);
-    if (r.ok) expect(r.rect).toEqual({ row: 0, col: 0, rowSpan: 1, colSpan: 2 });
+    if (r.ok)
+      expect(r.rect).toEqual({ row: 0, col: 0, rowSpan: 1, colSpan: 2 });
   });
 
   it("accepts a 2x2 rectangle", () => {

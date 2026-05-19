@@ -23,6 +23,7 @@ user is responsible for managing memory.
 ### Compression / fidelity rules
 
 Import:
+
 - PNG/JPEG/TIFF source bytes are read raw from disk (`fs.readFile`),
   passed unmodified to the renderer, and decoded at full source pixel
   dimensions. PNG/JPEG go through `createImageBitmap` (which preserves
@@ -31,6 +32,7 @@ Import:
 - No resizing, no recompression, no quantization on import.
 
 Export — must be byte-faithful w.r.t. the figure canvas pixels:
+
 - **PNG**: lossless by spec. Already correct.
 - **TIFF**: `UTIF.encodeImage` already emits uncompressed RGBA. Already
   correct. Future 16-bit-direct path (TODO in `export/tiff.ts`) is out of
@@ -59,19 +61,21 @@ on-screen positions remain stable.
 
 ### Sizing rule (1c — grid-aware)
 
-For each axis, pick the canvas pixel size so that the *largest source
-image* placed (or placeable) into a single cell maps 1:1 onto its cell rect
+For each axis, pick the canvas pixel size so that the _largest source
+image_ placed (or placeable) into a single cell maps 1:1 onto its cell rect
 when fit:contain is in effect. This prevents downsampling for the
 demanding case (one image per cell) and naturally accommodates merged
-spans (a merged panel is *larger* than a single cell, so it has even more
+spans (a merged panel is _larger_ than a single cell, so it has even more
 pixels to work with).
 
-Per-axis target (per *single cell*, not per merged panel — a merged panel
+Per-axis target (per _single cell_, not per merged panel — a merged panel
 spans N cells so it automatically receives N× the pixels):
+
 - `cellWidthPx ≥ max(source.width)` across the pool
 - `cellHeightPx ≥ max(source.height)` across the pool
 
 Inverting `computePanelRects`'s math:
+
 - `widthPx  = max(MIN_CANVAS_W, cols * maxImgW + (cols + 1) * gutterPx)`
 - `heightPx = max(MIN_CANVAS_H, rows * maxImgH + (rows + 1) * gutterPx)`
 
@@ -90,6 +94,7 @@ tradeoff the user accepted.
 ### Recompute trigger (2b — recompute on every pool change)
 
 Recompute the canvas dims whenever the pool grows. Specifically:
+
 - After `ADD_TO_POOL` (image added)
 - After `REMOVE_FROM_POOL` (image removed; canvas may shrink)
 - After `RESIZE_GRID` (rows/cols changed)
@@ -97,6 +102,7 @@ Recompute the canvas dims whenever the pool grows. Specifically:
 
 When the dims change from `(W₀, H₀)` to `(W₁, H₁)`, scale all annotation
 coordinates by `sx = W₁/W₀, sy = H₁/H₀`:
+
 - text: `x *= sx; y *= sy`
 - arrow: `x1, x2 *= sx; y1, y2 *= sy`
 - box: `x, w *= sx; y, h *= sy`
@@ -123,6 +129,7 @@ const canvasDims = useMemo(
 ```
 
 Pass `canvasDims` everywhere `FIGURE_PX_W/FIGURE_PX_H` are passed today:
+
 - `deriveFigure(state, { canvas: { ...canvasDims, background: CANVAS_BG } })`
 - `toMosaicFile({ ..., canvas: { ...canvasDims, background: CANVAS_BG }, ... })`
 - `<GridCells figurePxW={canvasDims.widthPx} figurePxH={canvasDims.heightPx} ... />`
@@ -202,6 +209,7 @@ fallback is belt-and-braces only.
    to initialize at `MIN_CANVAS_W/H` (800×600).
 
 2. `src/renderer/model/figure-actions.ts`
+
    - New helper `computeCanvasDims(pool, rows, cols, gutterPx)` (per-axis
      formula above).
    - New helper `scaleAnnotations(annotations, sx, sy)`.
@@ -209,6 +217,7 @@ fallback is belt-and-braces only.
      recompute canvas dims; if changed, scale annotations.
 
 3. `src/renderer/App.tsx`
+
    - Remove `FIGURE_PX_W`/`FIGURE_PX_H` constants.
    - Pass `state.canvas.widthPx/heightPx` everywhere those constants flowed.
    - `CANVAS_CSS_W/H` stay at 800×600.
@@ -221,6 +230,7 @@ fallback is belt-and-braces only.
    prefer remove for tidiness.
 
 5. `src/renderer/model/serialize.ts`
+
    - `toMosaicFile` reads `inp.state.canvas` instead of `inp.canvas`.
    - `fromMosaicFile` puts `file.canvas` onto the returned state.
 
@@ -249,7 +259,7 @@ fallback is belt-and-braces only.
   `state.canvas` (≥ 4000 × ≥ 3000), and the panel pixels in that PNG are
   not blurry / not downsampled relative to the source.
 - An annotation placed at figure-px (100, 100) on the empty 800×600
-  canvas appears at the *same on-screen position* after a 4000×3000
+  canvas appears at the _same on-screen position_ after a 4000×3000
   image is added — i.e. its stored coordinates have been scaled to
   (500, 500) ish so that under CSS-fit-to-800×600 it lands in the same
   spot.

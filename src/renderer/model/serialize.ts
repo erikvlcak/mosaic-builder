@@ -119,7 +119,8 @@ export function fromMosaicFile(file: MosaicFile): FromMosaicResult {
   // v1/v2 globalStyle.letters lacks `italic`; default to false at load. We
   // spread first then overlay the missing-field default — for v3 files the
   // spread already carries italic so the overlay is a no-op.
-  const baseLetters = file.state.globalStyle.letters as FigureState["globalStyle"]["letters"] & {
+  const baseLetters = file.state.globalStyle
+    .letters as FigureState["globalStyle"]["letters"] & {
     italic?: boolean;
   };
   const globalStyle: FigureState["globalStyle"] = {

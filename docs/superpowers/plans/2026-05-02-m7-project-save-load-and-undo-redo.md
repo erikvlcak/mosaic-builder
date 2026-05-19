@@ -30,6 +30,7 @@ Current state of the codebase the plan assumes:
 ## File structure
 
 **New files:**
+
 - `src/renderer/state/history.ts` — generic immutable ring-buffer history (pure, no React).
 - `src/renderer/state/use-history-reducer.ts` — React hook wrapping `useReducer` with `history.ts`.
 - `src/renderer/model/schema.ts` — `MosaicFileV1` types + `validateMosaicFileV1` + version dispatch.
@@ -44,6 +45,7 @@ Current state of the codebase the plan assumes:
 - `test/unit/sha256.test.ts`
 
 **Modified files:**
+
 - `src/renderer/model/figure-actions.ts` — add `RESET_TO_STATE` action (used by load-from-disk).
 - `src/renderer/App.tsx` — swap `useReducer` for `useHistoryReducer`; add Save/Save As/Open buttons; wire load → bitmap rehydrate + relink modal.
 - `src/renderer/hooks/useKeyboardShortcuts.ts` — add `onUndo`/`onRedo` handlers gated on Cmd/Ctrl modifier.
@@ -65,6 +67,7 @@ Current state of the codebase the plan assumes:
 ### Task 1: Generic history ring (10-deep)
 
 **Files:**
+
 - Create: `src/renderer/state/history.ts`
 - Create: `test/unit/history.test.ts`
 
@@ -153,8 +156,8 @@ describe("history ring buffer", () => {
       cur += 1;
     }
     expect(h.past.length).toBe(10);
-    expect(h.past[0]).toBe(2);    // oldest retained
-    expect(h.past[9]).toBe(11);   // most recent past
+    expect(h.past[0]).toBe(2); // oldest retained
+    expect(h.past[9]).toBe(11); // most recent past
   });
 });
 ```
@@ -189,11 +192,7 @@ export function emptyHistory<T>(): History<T> {
   return { past: [], future: [] };
 }
 
-export function pushHistory<T>(
-  h: History<T>,
-  prev: T,
-  _next: T,
-): History<T> {
+export function pushHistory<T>(h: History<T>, prev: T, _next: T): History<T> {
   const past = [...h.past, prev];
   if (past.length > MAX_HISTORY) past.shift();
   // Any non-undo/non-redo mutation discards future.
@@ -244,6 +243,7 @@ git commit -m "feat(m7): generic 10-deep history ring buffer"
 ### Task 2: `useHistoryReducer` hook with transient + commit
 
 **Files:**
+
 - Create: `src/renderer/state/use-history-reducer.ts`
 - Modify: `src/renderer/model/figure-actions.ts` (add one new action: `RESET_TO_STATE`)
 - Modify: `test/unit/figure-actions.test.ts` (add a test for `RESET_TO_STATE`)
@@ -320,10 +320,7 @@ import {
   redoHistory,
   type History,
 } from "./history";
-import {
-  figureReducer,
-  type FigureAction,
-} from "../model/figure-actions";
+import { figureReducer, type FigureAction } from "../model/figure-actions";
 import { type FigureState } from "../model/figure-state";
 
 /**
@@ -389,13 +386,14 @@ function combinedReducer(c: Combined, ca: CombinedAction): Combined {
     }
     case "undo": {
       // First flush any uncommitted transient changes so undo affects them too.
-      const base = c.state === c.lastCommitted
-        ? c
-        : {
-            ...c,
-            history: pushHistory(c.history, c.lastCommitted, c.state),
-            lastCommitted: c.state,
-          };
+      const base =
+        c.state === c.lastCommitted
+          ? c
+          : {
+              ...c,
+              history: pushHistory(c.history, c.lastCommitted, c.state),
+              lastCommitted: c.state,
+            };
       const u = undoHistory(base.history, base.state);
       if (u === null) return base;
       return { state: u.next, history: u.history, lastCommitted: u.next };
@@ -411,10 +409,11 @@ function combinedReducer(c: Combined, ca: CombinedAction): Combined {
 export function useHistoryReducer(
   initial: FigureState,
 ): [FigureState, (a: FigureAction) => void, HistoryControls] {
-  const [combined, dispatchCombined] = useReducer(
-    combinedReducer,
-    { state: initial, history: emptyHistory<FigureState>(), lastCommitted: initial },
-  );
+  const [combined, dispatchCombined] = useReducer(combinedReducer, {
+    state: initial,
+    history: emptyHistory<FigureState>(),
+    lastCommitted: initial,
+  });
 
   const dispatch = useCallback((a: FigureAction) => {
     dispatchCombined({ kind: "dispatch", action: a });
@@ -429,7 +428,9 @@ export function useHistoryReducer(
     undo,
     redo,
     commit,
-    canUndo: combined.history.past.length > 0 || combined.state !== combined.lastCommitted,
+    canUndo:
+      combined.history.past.length > 0 ||
+      combined.state !== combined.lastCommitted,
     canRedo: combined.history.future.length > 0,
   };
 
@@ -456,6 +457,7 @@ git commit -m "feat(m7): RESET_TO_STATE action + useHistoryReducer with transien
 ### Task 3: Wire `useHistoryReducer` into `App.tsx`
 
 **Files:**
+
 - Modify: `src/renderer/App.tsx:54` (`useReducer` → `useHistoryReducer`); pass new history controls to keyboard hook
 - Modify: `src/renderer/components/Grid/PanelInteractionLayer.tsx` (call `commit()` on `pointerup` and on `wheel` end)
 
@@ -476,15 +478,15 @@ And remove `useReducer` from the React import on line 1 (leave `useCallback`, `u
 Replace line 54:
 
 ```ts
-  const [state, dispatch] = useReducer(figureReducer, undefined, () =>
-    initialFigureState(),
-  );
+const [state, dispatch] = useReducer(figureReducer, undefined, () =>
+  initialFigureState(),
+);
 ```
 
 with:
 
 ```ts
-  const [state, dispatch, history] = useHistoryReducer(initialFigureState());
+const [state, dispatch, history] = useHistoryReducer(initialFigureState());
 ```
 
 Also remove the now-unused import `figureReducer` from `./model/figure-actions` if ESLint flags it.
@@ -494,18 +496,18 @@ Also remove the now-unused import `figureReducer` from `./model/figure-actions` 
 In `src/renderer/App.tsx`, update the JSX where `PanelInteractionLayer` is mounted (around line 367) — add a new prop `onCommit={history.commit}`:
 
 ```tsx
-                <PanelInteractionLayer
-                  panelId={selectedImagePanel.id}
-                  panelRect={focusedPanelRect}
-                  transform={selectedImagePanel.transform}
-                  bitmap={focusedBitmap}
-                  figurePxW={FIGURE_PX_W}
-                  figurePxH={FIGURE_PX_H}
-                  cssW={CANVAS_CSS_W}
-                  cssH={CANVAS_CSS_H}
-                  dispatch={dispatch}
-                  onCommit={history.commit}
-                />
+<PanelInteractionLayer
+  panelId={selectedImagePanel.id}
+  panelRect={focusedPanelRect}
+  transform={selectedImagePanel.transform}
+  bitmap={focusedBitmap}
+  figurePxW={FIGURE_PX_W}
+  figurePxH={FIGURE_PX_H}
+  cssW={CANVAS_CSS_W}
+  cssH={CANVAS_CSS_H}
+  dispatch={dispatch}
+  onCommit={history.commit}
+/>
 ```
 
 In `src/renderer/components/Grid/PanelInteractionLayer.tsx`:
@@ -540,39 +542,61 @@ export function PanelInteractionLayer({
 Update `stateRef` initialization on line 49–50 to include `onCommit`:
 
 ```ts
-  const stateRef = useRef({ panelId, panelRect, transform, bitmap, figurePxW, figurePxH, cssW, cssH, dispatch, onCommit });
-  stateRef.current = { panelId, panelRect, transform, bitmap, figurePxW, figurePxH, cssW, cssH, dispatch, onCommit };
+const stateRef = useRef({
+  panelId,
+  panelRect,
+  transform,
+  bitmap,
+  figurePxW,
+  figurePxH,
+  cssW,
+  cssH,
+  dispatch,
+  onCommit,
+});
+stateRef.current = {
+  panelId,
+  panelRect,
+  transform,
+  bitmap,
+  figurePxW,
+  figurePxH,
+  cssW,
+  cssH,
+  dispatch,
+  onCommit,
+};
 ```
 
 In `onWheel` (line 69–98), after `s.dispatch(setPanelTransform(s.panelId, next));` debounce a single commit by 250ms. Add a wheel-end timer ref ABOVE `useEffect`:
 
 ```ts
-  const wheelEndRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+const wheelEndRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 ```
 
 Then inside `onWheel`, replace the current trailing dispatch line so the body ends with:
 
 ```ts
-      s.dispatch(setPanelTransform(s.panelId, next));
-      if (wheelEndRef.current !== null) clearTimeout(wheelEndRef.current);
-      wheelEndRef.current = setTimeout(() => {
-        wheelEndRef.current = null;
-        s.onCommit();
-      }, 250);
+s.dispatch(setPanelTransform(s.panelId, next));
+if (wheelEndRef.current !== null) clearTimeout(wheelEndRef.current);
+wheelEndRef.current = setTimeout(() => {
+  wheelEndRef.current = null;
+  s.onCommit();
+}, 250);
 ```
 
 In `onPointerUp` (line 153), call commit after releasing capture:
 
 ```ts
-  function onPointerUp(e: React.PointerEvent<HTMLDivElement>): void {
-    const drag = dragRef.current;
-    if (drag === null || drag.pointerId !== e.pointerId) return;
-    if (ref.current?.hasPointerCapture(e.pointerId)) {
-      ref.current.releasePointerCapture(e.pointerId);
-    }
-    dragRef.current = null;
-    onCommit();
+function onPointerUp(e: React.PointerEvent<HTMLDivElement>): void {
+  const drag = dragRef.current;
+  if (drag === null || drag.pointerId !== e.pointerId) return;
+  if (ref.current?.hasPointerCapture(e.pointerId)) {
+    ref.current.releasePointerCapture(e.pointerId);
   }
+  dragRef.current = null;
+  onCommit();
+}
 ```
 
 - [ ] **Step 3: Run the existing test suite**
@@ -590,6 +614,7 @@ Expected: clean.
 Run: `pnpm dev`
 
 Verify:
+
 - App loads, no console errors.
 - Add an image, place into a cell.
 - Pan/zoom works on the focused panel exactly as before (no visible change).
@@ -609,13 +634,14 @@ git commit -m "feat(m7): wire useHistoryReducer + pointerup/wheel-end commit"
 ### Task 4: Cmd/Ctrl-Z and Cmd/Ctrl-Shift-Z keyboard shortcuts
 
 **Files:**
+
 - Modify: `src/renderer/hooks/useKeyboardShortcuts.ts`
 - Modify: `src/renderer/App.tsx` — pass `onUndo`/`onRedo` to the hook
 - Test: extend `test/unit/figure-actions.test.ts` with a small undo/redo round-trip; the hook itself isn't unit-tested (no React testing-library installed).
 
 - [ ] **Step 1: Write the failing test — undo/redo round-trip via combined reducer**
 
-Create `test/unit/use-history-reducer.test.ts`. We test the *combined reducer* directly (it's exported as the inner function only — so for testability, also export it from `use-history-reducer.ts`).
+Create `test/unit/use-history-reducer.test.ts`. We test the _combined reducer_ directly (it's exported as the inner function only — so for testability, also export it from `use-history-reducer.ts`).
 
 First, edit `src/renderer/state/use-history-reducer.ts` to export the inner functions for testing. Add `export` to `combinedReducer` and add an explicit type export:
 
@@ -638,7 +664,10 @@ import {
   initialFigureState,
   type FigureState,
 } from "../../src/renderer/model/figure-state";
-import { setGutterPx, setPanelTransform } from "../../src/renderer/model/figure-actions";
+import {
+  setGutterPx,
+  setPanelTransform,
+} from "../../src/renderer/model/figure-actions";
 import { DEFAULT_TRANSFORM } from "../../src/renderer/model/panels";
 
 function startCombined(): Combined {
@@ -682,27 +711,44 @@ describe("combinedReducer — undo/redo", () => {
     // Manually inject a placed image — we just want a panel with a transform.
     const stateWithImage: FigureState = {
       ...c.state,
-      pool: [{
-        id: "img1", filename: "x.png", filePath: "/x.png", mime: "image/png",
-        width: 100, height: 100, bitDepth: 8,
-      }],
+      pool: [
+        {
+          id: "img1",
+          filename: "x.png",
+          filePath: "/x.png",
+          mime: "image/png",
+          width: 100,
+          height: 100,
+          bitDepth: 8,
+        },
+      ],
       panels: c.state.panels.map((p) =>
-        p.id === panelId ? { ...p, imageId: "img1", transform: DEFAULT_TRANSFORM } : p,
+        p.id === panelId
+          ? { ...p, imageId: "img1", transform: DEFAULT_TRANSFORM }
+          : p,
       ),
     };
-    c = { state: stateWithImage, history: { past: [], future: [] }, lastCommitted: stateWithImage };
+    c = {
+      state: stateWithImage,
+      history: { past: [], future: [] },
+      lastCommitted: stateWithImage,
+    };
 
     c = combinedReducer(c, {
       kind: "dispatch",
       action: setPanelTransform(panelId, { ...DEFAULT_TRANSFORM, panX: 5 }),
     });
     expect(c.history.past).toHaveLength(0);
-    expect(c.state.panels.find((p) => p.id === panelId)!.transform!.panX).toBe(5);
+    expect(c.state.panels.find((p) => p.id === panelId)!.transform!.panX).toBe(
+      5,
+    );
 
     // commit() pushes the pre-drag state.
     c = combinedReducer(c, { kind: "commit" });
     expect(c.history.past).toHaveLength(1);
-    expect(c.history.past[0]!.panels.find((p) => p.id === panelId)!.transform!.panX).toBe(0);
+    expect(
+      c.history.past[0]!.panels.find((p) => p.id === panelId)!.transform!.panX,
+    ).toBe(0);
   });
 
   it("RESET_TO_STATE clears history", () => {
@@ -754,6 +800,7 @@ export interface ShortcutHandlers {
 ```
 
 Replace the `onKey` function body (lines 22–62) with one that:
+
 1. Handles Cmd/Ctrl-Z FIRST, before the early-return on modifier keys.
 2. Falls through to the existing logic only when no modifier is held.
 
@@ -764,7 +811,9 @@ export function useKeyboardShortcuts(h: ShortcutHandlers): void {
       // Cmd/Ctrl-Z and Cmd/Ctrl-Shift-Z come first — they intentionally
       // require a modifier and would otherwise be filtered out below.
       const isModZ =
-        (e.metaKey || e.ctrlKey) && !e.altKey && (e.key === "z" || e.key === "Z");
+        (e.metaKey || e.ctrlKey) &&
+        !e.altKey &&
+        (e.key === "z" || e.key === "Z");
       if (isModZ) {
         if (isTypingTarget(e.target)) return;
         e.preventDefault();
@@ -824,18 +873,18 @@ export function useKeyboardShortcuts(h: ShortcutHandlers): void {
 In `src/renderer/App.tsx`, at the existing `useKeyboardShortcuts({...})` call (around line 205), add `onUndo` and `onRedo`:
 
 ```tsx
-  useKeyboardShortcuts({
-    onMerge,
-    onUnmerge,
-    onEscape,
-    onRotate90,
-    onFlipH,
-    onFlipV,
-    onResetTransform,
-    onDeleteAnnotation,
-    onUndo: history.undo,
-    onRedo: history.redo,
-  });
+useKeyboardShortcuts({
+  onMerge,
+  onUnmerge,
+  onEscape,
+  onRotate90,
+  onFlipH,
+  onFlipV,
+  onResetTransform,
+  onDeleteAnnotation,
+  onUndo: history.undo,
+  onRedo: history.redo,
+});
 ```
 
 - [ ] **Step 6: Type-check + run all tests**
@@ -846,6 +895,7 @@ Expected: all tests pass, including the new `use-history-reducer.test.ts`.
 - [ ] **Step 7: Manual smoke test**
 
 Run `pnpm dev`. Confirm:
+
 - Place an image, change gutter to 24 px, then Cmd-Z / Ctrl-Z → gutter returns to 12.
 - Cmd-Shift-Z / Ctrl-Shift-Z → gutter goes back to 24.
 - Pan an image, release pointer, then Cmd-Z → pan reverts to pre-drag position (single history entry per drag).
@@ -866,6 +916,7 @@ git commit -m "feat(m7): undo/redo via Cmd/Ctrl-Z and Cmd/Ctrl-Shift-Z"
 ### Task 5: `.mosaic` schema types and validator
 
 **Files:**
+
 - Create: `src/renderer/model/schema.ts`
 - Create: `test/unit/schema.test.ts`
 
@@ -904,11 +955,25 @@ const MIN_VALID: MosaicFileV1 = {
     gutterColor: "#FFFFFF",
     annotations: [],
     globalStyle: {
-      letters: { enabled: true, font: "Arial", sizePt: 12, color: "#000000",
-                 corner: "tl", paddingPx: 6, bold: true },
-      scalebar: { font: "Arial", sizePt: 10, color: "#FFFFFF",
-                  barColor: "#FFFFFF", thicknessPx: 4, corner: "br",
-                  paddingPx: 8, showLabel: true },
+      letters: {
+        enabled: true,
+        font: "Arial",
+        sizePt: 12,
+        color: "#000000",
+        corner: "tl",
+        paddingPx: 6,
+        bold: true,
+      },
+      scalebar: {
+        font: "Arial",
+        sizePt: 10,
+        color: "#FFFFFF",
+        barColor: "#FFFFFF",
+        thicknessPx: 4,
+        corner: "br",
+        paddingPx: 8,
+        showLabel: true,
+      },
     },
     letterOverrides: {},
   },
@@ -953,8 +1018,16 @@ describe("validateMosaicFile", () => {
       ...MIN_VALID,
       state: {
         ...MIN_VALID.state,
-        pool: [{ id: "x", filePath: "/x", mime: "image/png",
-                 width: 1, height: 1, bitDepth: 8 }],
+        pool: [
+          {
+            id: "x",
+            filePath: "/x",
+            mime: "image/png",
+            width: 1,
+            height: 1,
+            bitDepth: 8,
+          },
+        ],
       },
     };
     const r = validateMosaicFile(bad);
@@ -967,20 +1040,37 @@ describe("validateMosaicFile", () => {
       ...MIN_VALID,
       state: {
         ...MIN_VALID.state,
-        pool: [{
-          id: "x", filename: "x.png", filePath: "/abs/x.png",
-          relPath: "./images/x.png",
-          sha256: "abc123",
-          mime: "image/png", width: 10, height: 10, bitDepth: 8,
-        }],
+        pool: [
+          {
+            id: "x",
+            filename: "x.png",
+            filePath: "/abs/x.png",
+            relPath: "./images/x.png",
+            sha256: "abc123",
+            mime: "image/png",
+            width: 10,
+            height: 10,
+            bitDepth: 8,
+          },
+        ],
       },
     };
     expect(validateMosaicFile(ok).ok).toBe(true);
   });
 
   it("rejects rows > 10 or rows < 1", () => {
-    expect(validateMosaicFile({ ...MIN_VALID, state: { ...MIN_VALID.state, rows: 0 } }).ok).toBe(false);
-    expect(validateMosaicFile({ ...MIN_VALID, state: { ...MIN_VALID.state, rows: 11 } }).ok).toBe(false);
+    expect(
+      validateMosaicFile({
+        ...MIN_VALID,
+        state: { ...MIN_VALID.state, rows: 0 },
+      }).ok,
+    ).toBe(false);
+    expect(
+      validateMosaicFile({
+        ...MIN_VALID,
+        state: { ...MIN_VALID.state, rows: 11 },
+      }).ok,
+    ).toBe(false);
   });
 });
 ```
@@ -1013,9 +1103,7 @@ import type { Panel } from "./panels";
 
 export const CURRENT_SCHEMA_VERSION = 1 as const;
 
-export type Result<T> =
-  | { ok: true; value: T }
-  | { ok: false; error: string };
+export type Result<T> = { ok: true; value: T } | { ok: false; error: string };
 
 export interface MosaicFileV1 {
   schemaVersion: 1;
@@ -1062,20 +1150,31 @@ function err<T>(msg: string): Result<T> {
   return { ok: false, error: msg };
 }
 
-function validatePool(x: unknown, path: string): Result<MosaicFileV1["state"]["pool"]> {
+function validatePool(
+  x: unknown,
+  path: string,
+): Result<MosaicFileV1["state"]["pool"]> {
   if (!Array.isArray(x)) return err(`${path}: expected array`);
   const out: MosaicFileV1["state"]["pool"] = [];
   for (let i = 0; i < x.length; i++) {
     const item = x[i];
     if (!isObj(item)) return err(`${path}[${i}]: expected object`);
     if (!isStr(item.id)) return err(`${path}[${i}].id: expected string`);
-    if (!isStr(item.filename)) return err(`${path}[${i}].filename: expected string`);
-    if (!isStr(item.filePath)) return err(`${path}[${i}].filePath: expected string`);
-    if (item.mime !== "image/png" && item.mime !== "image/jpeg" && item.mime !== "image/tiff") {
+    if (!isStr(item.filename))
+      return err(`${path}[${i}].filename: expected string`);
+    if (!isStr(item.filePath))
+      return err(`${path}[${i}].filePath: expected string`);
+    if (
+      item.mime !== "image/png" &&
+      item.mime !== "image/jpeg" &&
+      item.mime !== "image/tiff"
+    ) {
       return err(`${path}[${i}].mime: must be image/png|image/jpeg|image/tiff`);
     }
-    if (!isInt(item.width) || item.width <= 0) return err(`${path}[${i}].width: positive int`);
-    if (!isInt(item.height) || item.height <= 0) return err(`${path}[${i}].height: positive int`);
+    if (!isInt(item.width) || item.width <= 0)
+      return err(`${path}[${i}].width: positive int`);
+    if (!isInt(item.height) || item.height <= 0)
+      return err(`${path}[${i}].height: positive int`);
     if (item.bitDepth !== 8 && item.bitDepth !== 16) {
       return err(`${path}[${i}].bitDepth: must be 8 or 16`);
     }
@@ -1095,7 +1194,9 @@ function validatePool(x: unknown, path: string): Result<MosaicFileV1["state"]["p
         return err(`${path}[${i}].calibration.pixelsPerUnit: positive number`);
       }
       if (c.source !== "tiff-meta" && c.source !== "manual") {
-        return err(`${path}[${i}].calibration.source: must be tiff-meta|manual`);
+        return err(
+          `${path}[${i}].calibration.source: must be tiff-meta|manual`,
+        );
       }
     }
     out.push(item as MosaicFileV1["state"]["pool"][number]);
@@ -1113,7 +1214,8 @@ function validatePanels(x: unknown, path: string): Result<Panel[]> {
     if (!isInt(p.col) || p.col < 0) return err(`${path}[${i}].col`);
     if (!isInt(p.rowSpan) || p.rowSpan < 1) return err(`${path}[${i}].rowSpan`);
     if (!isInt(p.colSpan) || p.colSpan < 1) return err(`${path}[${i}].colSpan`);
-    if (p.imageId !== undefined && !isStr(p.imageId)) return err(`${path}[${i}].imageId`);
+    if (p.imageId !== undefined && !isStr(p.imageId))
+      return err(`${path}[${i}].imageId`);
     if (p.transform !== undefined) {
       const t = p.transform;
       if (!isObj(t)) return err(`${path}[${i}].transform: expected object`);
@@ -1122,46 +1224,82 @@ function validatePanels(x: unknown, path: string): Result<Panel[]> {
       }
       if (!isNum(t.panX)) return err(`${path}[${i}].transform.panX`);
       if (!isNum(t.panY)) return err(`${path}[${i}].transform.panY`);
-      if (!isNum(t.zoom) || t.zoom <= 0) return err(`${path}[${i}].transform.zoom`);
-      if (t.rotation !== 0 && t.rotation !== 90 && t.rotation !== 180 && t.rotation !== 270) {
+      if (!isNum(t.zoom) || t.zoom <= 0)
+        return err(`${path}[${i}].transform.zoom`);
+      if (
+        t.rotation !== 0 &&
+        t.rotation !== 90 &&
+        t.rotation !== 180 &&
+        t.rotation !== 270
+      ) {
         return err(`${path}[${i}].transform.rotation`);
       }
-      if (typeof t.flipH !== "boolean") return err(`${path}[${i}].transform.flipH`);
-      if (typeof t.flipV !== "boolean") return err(`${path}[${i}].transform.flipV`);
+      if (typeof t.flipH !== "boolean")
+        return err(`${path}[${i}].transform.flipH`);
+      if (typeof t.flipV !== "boolean")
+        return err(`${path}[${i}].transform.flipV`);
     }
   }
   return { ok: true, value: x as Panel[] };
 }
 
-function validateAnnotations(x: unknown, path: string): Result<FigureState["annotations"]> {
+function validateAnnotations(
+  x: unknown,
+  path: string,
+): Result<FigureState["annotations"]> {
   if (!Array.isArray(x)) return err(`${path}: expected array`);
   for (let i = 0; i < x.length; i++) {
     const a = x[i];
     if (!isObj(a)) return err(`${path}[${i}]: expected object`);
     if (!isStr(a.id)) return err(`${path}[${i}].id`);
     if (!isNum(a.z)) return err(`${path}[${i}].z`);
-    if (a.panelId !== undefined && !isStr(a.panelId)) return err(`${path}[${i}].panelId`);
+    if (a.panelId !== undefined && !isStr(a.panelId))
+      return err(`${path}[${i}].panelId`);
     const k = a.kind;
     if (k === "text") {
-      if (!isNum(a.x) || !isNum(a.y) || !isStr(a.text) || !isStr(a.font) ||
-          !isNum(a.sizePt) || typeof a.bold !== "boolean" ||
-          typeof a.italic !== "boolean" || !isStr(a.color)) {
+      if (
+        !isNum(a.x) ||
+        !isNum(a.y) ||
+        !isStr(a.text) ||
+        !isStr(a.font) ||
+        !isNum(a.sizePt) ||
+        typeof a.bold !== "boolean" ||
+        typeof a.italic !== "boolean" ||
+        !isStr(a.color)
+      ) {
         return err(`${path}[${i}]: malformed text annotation`);
       }
     } else if (k === "arrow") {
-      if (!isNum(a.x1) || !isNum(a.y1) || !isNum(a.x2) || !isNum(a.y2) ||
-          !isStr(a.color) || !isNum(a.thicknessPx) ||
-          (a.head !== "none" && a.head !== "open" && a.head !== "filled")) {
+      if (
+        !isNum(a.x1) ||
+        !isNum(a.y1) ||
+        !isNum(a.x2) ||
+        !isNum(a.y2) ||
+        !isStr(a.color) ||
+        !isNum(a.thicknessPx) ||
+        (a.head !== "none" && a.head !== "open" && a.head !== "filled")
+      ) {
         return err(`${path}[${i}]: malformed arrow annotation`);
       }
     } else if (k === "box") {
-      if (!isNum(a.x) || !isNum(a.y) || !isNum(a.w) || !isNum(a.h) ||
-          !isStr(a.stroke) || !isNum(a.strokeWidthPx)) {
+      if (
+        !isNum(a.x) ||
+        !isNum(a.y) ||
+        !isNum(a.w) ||
+        !isNum(a.h) ||
+        !isStr(a.stroke) ||
+        !isNum(a.strokeWidthPx)
+      ) {
         return err(`${path}[${i}]: malformed box annotation`);
       }
     } else if (k === "scalebar") {
-      if (!isStr(a.panelId) || !isNum(a.lengthValue) ||
-          (a.lengthUnit !== "um" && a.lengthUnit !== "mm" && a.lengthUnit !== "px")) {
+      if (
+        !isStr(a.panelId) ||
+        !isNum(a.lengthValue) ||
+        (a.lengthUnit !== "um" &&
+          a.lengthUnit !== "mm" &&
+          a.lengthUnit !== "px")
+      ) {
         return err(`${path}[${i}]: malformed scalebar annotation`);
       }
     } else {
@@ -1171,26 +1309,52 @@ function validateAnnotations(x: unknown, path: string): Result<FigureState["anno
   return { ok: true, value: x as FigureState["annotations"] };
 }
 
-function validateGlobalStyle(x: unknown, path: string): Result<FigureState["globalStyle"]> {
+function validateGlobalStyle(
+  x: unknown,
+  path: string,
+): Result<FigureState["globalStyle"]> {
   if (!isObj(x)) return err(`${path}: expected object`);
   const l = x.letters;
   if (!isObj(l)) return err(`${path}.letters: expected object`);
   if (typeof l.enabled !== "boolean") return err(`${path}.letters.enabled`);
-  if (!isStr(l.font) || !isNum(l.sizePt) || !isHex(l.color) || !isNum(l.paddingPx) ||
-      typeof l.bold !== "boolean") {
+  if (
+    !isStr(l.font) ||
+    !isNum(l.sizePt) ||
+    !isHex(l.color) ||
+    !isNum(l.paddingPx) ||
+    typeof l.bold !== "boolean"
+  ) {
     return err(`${path}.letters: malformed`);
   }
-  if (l.bgColor !== undefined && !isHex(l.bgColor)) return err(`${path}.letters.bgColor`);
-  if (l.corner !== "tl" && l.corner !== "tr" && l.corner !== "bl" && l.corner !== "br") {
+  if (l.bgColor !== undefined && !isHex(l.bgColor))
+    return err(`${path}.letters.bgColor`);
+  if (
+    l.corner !== "tl" &&
+    l.corner !== "tr" &&
+    l.corner !== "bl" &&
+    l.corner !== "br"
+  ) {
     return err(`${path}.letters.corner`);
   }
   const s = x.scalebar;
   if (!isObj(s)) return err(`${path}.scalebar: expected object`);
-  if (!isStr(s.font) || !isNum(s.sizePt) || !isHex(s.color) || !isHex(s.barColor) ||
-      !isNum(s.thicknessPx) || !isNum(s.paddingPx) || typeof s.showLabel !== "boolean") {
+  if (
+    !isStr(s.font) ||
+    !isNum(s.sizePt) ||
+    !isHex(s.color) ||
+    !isHex(s.barColor) ||
+    !isNum(s.thicknessPx) ||
+    !isNum(s.paddingPx) ||
+    typeof s.showLabel !== "boolean"
+  ) {
     return err(`${path}.scalebar: malformed`);
   }
-  if (s.corner !== "tl" && s.corner !== "tr" && s.corner !== "bl" && s.corner !== "br") {
+  if (
+    s.corner !== "tl" &&
+    s.corner !== "tr" &&
+    s.corner !== "bl" &&
+    s.corner !== "br"
+  ) {
     return err(`${path}.scalebar.corner`);
   }
   return { ok: true, value: x as FigureState["globalStyle"] };
@@ -1199,22 +1363,29 @@ function validateGlobalStyle(x: unknown, path: string): Result<FigureState["glob
 export function validateMosaicFile(x: unknown): Result<MosaicFileV1> {
   if (!isObj(x)) return err("root: expected object");
   if (x.schemaVersion === undefined) return err("schemaVersion: required");
-  if (x.schemaVersion !== 1) return err(`schemaVersion: unsupported (${String(x.schemaVersion)})`);
+  if (x.schemaVersion !== 1)
+    return err(`schemaVersion: unsupported (${String(x.schemaVersion)})`);
   if (x.app !== "mosaic-builder") return err("app: must be 'mosaic-builder'");
   if (!isStr(x.appVersion)) return err("appVersion: expected string");
   if (!isStr(x.createdAt)) return err("createdAt: expected ISO string");
   if (!isStr(x.modifiedAt)) return err("modifiedAt: expected ISO string");
 
   if (!isObj(x.canvas)) return err("canvas: expected object");
-  if (!isInt(x.canvas.widthPx) || x.canvas.widthPx <= 0) return err("canvas.widthPx");
-  if (!isInt(x.canvas.heightPx) || x.canvas.heightPx <= 0) return err("canvas.heightPx");
-  if (!isHex(x.canvas.background)) return err("canvas.background: expected #RRGGBB(AA)");
+  if (!isInt(x.canvas.widthPx) || x.canvas.widthPx <= 0)
+    return err("canvas.widthPx");
+  if (!isInt(x.canvas.heightPx) || x.canvas.heightPx <= 0)
+    return err("canvas.heightPx");
+  if (!isHex(x.canvas.background))
+    return err("canvas.background: expected #RRGGBB(AA)");
 
   if (!isObj(x.state)) return err("state: expected object");
   const st = x.state;
-  if (!isInt(st.rows) || st.rows < 1 || st.rows > 10) return err("state.rows: 1..10");
-  if (!isInt(st.cols) || st.cols < 1 || st.cols > 10) return err("state.cols: 1..10");
-  if (!isInt(st.gutterPx) || st.gutterPx < 0) return err("state.gutterPx: non-negative int");
+  if (!isInt(st.rows) || st.rows < 1 || st.rows > 10)
+    return err("state.rows: 1..10");
+  if (!isInt(st.cols) || st.cols < 1 || st.cols > 10)
+    return err("state.cols: 1..10");
+  if (!isInt(st.gutterPx) || st.gutterPx < 0)
+    return err("state.gutterPx: non-negative int");
   if (!isHex(st.gutterColor)) return err("state.gutterColor");
 
   const pool = validatePool(st.pool, "state.pool");
@@ -1226,7 +1397,8 @@ export function validateMosaicFile(x: unknown): Result<MosaicFileV1> {
   const gs = validateGlobalStyle(st.globalStyle, "state.globalStyle");
   if (!gs.ok) return gs;
 
-  if (!isObj(st.letterOverrides)) return err("state.letterOverrides: expected object");
+  if (!isObj(st.letterOverrides))
+    return err("state.letterOverrides: expected object");
   for (const k in st.letterOverrides) {
     if (!isStr((st.letterOverrides as Record<string, unknown>)[k])) {
       return err(`state.letterOverrides.${k}: expected string`);
@@ -1255,6 +1427,7 @@ git commit -m "feat(m7): .mosaic v1 schema types and hand-rolled validator"
 ### Task 6: Serializer / deserializer (pure)
 
 **Files:**
+
 - Create: `src/renderer/model/serialize.ts`
 - Create: `test/unit/serialize.test.ts`
 
@@ -1310,11 +1483,16 @@ describe("toMosaicFile", () => {
       now: () => "2026-05-02T10:00:00Z",
     });
     expect(f.state.pool[0]!.relPath).toBe("./images/sample.png");
-    expect(f.state.pool[0]!.filePath).toBe("/Users/erik/proj/images/sample.png");
+    expect(f.state.pool[0]!.filePath).toBe(
+      "/Users/erik/proj/images/sample.png",
+    );
   });
 
   it("falls back to no relPath if filePath is on a different volume / windows drive", () => {
-    const winImg: ImagePoolItem = { ...SAMPLE_IMG, filePath: "D:\\\\elsewhere\\\\sample.png" };
+    const winImg: ImagePoolItem = {
+      ...SAMPLE_IMG,
+      filePath: "D:\\\\elsewhere\\\\sample.png",
+    };
     const state = { ...initialFigureState(), pool: [winImg] };
     const f = toMosaicFile({
       state,
@@ -1354,7 +1532,9 @@ describe("fromMosaicFile", () => {
     const r = fromMosaicFile(file);
     expect(r.state.pool[0]!.id).toBe("img1");
     // runtime pool item has no relPath/sha256 — those are loader-side hints.
-    expect((r.state.pool[0] as Record<string, unknown>).relPath).toBeUndefined();
+    expect(
+      (r.state.pool[0] as Record<string, unknown>).relPath,
+    ).toBeUndefined();
     expect((r.state.pool[0] as Record<string, unknown>).sha256).toBeUndefined();
     expect(r.canvas.widthPx).toBe(800);
     // relink hints surfaced separately for the loader.
@@ -1500,6 +1680,7 @@ git commit -m "feat(m7): pure serializer for .mosaic files (posix relPath, relin
 ### Task 7: sha256 helper for main process
 
 **Files:**
+
 - Create: `src/main/sha256.ts`
 - Create: `test/unit/sha256.test.ts`
 
@@ -1564,6 +1745,7 @@ git commit -m "feat(m7): node:crypto sha256 helper"
 ### Task 8: Save/Open native dialogs
 
 **Files:**
+
 - Modify: `src/main/dialogs.ts`
 - Modify: `test/unit/dialogs.test.ts`
 
@@ -1690,6 +1872,7 @@ git commit -m "feat(m7): native save/open dialogs for .mosaic files"
 ### Task 9: Main-process project IO (save + load + image-relink read)
 
 **Files:**
+
 - Create: `src/main/project-io.ts`
 - Create: `test/unit/project-io.test.ts`
 
@@ -1706,7 +1889,10 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { mkdtemp, writeFile, rm, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { saveProjectToPath, loadProjectFromPath } from "../../src/main/project-io";
+import {
+  saveProjectToPath,
+  loadProjectFromPath,
+} from "../../src/main/project-io";
 import { initialFigureState } from "../../src/renderer/model/figure-state";
 import { toMosaicFile } from "../../src/renderer/model/serialize";
 
@@ -1751,10 +1937,17 @@ describe("loadProjectFromPath", () => {
     const target = path.join(dir, "fig.mosaic");
     const stateWithImg = {
       ...initialFigureState(),
-      pool: [{
-        id: "img1", filename: "img.png", filePath: imgAbs,
-        mime: "image/png" as const, width: 1, height: 1, bitDepth: 8 as const,
-      }],
+      pool: [
+        {
+          id: "img1",
+          filename: "img.png",
+          filePath: imgAbs,
+          mime: "image/png" as const,
+          width: 1,
+          height: 1,
+          bitDepth: 8 as const,
+        },
+      ],
     };
     const file = toMosaicFile({
       state: stateWithImg,
@@ -1781,10 +1974,17 @@ describe("loadProjectFromPath", () => {
     const ghostAbs = path.join(dir, "ghost.png");
     const stateWithImg = {
       ...initialFigureState(),
-      pool: [{
-        id: "ghost", filename: "ghost.png", filePath: ghostAbs,
-        mime: "image/png" as const, width: 1, height: 1, bitDepth: 8 as const,
-      }],
+      pool: [
+        {
+          id: "ghost",
+          filename: "ghost.png",
+          filePath: ghostAbs,
+          mime: "image/png" as const,
+          width: 1,
+          height: 1,
+          bitDepth: 8 as const,
+        },
+      ],
     };
     const file = toMosaicFile({
       state: stateWithImg,
@@ -1820,10 +2020,17 @@ describe("loadProjectFromPath", () => {
     const target = path.join(dir, "fig.mosaic");
     const stateWithImg = {
       ...initialFigureState(),
-      pool: [{
-        id: "img1", filename: "img.png", filePath: imgAbs,
-        mime: "image/png" as const, width: 1, height: 1, bitDepth: 8 as const,
-      }],
+      pool: [
+        {
+          id: "img1",
+          filename: "img.png",
+          filePath: imgAbs,
+          mime: "image/png" as const,
+          width: 1,
+          height: 1,
+          bitDepth: 8 as const,
+        },
+      ],
     };
     const file = toMosaicFile({
       state: stateWithImg,
@@ -1915,7 +2122,10 @@ export async function loadProjectFromPath(
   try {
     parsed = JSON.parse(raw);
   } catch (e) {
-    return { ok: false, error: `JSON parse: ${e instanceof Error ? e.message : String(e)}` };
+    return {
+      ok: false,
+      error: `JSON parse: ${e instanceof Error ? e.message : String(e)}`,
+    };
   }
   const v = validateMosaicFile(parsed);
   if (!v.ok) return { ok: false, error: v.error };
@@ -1943,7 +2153,11 @@ export async function loadProjectFromPath(
         const s = await stat(p);
         if (!s.isFile()) continue;
         const buf = await readFile(p);
-        resolvedBytes = new Uint8Array(buf.buffer, buf.byteOffset, buf.byteLength);
+        resolvedBytes = new Uint8Array(
+          buf.buffer,
+          buf.byteOffset,
+          buf.byteLength,
+        );
         resolvedPath = p;
         break;
       } catch {
@@ -1996,6 +2210,7 @@ git commit -m "feat(m7): main-process project save/load with sha256 + missing-im
 ### Task 10: IPC channels + preload bindings
 
 **Files:**
+
 - Modify: `src/preload/api.ts`
 - Modify: `src/preload/preload.ts`
 - Modify: `src/main/index.ts`
@@ -2008,8 +2223,8 @@ In `test/unit/preload-api-shape.test.ts`:
 (a) Inside the first `it("declares stable channel names", ...)` block, add two new assertions at the bottom:
 
 ```ts
-    expect(API_CHANNELS.projectSave).toBe("mosaic:project-save");
-    expect(API_CHANNELS.projectLoad).toBe("mosaic:project-load");
+expect(API_CHANNELS.projectSave).toBe("mosaic:project-save");
+expect(API_CHANNELS.projectLoad).toBe("mosaic:project-load");
 ```
 
 (b) Inside the third `it("MosaicApi shape", ...)` block, the `fake: MosaicApi` literal must satisfy the (now-extended) interface. Append to the literal:
@@ -2022,8 +2237,8 @@ In `test/unit/preload-api-shape.test.ts`:
 And append two `expect(...).toBe("function")` assertions at the bottom of that block:
 
 ```ts
-    expect(typeof fake.saveProject).toBe("function");
-    expect(typeof fake.loadProject).toBe("function");
+expect(typeof fake.saveProject).toBe("function");
+expect(typeof fake.loadProject).toBe("function");
 ```
 
 - [ ] **Step 2: Run the test to verify it fails**
@@ -2083,7 +2298,11 @@ export interface ResolvedImageDto {
 }
 
 export type LoadProjectResult =
-  | { ok: false; reason: "canceled" | "validation-failed" | "read-failed"; message?: string }
+  | {
+      ok: false;
+      reason: "canceled" | "validation-failed" | "read-failed";
+      message?: string;
+    }
   | {
       ok: true;
       filePath: string;
@@ -2146,48 +2365,52 @@ import type { SaveProjectInput } from "../preload/api";
 Inside `registerIpc()` (after the existing handlers), add:
 
 ```ts
-  ipcMain.handle(
-    API_CHANNELS.projectSave,
-    async (event, input: SaveProjectInput) => {
-      const senderWindow = BrowserWindow.fromWebContents(event.sender);
-      const picked = await pickMosaicSavePath({
-        parentWindow: senderWindow,
-        defaultName: input.defaultName,
-      });
-      if (picked.canceled || picked.filePath === undefined) {
-        return { ok: false, reason: "canceled" } as const;
-      }
-      try {
-        await saveProjectToPath(picked.filePath, input.file);
-        return { ok: true, filePath: picked.filePath } as const;
-      } catch (e) {
-        return {
-          ok: false,
-          reason: "write-failed",
-          message: e instanceof Error ? e.message : String(e),
-        } as const;
-      }
-    },
-  );
-
-  ipcMain.handle(API_CHANNELS.projectLoad, async (event) => {
+ipcMain.handle(
+  API_CHANNELS.projectSave,
+  async (event, input: SaveProjectInput) => {
     const senderWindow = BrowserWindow.fromWebContents(event.sender);
-    const picked = await pickMosaicOpenPath({ parentWindow: senderWindow });
+    const picked = await pickMosaicSavePath({
+      parentWindow: senderWindow,
+      defaultName: input.defaultName,
+    });
     if (picked.canceled || picked.filePath === undefined) {
       return { ok: false, reason: "canceled" } as const;
     }
-    const r = await loadProjectFromPath(picked.filePath);
-    if (!r.ok) {
-      return { ok: false, reason: "validation-failed", message: r.error } as const;
+    try {
+      await saveProjectToPath(picked.filePath, input.file);
+      return { ok: true, filePath: picked.filePath } as const;
+    } catch (e) {
+      return {
+        ok: false,
+        reason: "write-failed",
+        message: e instanceof Error ? e.message : String(e),
+      } as const;
     }
+  },
+);
+
+ipcMain.handle(API_CHANNELS.projectLoad, async (event) => {
+  const senderWindow = BrowserWindow.fromWebContents(event.sender);
+  const picked = await pickMosaicOpenPath({ parentWindow: senderWindow });
+  if (picked.canceled || picked.filePath === undefined) {
+    return { ok: false, reason: "canceled" } as const;
+  }
+  const r = await loadProjectFromPath(picked.filePath);
+  if (!r.ok) {
     return {
-      ok: true,
-      filePath: picked.filePath,
-      file: r.file,
-      images: r.images,
-      missing: r.missing,
+      ok: false,
+      reason: "validation-failed",
+      message: r.error,
     } as const;
-  });
+  }
+  return {
+    ok: true,
+    filePath: picked.filePath,
+    file: r.file,
+    images: r.images,
+    missing: r.missing,
+  } as const;
+});
 ```
 
 - [ ] **Step 6: Type-check + run all tests**
@@ -2208,6 +2431,7 @@ git commit -m "feat(m7): IPC channels for project save/load"
 ### Task 11: Save/Open buttons in toolbar + load wiring (no relink modal yet)
 
 **Files:**
+
 - Modify: `src/renderer/App.tsx`
 - Create: `src/renderer/state/load-project.ts` — small helper that decodes `ResolvedImageDto[]` into `Map<string, ImageBitmap>` and dispatches `RESET_TO_STATE`
 
@@ -2223,10 +2447,7 @@ import { decodeImageBytes } from "../image/decode-bytes";
 import type { FigureAction } from "../model/figure-actions";
 import { resetToState } from "../model/figure-actions";
 import { fromMosaicFile } from "../model/serialize";
-import type {
-  LoadProjectResult,
-  ResolvedImageDto,
-} from "../../preload/api";
+import type { LoadProjectResult, ResolvedImageDto } from "../../preload/api";
 
 export interface LoadOutcome {
   /** Image ids whose bytes failed to decode after disk read. */
@@ -2288,61 +2509,62 @@ Add component state for the current project file path (used for "Save" without r
 Add near other state declarations (after line 63):
 
 ```ts
-  const [projectPath, setProjectPath] = useState<string | null>(null);
-  const [missingImages, setMissingImages] = useState<
-    { imageId: string; filename: string; attemptedPaths: string[] }[]
-  >([]);
+const [projectPath, setProjectPath] = useState<string | null>(null);
+const [missingImages, setMissingImages] = useState<
+  { imageId: string; filename: string; attemptedPaths: string[] }[]
+>([]);
 ```
 
 Add the save handler after `onCalibrate`:
 
 ```ts
-  const onSaveProject = useCallback(async () => {
-    setError(null);
-    const file = toMosaicFile({
-      state,
-      canvas: {
-        widthPx: FIGURE_PX_W,
-        heightPx: FIGURE_PX_H,
-        background: CANVAS_BG,
-      },
-      mosaicPath: projectPath ?? "untitled.mosaic",
-      appVersion: "0.1.0",
-    });
-    const r = await window.api.saveProject({
-      file,
-      defaultName: projectPath !== null ? basename(projectPath) : "untitled.mosaic",
-    });
-    if (!r.ok) {
-      if (r.reason !== "canceled") {
-        setError(`Save failed: ${r.message ?? r.reason}`);
-      }
-      return;
+const onSaveProject = useCallback(async () => {
+  setError(null);
+  const file = toMosaicFile({
+    state,
+    canvas: {
+      widthPx: FIGURE_PX_W,
+      heightPx: FIGURE_PX_H,
+      background: CANVAS_BG,
+    },
+    mosaicPath: projectPath ?? "untitled.mosaic",
+    appVersion: "0.1.0",
+  });
+  const r = await window.api.saveProject({
+    file,
+    defaultName:
+      projectPath !== null ? basename(projectPath) : "untitled.mosaic",
+  });
+  if (!r.ok) {
+    if (r.reason !== "canceled") {
+      setError(`Save failed: ${r.message ?? r.reason}`);
     }
-    setProjectPath(r.filePath);
-  }, [state, projectPath]);
+    return;
+  }
+  setProjectPath(r.filePath);
+}, [state, projectPath]);
 
-  const onOpenProject = useCallback(async () => {
-    setError(null);
-    const r = await window.api.loadProject();
-    if (!r.ok) {
-      if (r.reason !== "canceled") {
-        setError(`Open failed: ${r.message ?? r.reason}`);
-      }
-      return;
+const onOpenProject = useCallback(async () => {
+  setError(null);
+  const r = await window.api.loadProject();
+  if (!r.ok) {
+    if (r.reason !== "canceled") {
+      setError(`Open failed: ${r.message ?? r.reason}`);
     }
-    const outcome = await applyLoadedProject(r, dispatch);
-    setBitmaps(outcome.bitmaps);
-    setProjectPath(r.filePath);
-    setMissingImages(r.missing);
-    if (outcome.decodeFailures.length > 0) {
-      setError(
-        `Some images failed to decode: ${outcome.decodeFailures
-          .map((f) => f.imageId)
-          .join(", ")}`,
-      );
-    }
-  }, []);
+    return;
+  }
+  const outcome = await applyLoadedProject(r, dispatch);
+  setBitmaps(outcome.bitmaps);
+  setProjectPath(r.filePath);
+  setMissingImages(r.missing);
+  if (outcome.decodeFailures.length > 0) {
+    setError(
+      `Some images failed to decode: ${outcome.decodeFailures
+        .map((f) => f.imageId)
+        .join(", ")}`,
+    );
+  }
+}, []);
 ```
 
 Add buttons in the header (insert just after the existing `<ExportMenu .../>` line near line 286):
@@ -2376,6 +2598,7 @@ Expected: clean.
 - [ ] **Step 4: Manual smoke test**
 
 Run `pnpm dev`. Verify:
+
 - Add 2 images, place them. Click **Save** → native dialog → save as `figure.mosaic`.
 - Quit and relaunch (or just click **Open…**) → pick `figure.mosaic` → grid + images reappear in the same positions.
 - Verify undo/redo still works after open.
@@ -2395,6 +2618,7 @@ git commit -m "feat(m7): Save/Open project IPC wiring (no relink modal yet)"
 ### Task 12: Relink modal for missing images on load
 
 **Files:**
+
 - Create: `src/renderer/components/Modals/RelinkModal.tsx`
 - Modify: `src/renderer/App.tsx` — render `RelinkModal` when `missingImages.length > 0`
 - Add a single-image re-pick path: extend `openImages` is overkill; we can reuse the existing IPC for now. The modal calls `window.api.openImages()` and the user picks ONE file at a time (filtered by basename match in the UI).
@@ -2621,21 +2845,23 @@ import { RelinkModal } from "./components/Modals/RelinkModal";
 In the JSX, just after the `CalibrationModal` block at the bottom of `<main>` (around line 396), add:
 
 ```tsx
-      {missingImages.length > 0 && (
-        <RelinkModal
-          missing={missingImages}
-          dispatch={dispatch}
-          onClose={() => setMissingImages([])}
-          onRelinked={(newBitmaps, stillMissing) => {
-            setBitmaps((prev) => {
-              const next = new Map(prev);
-              for (const [k, v] of newBitmaps) next.set(k, v);
-              return next;
-            });
-            setMissingImages(stillMissing);
-          }}
-        />
-      )}
+{
+  missingImages.length > 0 && (
+    <RelinkModal
+      missing={missingImages}
+      dispatch={dispatch}
+      onClose={() => setMissingImages([])}
+      onRelinked={(newBitmaps, stillMissing) => {
+        setBitmaps((prev) => {
+          const next = new Map(prev);
+          for (const [k, v] of newBitmaps) next.set(k, v);
+          return next;
+        });
+        setMissingImages(stillMissing);
+      }}
+    />
+  );
+}
 ```
 
 - [ ] **Step 3: Type-check**
@@ -2668,6 +2894,7 @@ git commit -m "feat(m7): missing-image relink modal"
 ### Task 13: End-to-end save → undo → save round-trip test
 
 **Files:**
+
 - Create: `test/unit/m7-roundtrip.test.ts`
 
 A pure-data integration test that exercises the full M7 surface without React or the renderer. It builds a state, mutates it through the reducer, simulates undo, then serializes/validates/deserializes — verifying nothing is lost and undo doesn't break serialization.
@@ -2687,7 +2914,10 @@ import {
   setGutterPx,
   resetToState,
 } from "../../src/renderer/model/figure-actions";
-import { toMosaicFile, fromMosaicFile } from "../../src/renderer/model/serialize";
+import {
+  toMosaicFile,
+  fromMosaicFile,
+} from "../../src/renderer/model/serialize";
 import { validateMosaicFile } from "../../src/renderer/model/schema";
 import { combinedReducer } from "../../src/renderer/state/use-history-reducer";
 import type { Combined } from "../../src/renderer/state/use-history-reducer";
@@ -2707,8 +2937,13 @@ describe("M7 round-trip — reducer × history × serialize × validate", () => 
     combined = combinedReducer(combined, {
       kind: "dispatch",
       action: addToPool({
-        id: "img1", filename: "a.png", filePath: "/tmp/proj/a.png",
-        mime: "image/png", width: 100, height: 100, bitDepth: 8,
+        id: "img1",
+        filename: "a.png",
+        filePath: "/tmp/proj/a.png",
+        mime: "image/png",
+        width: 100,
+        height: 100,
+        bitDepth: 8,
       }),
     });
     const firstPanel = combined.state.panels[0]!;
@@ -2753,7 +2988,9 @@ describe("M7 round-trip — reducer × history × serialize × validate", () => 
       action: resetToState(r.state),
     });
     expect(combined.state.gutterPx).toBe(20);
-    expect(combined.state.panels.find((p) => p.id === firstPanel.id)?.imageId).toBe("img1");
+    expect(
+      combined.state.panels.find((p) => p.id === firstPanel.id)?.imageId,
+    ).toBe("img1");
     // RESET_TO_STATE clears history.
     expect(combined.history.past.length).toBe(0);
     expect(combined.history.future.length).toBe(0);
@@ -2762,10 +2999,17 @@ describe("M7 round-trip — reducer × history × serialize × validate", () => 
   it("relink hint preserves sha256 + relPath through save/load", () => {
     const state = {
       ...initialFigureState(),
-      pool: [{
-        id: "img1", filename: "a.png", filePath: "/tmp/proj/a.png",
-        mime: "image/png" as const, width: 1, height: 1, bitDepth: 8 as const,
-      }],
+      pool: [
+        {
+          id: "img1",
+          filename: "a.png",
+          filePath: "/tmp/proj/a.png",
+          mime: "image/png" as const,
+          width: 1,
+          height: 1,
+          bitDepth: 8 as const,
+        },
+      ],
     };
     const file = toMosaicFile({
       state,
@@ -2804,6 +3048,7 @@ git commit -m "test(m7): reducer × history × serialize × schema round-trip"
 ### Task 14: M7 milestone doc
 
 **Files:**
+
 - Create: `docs/plans/m7-project-save-load-and-undo-redo.md`
 
 A short shipped-feature notes file mirroring `docs/plans/m6-annotations-and-tiff.md`. This is the only documentation file in M7 — no README changes, no new top-level docs.
@@ -2824,9 +3069,9 @@ A short shipped-feature notes file mirroring `docs/plans/m6-annotations-and-tiff
 - Toolbar Save / Open buttons.
 - Relink modal (`src/renderer/components/Modals/RelinkModal.tsx`) for missing-on-load images.
 - Undo/redo backed by a generic 10-deep ring buffer (`src/renderer/state/history.ts`)
-  + `useHistoryReducer` (`src/renderer/state/use-history-reducer.ts`).
-  - Pan/zoom drags = transient + explicit `commit()` on `pointerup` / wheel-end (250ms debounce).
-  - `RESET_TO_STATE` (used by project-load) clears history.
+  - `useHistoryReducer` (`src/renderer/state/use-history-reducer.ts`).
+  * Pan/zoom drags = transient + explicit `commit()` on `pointerup` / wheel-end (250ms debounce).
+  * `RESET_TO_STATE` (used by project-load) clears history.
 - Cmd/Ctrl-Z undo, Cmd/Ctrl-Shift-Z redo, gated to ignore typing targets.
 - Bitmaps NEVER persist — they live in `useState<Map<string, ImageBitmap>>` in
   `App.tsx` and are rebuilt on load by re-running `decodeImageBytes` over the
@@ -2871,6 +3116,7 @@ pnpm dev
 ```
 
 Manual scenario (mirrors the design doc's verification §11–12):
+
 1. Launch; place 3 images across a 2×2 grid (one merged 2×1 cell).
 2. Adjust panel transforms (rotate one, zoom one).
 3. Add a text annotation and a scale bar (TIFF panel).
@@ -2884,6 +3130,7 @@ Manual scenario (mirrors the design doc's verification §11–12):
 ## Self-review checklist (recorded for reference)
 
 **Spec coverage** (from the design doc's M7 line + Tracer-bullet milestones):
+
 - ✅ `.mosaic` write: Tasks 5–6 (schema + serialize), 9 (save), 10 (IPC), 11 (UI button).
 - ✅ `.mosaic` read with relative paths: Tasks 6 (`relPath` posix), 9 (resolve order).
 - ✅ Undo/redo wired to all mutations: Task 2 (history wraps `figureReducer`, all action types), Task 4 (keyboard).
@@ -2893,6 +3140,7 @@ Manual scenario (mirrors the design doc's verification §11–12):
 - ✅ sha256 mismatch surfaced: Task 9 (`shaMismatch: true` on `ResolvedImageDto`); UI handling in M8 (TODO).
 
 **Type consistency check**:
+
 - `MosaicFileV1` (Task 5) ↔ `toMosaicFile` return type (Task 6) ↔ `loadProjectFromPath` return field `file` (Task 9): same.
 - `RESET_TO_STATE` action (Task 2) ↔ `resetToState` creator ↔ used in Task 11.
 - `History<T>` shape (Task 1: `{past, future}`) consistent throughout.

@@ -53,7 +53,9 @@ export function RelinkModal({
       });
       setPending((prev) => prev.filter((p) => p.imageId !== entry.imageId));
     } catch (e) {
-      setError(`Could not decode ${f.filePath}: ${e instanceof Error ? e.message : String(e)}`);
+      setError(
+        `Could not decode ${f.filePath}: ${e instanceof Error ? e.message : String(e)}`,
+      );
     } finally {
       setBusy(null);
     }
@@ -95,7 +97,9 @@ export function RelinkModal({
         {missing.length === 0 ? (
           <p style={{ color: "var(--c-text-muted)" }}>(none)</p>
         ) : (
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+          <table
+            style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}
+          >
             <thead>
               <tr style={{ color: "var(--c-text-muted)", textAlign: "left" }}>
                 <th
@@ -129,7 +133,9 @@ export function RelinkModal({
             </thead>
             <tbody>
               {missing.map((entry) => {
-                const isPending = pending.some((p) => p.imageId === entry.imageId);
+                const isPending = pending.some(
+                  (p) => p.imageId === entry.imageId,
+                );
                 const isResolved = resolved.has(entry.imageId);
                 const isBusy = busy === entry.imageId;
                 return (
@@ -140,11 +146,17 @@ export function RelinkModal({
                     <td style={{ padding: "8px" }}>{entry.filename}</td>
                     <td style={{ padding: "8px" }}>
                       {isResolved ? (
-                        <span style={{ color: "var(--c-success)" }}>Relinked</span>
+                        <span style={{ color: "var(--c-success)" }}>
+                          Relinked
+                        </span>
                       ) : isPending ? (
-                        <span style={{ color: "var(--c-danger)" }}>Missing</span>
+                        <span style={{ color: "var(--c-danger)" }}>
+                          Missing
+                        </span>
                       ) : (
-                        <span style={{ color: "var(--c-text-faint)" }}>Skipped</span>
+                        <span style={{ color: "var(--c-text-faint)" }}>
+                          Skipped
+                        </span>
                       )}
                     </td>
                     <td style={{ padding: "8px" }}>

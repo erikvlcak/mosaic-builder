@@ -19,7 +19,6 @@ describe("initialFigureState — M6 shape", () => {
     expect(s.gutterPx).toBe(12);
     expect(s.gutterColor).toBe("#FFFFFF");
   });
-
 });
 
 describe("initialFigureState — layout (spec 11)", () => {

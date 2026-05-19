@@ -25,6 +25,6 @@ export function initialDefaultSymbolStyle(): DefaultSymbolStyle {
     fillMode: "filled",
     strokeStyle: "solid",
     strokeWidthPx: 2,
-    color: "#FF0000",
+    color: "#000000",
   };
 }

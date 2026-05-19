@@ -54,8 +54,7 @@ export const SYMBOL_LIBRARY: readonly SymbolDef[] = [
     id: "arrow-double-right",
     label: "Double arrow",
     geometry: "stroke-only",
-    pathD:
-      "M 15 50 L 75 50 M 60 35 L 75 50 L 60 65 M 45 35 L 60 50 L 45 65",
+    pathD: "M 15 50 L 75 50 M 60 35 L 75 50 L 60 65 M 45 35 L 60 50 L 45 65",
   },
   {
     id: "arrow-thin-right",
@@ -140,8 +139,7 @@ export const SYMBOL_LIBRARY: readonly SymbolDef[] = [
     id: "shape-octagon",
     label: "Octagon",
     geometry: "closed",
-    pathD:
-      "M 32 12 L 68 12 L 88 32 L 88 68 L 68 88 L 32 88 L 12 68 L 12 32 Z",
+    pathD: "M 32 12 L 68 12 L 88 32 L 88 68 L 68 88 L 32 88 L 12 68 L 12 32 Z",
   },
   {
     id: "shape-oval",
@@ -209,5 +207,5 @@ export const SYMBOL_LIBRARY_BY_ID: ReadonlyMap<string, SymbolDef> = new Map(
 export const DEFAULT_SYMBOL_ID = "arrow-filled-right";
 export const DEFAULT_FILL_MODE: FillMode = "filled";
 export const DEFAULT_STROKE_STYLE: StrokeStyle = "solid";
-export const DEFAULT_SYMBOL_COLOR = "#FF0000";
+export const DEFAULT_SYMBOL_COLOR = "#000000";
 export const DEFAULT_SYMBOL_STROKE = 2;

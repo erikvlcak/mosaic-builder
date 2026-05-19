@@ -17,6 +17,7 @@
 This plan creates, modifies, and deletes the following files. Map of responsibilities:
 
 **Modify (renderer source):**
+
 - [src/renderer/symbols/library.ts](src/renderer/symbols/library.ts) — rewrite `SymbolDef`, drop categories/markers/brackets, add ~12 shapes, add `geometry`, move default constants in.
 - [src/renderer/model/annotations.ts](src/renderer/model/annotations.ts) — add `FillMode`/`StrokeStyle` types and fields on `SymbolAnnotation`; remove `BoxAnnotation` from union.
 - [src/renderer/model/figure-actions.ts](src/renderer/model/figure-actions.ts) — drop `"box"` from `ALLOWED_BULK_KEYS`.
@@ -37,15 +38,18 @@ This plan creates, modifies, and deletes the following files. Map of responsibil
 - [src/renderer/App.tsx](src/renderer/App.tsx) — add `defaultSymbolStyle` state; pass `activeTool` + `defaultSymbolStyle` + setter into `PropertiesPanel`; pass `defaultSymbolStyle` into `AnnotationInteractionLayer`.
 
 **Create (renderer source):**
+
 - [src/renderer/components/Properties/SymbolGrid.tsx](src/renderer/components/Properties/SymbolGrid.tsx) — flat shape grid; previews use current style; `aria-pressed` on active cell.
 - [src/renderer/components/Properties/SymbolStyleControls.tsx](src/renderer/components/Properties/SymbolStyleControls.tsx) — Fill / Stroke style / Stroke width / Color row.
 - [src/renderer/components/Properties/SymbolPickerPanel.tsx](src/renderer/components/Properties/SymbolPickerPanel.tsx) — composes the two above against `defaultSymbolStyle`.
 - [src/renderer/model/default-symbol-style.ts](src/renderer/model/default-symbol-style.ts) — exports `DefaultSymbolStyle` interface and `initialDefaultSymbolStyle()` helper. Lives in `model/` so both `App.tsx` and the picker import the same type without a UI-layer cycle.
 
 **Delete:**
+
 - [src/renderer/components/Properties/BoxAnnoForm.tsx](src/renderer/components/Properties/BoxAnnoForm.tsx)
 
 **Tests — modify:**
+
 - [test/unit/figure-actions.test.ts](test/unit/figure-actions.test.ts) — remove the box-add and bulk-box assertions; symbol fixture includes `fillMode` + `strokeStyle`.
 - [test/unit/annotation-interaction-layer.test.tsx](test/unit/annotation-interaction-layer.test.tsx) — remove all box drag-to-draw / box-handle tests; symbol placement asserts `defaultSymbolStyle` propagation; placement does NOT call `onSelectionChange`.
 - [test/unit/annotation-layer-click-passthrough.test.tsx](test/unit/annotation-layer-click-passthrough.test.tsx), [test/unit/annotation-layer-dblclick-passthrough.test.tsx](test/unit/annotation-layer-dblclick-passthrough.test.tsx), [test/unit/annotation-layer-drop-passthrough.test.tsx](test/unit/annotation-layer-drop-passthrough.test.tsx), [test/unit/annotation-layer-editing-passthrough.test.tsx](test/unit/annotation-layer-editing-passthrough.test.tsx), [test/unit/annotation-layer-panel-drag-passthrough.test.tsx](test/unit/annotation-layer-panel-drag-passthrough.test.tsx) — pass `defaultSymbolStyle` prop where the layer is rendered (these don't exercise symbol logic but the prop is required after Task 8).
@@ -62,6 +66,7 @@ This plan creates, modifies, and deletes the following files. Map of responsibil
 - [test/unit/symbol-library.test.ts](test/unit/symbol-library.test.ts) — assert new shape catalogue (size, geometry tags, no categories).
 
 **Tests — create:**
+
 - [test/unit/symbol-picker-panel.test.tsx](test/unit/symbol-picker-panel.test.tsx) — picker visibility (`activeTool === "symbol"` && no selection), shape click updates default but doesn't dispatch `addAnnotation`, Filled toggle disabled for stroke-only, fill mode disables stroke style + stroke width inputs.
 - [test/unit/symbol-grid.test.tsx](test/unit/symbol-grid.test.tsx) — flat grid (no category headers), preview reflects current style, active cell has `aria-pressed`.
 
@@ -70,6 +75,7 @@ This plan creates, modifies, and deletes the following files. Map of responsibil
 ## Task 1: Rewrite the symbol library
 
 **Files:**
+
 - Modify: `src/renderer/symbols/library.ts`
 - Modify: `test/unit/symbol-library.test.ts`
 
@@ -99,9 +105,9 @@ import {
 
 describe("symbol library", () => {
   it("contains exactly 6 arrow ids", () => {
-    const arrowIds = SYMBOL_LIBRARY.filter((s) => s.id.startsWith("arrow-")).map(
-      (s) => s.id,
-    );
+    const arrowIds = SYMBOL_LIBRARY.filter((s) =>
+      s.id.startsWith("arrow-"),
+    ).map((s) => s.id);
     expect(arrowIds.sort()).toEqual([
       "arrow-double-right",
       "arrow-filled-right",
@@ -113,9 +119,9 @@ describe("symbol library", () => {
   });
 
   it("contains the expected shape ids (existing 8 + 12 new)", () => {
-    const shapeIds = SYMBOL_LIBRARY.filter((s) => s.id.startsWith("shape-")).map(
-      (s) => s.id,
-    );
+    const shapeIds = SYMBOL_LIBRARY.filter((s) =>
+      s.id.startsWith("shape-"),
+    ).map((s) => s.id);
     expect(shapeIds.sort()).toEqual(
       [
         "shape-asterisk",
@@ -152,20 +158,30 @@ describe("symbol library", () => {
       expect(def.geometry === "closed" || def.geometry === "stroke-only").toBe(
         true,
       );
-      expect((def as unknown as { category?: unknown }).category).toBeUndefined();
+      expect(
+        (def as unknown as { category?: unknown }).category,
+      ).toBeUndefined();
       expect((def as unknown as { fill?: unknown }).fill).toBeUndefined();
     }
   });
 
   it("classifies the four currently-stroke-only arrows as 'stroke-only'", () => {
-    const strokeOnly = ["arrow-open-right", "arrow-line-right", "arrow-double-right"];
+    const strokeOnly = [
+      "arrow-open-right",
+      "arrow-line-right",
+      "arrow-double-right",
+    ];
     for (const id of strokeOnly) {
       expect(SYMBOL_LIBRARY_BY_ID.get(id)?.geometry).toBe("stroke-only");
     }
   });
 
   it("classifies the closed arrows as 'closed'", () => {
-    for (const id of ["arrow-filled-right", "arrow-thin-right", "arrow-thick-right"]) {
+    for (const id of [
+      "arrow-filled-right",
+      "arrow-thin-right",
+      "arrow-thick-right",
+    ]) {
       expect(SYMBOL_LIBRARY_BY_ID.get(id)?.geometry).toBe("closed");
     }
   });
@@ -258,8 +274,7 @@ export const SYMBOL_LIBRARY: readonly SymbolDef[] = [
     id: "arrow-double-right",
     label: "Double arrow",
     geometry: "stroke-only",
-    pathD:
-      "M 15 50 L 75 50 M 60 35 L 75 50 L 60 65 M 45 35 L 60 50 L 45 65",
+    pathD: "M 15 50 L 75 50 M 60 35 L 75 50 L 60 65 M 45 35 L 60 50 L 45 65",
   },
   {
     id: "arrow-thin-right",
@@ -344,8 +359,7 @@ export const SYMBOL_LIBRARY: readonly SymbolDef[] = [
     id: "shape-octagon",
     label: "Octagon",
     geometry: "closed",
-    pathD:
-      "M 32 12 L 68 12 L 88 32 L 88 68 L 68 88 L 32 88 L 12 68 L 12 32 Z",
+    pathD: "M 32 12 L 68 12 L 88 32 L 88 68 L 68 88 L 32 88 L 12 68 L 12 32 Z",
   },
   {
     id: "shape-oval",
@@ -436,6 +450,7 @@ git commit -m "feat(symbols): restructure library — geometry-tagged, no catego
 ## Task 2: Add `FillMode`/`StrokeStyle` types and rework `SymbolAnnotation`; remove `BoxAnnotation`
 
 **Files:**
+
 - Modify: `src/renderer/model/annotations.ts`
 - Modify: `src/renderer/model/types.ts`
 - Modify: `src/renderer/model/canvas-dims.ts`
@@ -548,10 +563,7 @@ export interface SymbolAnnotation extends BaseAnnotation {
 // via shape-square + outlined fillMode, eliminating the redundant tool.
 
 /** User-creatable annotations. `LetterAnnotation` is derived, not in this union. */
-export type Annotation =
-  | TextAnnotation
-  | SymbolAnnotation
-  | ScaleBarAnnotation;
+export type Annotation = TextAnnotation | SymbolAnnotation | ScaleBarAnnotation;
 ```
 
 Delete the entire `BoxAnnotation` interface block. Keep all other annotation interfaces unchanged.
@@ -639,6 +651,7 @@ git commit -m "feat(model): drop BoxAnnotation; add fillMode/strokeStyle to Symb
 ## Task 3: Bump schema to v5 (no migration); update serializer
 
 **Files:**
+
 - Modify: `src/renderer/model/schema.ts`
 - Modify: `src/renderer/model/serialize.ts`
 - Modify: `test/unit/schema.test.ts`
@@ -711,8 +724,12 @@ it("rejects a v5 symbol annotation with an invalid strokeStyle", () => {
           kind: "symbol",
           z: 0,
           symbolId: "arrow-filled-right",
-          x: 10, y: 10, sizePx: 60, rotationDeg: 0,
-          color: "#FF0000", strokeWidthPx: 2,
+          x: 10,
+          y: 10,
+          sizePx: 60,
+          rotationDeg: 0,
+          color: "#FF0000",
+          strokeWidthPx: 2,
           fillMode: "filled",
           strokeStyle: "wavy",
         },
@@ -810,10 +827,7 @@ f) Inside `validateAnnotations`, find the `else if (k === "symbol")` block and a
 
 ```typescript
 if (sv === 5) {
-  if (
-    a.fillMode !== "filled" &&
-    a.fillMode !== "outlined"
-  ) {
+  if (a.fillMode !== "filled" && a.fillMode !== "outlined") {
     return err(`${path}[${i}].fillMode: must be 'filled' or 'outlined'`);
   }
   if (
@@ -869,6 +883,7 @@ export function toMosaicFile(inp: ToMosaicInput): MosaicFileV5 {
 c) In `fromMosaicFile`:
 
 i. Update the annotations branch — v5 files come in v5 shape directly; no migration needed:
+
 ```typescript
 const annotations: Annotation[] =
   file.schemaVersion === 1
@@ -928,6 +943,7 @@ git commit -m "feat(schema): bump to v5 — drop BoxAnnotation, require fillMode
 ## Task 4: Add `setLineDash` to `DrawCtx`; rewrite `drawSymbol` with `dashPatternFor`; remove `drawBox`
 
 **Files:**
+
 - Modify: `src/renderer/render/draw-figure.ts`
 - Modify: `src/renderer/render/draw-annotations.ts`
 - Modify: `test/unit/draw-symbol.test.ts`
@@ -959,7 +975,8 @@ describe("drawSymbol", () => {
         kind: "symbol",
         z: 0,
         symbolId: "shape-circle",
-        x: 100, y: 100,
+        x: 100,
+        y: 100,
         sizePx: 50,
         rotationDeg: 0,
         color: "#112233",
@@ -981,7 +998,8 @@ describe("drawSymbol", () => {
         kind: "symbol",
         z: 0,
         symbolId: "shape-circle",
-        x: 100, y: 100,
+        x: 100,
+        y: 100,
         sizePx: 50,
         rotationDeg: 0,
         color: "#112233",
@@ -1003,7 +1021,8 @@ describe("drawSymbol", () => {
         kind: "symbol",
         z: 0,
         symbolId: "arrow-line-right", // stroke-only
-        x: 100, y: 100,
+        x: 100,
+        y: 100,
         sizePx: 50,
         rotationDeg: 0,
         color: "#112233",
@@ -1025,9 +1044,14 @@ describe("drawSymbol", () => {
         kind: "symbol",
         z: 0,
         symbolId: "shape-circle",
-        x: 100, y: 100, sizePx: 50, rotationDeg: 0,
-        color: "#112233", strokeWidthPx: 4,
-        fillMode: "outlined", strokeStyle: "solid",
+        x: 100,
+        y: 100,
+        sizePx: 50,
+        rotationDeg: 0,
+        color: "#112233",
+        strokeWidthPx: 4,
+        fillMode: "outlined",
+        strokeStyle: "solid",
       },
     ]);
     drawAnnotations(ctx, fig, EMPTY_DEPS);
@@ -1045,9 +1069,14 @@ describe("drawSymbol", () => {
         kind: "symbol",
         z: 0,
         symbolId: "shape-circle",
-        x: 100, y: 100, sizePx: 100, rotationDeg: 0,
-        color: "#112233", strokeWidthPx: 2,
-        fillMode: "outlined", strokeStyle: "dashed",
+        x: 100,
+        y: 100,
+        sizePx: 100,
+        rotationDeg: 0,
+        color: "#112233",
+        strokeWidthPx: 2,
+        fillMode: "outlined",
+        strokeStyle: "dashed",
       },
     ]);
     drawAnnotations(ctx, fig, EMPTY_DEPS);
@@ -1074,9 +1103,14 @@ describe("drawSymbol", () => {
         kind: "symbol",
         z: 0,
         symbolId: "shape-circle",
-        x: 100, y: 100, sizePx: 100, rotationDeg: 0,
-        color: "#112233", strokeWidthPx: 2,
-        fillMode: "outlined", strokeStyle: "dotted",
+        x: 100,
+        y: 100,
+        sizePx: 100,
+        rotationDeg: 0,
+        color: "#112233",
+        strokeWidthPx: 2,
+        fillMode: "outlined",
+        strokeStyle: "dotted",
       },
     ]);
     drawAnnotations(ctx, fig, EMPTY_DEPS);
@@ -1095,9 +1129,14 @@ describe("drawSymbol", () => {
         kind: "symbol",
         z: 0,
         symbolId: "shape-circle",
-        x: 100, y: 100, sizePx: 200, rotationDeg: 0,
-        color: "#112233", strokeWidthPx: 2,
-        fillMode: "outlined", strokeStyle: "dashed",
+        x: 100,
+        y: 100,
+        sizePx: 200,
+        rotationDeg: 0,
+        color: "#112233",
+        strokeWidthPx: 2,
+        fillMode: "outlined",
+        strokeStyle: "dashed",
       },
     ]);
     drawAnnotations(ctx, fig, EMPTY_DEPS);
@@ -1116,9 +1155,14 @@ describe("drawSymbol", () => {
         kind: "symbol",
         z: 0,
         symbolId: "ghost",
-        x: 100, y: 100, sizePx: 50, rotationDeg: 0,
-        color: "#112233", strokeWidthPx: 2,
-        fillMode: "filled", strokeStyle: "solid",
+        x: 100,
+        y: 100,
+        sizePx: 50,
+        rotationDeg: 0,
+        color: "#112233",
+        strokeWidthPx: 2,
+        fillMode: "filled",
+        strokeStyle: "solid",
       },
     ]);
     drawAnnotations(ctx, fig, EMPTY_DEPS);
@@ -1133,9 +1177,14 @@ describe("drawSymbol", () => {
         kind: "symbol",
         z: 0,
         symbolId: "shape-circle",
-        x: 100, y: 100, sizePx: 0, rotationDeg: 0,
-        color: "#112233", strokeWidthPx: 2,
-        fillMode: "filled", strokeStyle: "solid",
+        x: 100,
+        y: 100,
+        sizePx: 0,
+        rotationDeg: 0,
+        color: "#112233",
+        strokeWidthPx: 2,
+        fillMode: "filled",
+        strokeStyle: "solid",
       },
     ]);
     drawAnnotations(ctx, fig, EMPTY_DEPS);
@@ -1256,6 +1305,7 @@ git commit -m "feat(render): drawSymbol honours fillMode + strokeStyle; dashPatt
 ## Task 5: Drop `box` from the toolbar
 
 **Files:**
+
 - Modify: `src/renderer/components/Toolbar/AnnotationToolbar.tsx`
 
 A small, isolated commit so a reviewer can verify the toolbar surface area in one diff.
@@ -1348,6 +1398,7 @@ git commit -m "feat(toolbar): drop the redundant 'box' tool"
 ## Task 6: Add `DefaultSymbolStyle` model
 
 **Files:**
+
 - Create: `src/renderer/model/default-symbol-style.ts`
 
 This is a tiny standalone module — the type that the App, the picker, and the interaction layer share. Lives in `model/` so the UI layer doesn't need to import another UI module to get the type.
@@ -1408,6 +1459,7 @@ git commit -m "feat(model): add DefaultSymbolStyle for the picker"
 ## Task 7: Build `<SymbolGrid>` and `<SymbolStyleControls>`
 
 **Files:**
+
 - Create: `src/renderer/components/Properties/SymbolGrid.tsx`
 - Create: `src/renderer/components/Properties/SymbolStyleControls.tsx`
 - Create: `test/unit/symbol-grid.test.tsx`
@@ -1734,6 +1786,7 @@ git commit -m "feat(properties): SymbolGrid + SymbolStyleControls primitives"
 ## Task 8: Build `<SymbolPickerPanel>`
 
 **Files:**
+
 - Create: `src/renderer/components/Properties/SymbolPickerPanel.tsx`
 - Create: `test/unit/symbol-picker-panel.test.tsx`
 
@@ -1922,6 +1975,7 @@ git commit -m "feat(properties): SymbolPickerPanel composes grid + style control
 ## Task 9: Update v1 → v2 migration to seed `fillMode`/`strokeStyle`
 
 **Files:**
+
 - Modify: `src/renderer/model/migrate-v1-to-v2.ts`
 - Modify: `test/unit/migrate-v1-to-v2.test.ts`
 
@@ -1942,7 +1996,10 @@ it("migrated symbol annotations carry default fillMode + strokeStyle", () => {
     id: "a1",
     kind: "arrow" as const,
     z: 0,
-    x1: 10, y1: 10, x2: 100, y2: 10,
+    x1: 10,
+    y1: 10,
+    x2: 100,
+    y2: 10,
     color: "#FF0000",
     thicknessPx: 2,
     head: "filled" as const,
@@ -1958,9 +2015,16 @@ it("migrated symbol annotations carry default fillMode + strokeStyle", () => {
 
 it("v1 arrow with head='open' migrates to outlined fillMode", () => {
   const v1Arrow = {
-    id: "a2", kind: "arrow" as const, z: 0,
-    x1: 0, y1: 0, x2: 50, y2: 0,
-    color: "#0000FF", thicknessPx: 1, head: "open" as const,
+    id: "a2",
+    kind: "arrow" as const,
+    z: 0,
+    x1: 0,
+    y1: 0,
+    x2: 50,
+    y2: 0,
+    color: "#0000FF",
+    thicknessPx: 1,
+    head: "open" as const,
   };
   const out = migrateAnnotationsV1ToV2([v1Arrow]);
   const sym = out[0];
@@ -1981,6 +2045,7 @@ Expected: FAIL — migrator doesn't emit those fields yet.
 Find every `return { id, kind: "symbol", … }` literal and add `fillMode` (derived from the old head shape — `"filled"` for filled-head arrows, `"outlined"` for open/none) and `strokeStyle: "solid"`.
 
 Concretely, for each symbolId emitted by the migrator:
+
 - `arrow-filled-right` → `fillMode: "filled"`
 - `arrow-open-right`, `arrow-line-right` → `fillMode: "outlined"`
 
@@ -2003,10 +2068,11 @@ git commit -m "fix(migrate): seed fillMode + strokeStyle on v1→v2 symbol migra
 ## Task 10: Rework `<SymbolAnnoForm>` to share the new primitives
 
 **Files:**
+
 - Modify: `src/renderer/components/Properties/SymbolAnnoForm.tsx`
 - Modify: `test/unit/symbol-anno-form.test.tsx`
 
-The form for editing a *selected* symbol now uses the same flat grid + style controls as the picker, plus its existing Size/Rotation/Delete controls.
+The form for editing a _selected_ symbol now uses the same flat grid + style controls as the picker, plus its existing Size/Rotation/Delete controls.
 
 - [ ] **Step 1: Read the existing test**
 
@@ -2233,6 +2299,7 @@ git commit -m "feat(properties): SymbolAnnoForm uses flat grid + style controls"
 ## Task 11: Drop `BoxAnnoForm`; clean up downstream form/overview wiring
 
 **Files:**
+
 - Delete: `src/renderer/components/Properties/BoxAnnoForm.tsx`
 - Modify: `src/renderer/components/Properties/AnnotationPropertiesForm.tsx`
 - Modify: `src/renderer/components/Properties/PropertiesPanel.tsx` (just `ANNO_TITLES`)
@@ -2334,6 +2401,7 @@ git commit -m "feat(properties): remove BoxAnnoForm and box-kind branches"
 ## Task 12: Wire `defaultSymbolStyle` and `activeTool` through `PropertiesPanel`
 
 **Files:**
+
 - Modify: `src/renderer/components/Properties/PropertiesPanel.tsx`
 - Modify: `src/renderer/App.tsx`
 
@@ -2400,9 +2468,8 @@ import {
 b) Near the other `useState` calls (around line 84):
 
 ```typescript
-const [defaultSymbolStyle, setDefaultSymbolStyle] = useState<DefaultSymbolStyle>(
-  initialDefaultSymbolStyle,
-);
+const [defaultSymbolStyle, setDefaultSymbolStyle] =
+  useState<DefaultSymbolStyle>(initialDefaultSymbolStyle);
 ```
 
 c) Pass the new props into `<PropertiesPanel>` (around line 735):
@@ -2438,6 +2505,7 @@ git commit -m "feat(app): route SymbolPickerPanel when activeTool=symbol with no
 ## Task 13: Wire `defaultSymbolStyle` through `AnnotationInteractionLayer`; remove box logic; placement no-auto-select
 
 **Files:**
+
 - Modify: `src/renderer/components/Annotations/AnnotationInteractionLayer.tsx`
 - Modify: `src/renderer/App.tsx`
 - Modify: `test/unit/annotation-interaction-layer.test.tsx`
@@ -2598,9 +2666,7 @@ if (activeTool === "symbol") {
     fillMode: defaultSymbolStyle.fillMode,
     strokeStyle: defaultSymbolStyle.strokeStyle,
   };
-  const imgCtx = imageContextAt(
-    c.fx, c.fy, figure, panelRectsById, imagesById,
-  );
+  const imgCtx = imageContextAt(c.fx, c.fy, figure, panelRectsById, imagesById);
   if (imgCtx !== null && imgCtx.panel.panelId !== undefined) {
     const anchor = anchorFromFigure(c.fx, c.fy, imgCtx);
     if (anchor !== null) {
@@ -2688,6 +2754,7 @@ git commit -m "feat(annotations): symbol placement reads picker style; drop box 
 ## Task 14: Final pass — typecheck, lint, full test run, manual visual review
 
 **Files:**
+
 - (No source changes expected; this is a verification gate)
 
 If any of these steps surface a regression, fix in place and add a regression test before committing.
@@ -2696,6 +2763,7 @@ If any of these steps surface a regression, fix in place and add a regression te
 
 Run: `pnpm typecheck`
 Expected: zero errors. Common surprises:
+
 - Stray `BoxAnnotation` references in test helpers — delete them.
 - Switch statements in `MultiAnnoForm` whose exhaustiveness check now flags an unused `default` — leave it; it's harmless.
 

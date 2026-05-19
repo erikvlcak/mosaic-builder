@@ -10,7 +10,10 @@ import type {
   SymbolAnnotation,
 } from "../../src/renderer/model/annotations";
 
-function textAnno(id: string, overrides?: Partial<TextAnnotation>): TextAnnotation {
+function textAnno(
+  id: string,
+  overrides?: Partial<TextAnnotation>,
+): TextAnnotation {
   return {
     id,
     kind: "text",
@@ -27,7 +30,10 @@ function textAnno(id: string, overrides?: Partial<TextAnnotation>): TextAnnotati
   };
 }
 
-function symbolAnno(id: string, overrides?: Partial<SymbolAnnotation>): SymbolAnnotation {
+function symbolAnno(
+  id: string,
+  overrides?: Partial<SymbolAnnotation>,
+): SymbolAnnotation {
   return {
     id,
     kind: "symbol",
@@ -76,7 +82,8 @@ describe("MultiAnnoForm", () => {
     const swatch = screen.getByLabelText("Color");
     fireEvent.change(swatch, { target: { value: "#abcdef" } });
     const calls = dispatch.mock.calls.map(
-      ([a]) => a as { type: string; ids?: string[]; patch?: Record<string, unknown> },
+      ([a]) =>
+        a as { type: string; ids?: string[]; patch?: Record<string, unknown> },
     );
     const bulk = calls.find((c) => c.type === "BULK_UPDATE_ANNOS");
     expect(bulk).toBeDefined();
@@ -100,7 +107,7 @@ describe("MultiAnnoForm", () => {
       dispatch.mock.calls.some(
         ([a]) =>
           (a as { type: string }).type === "BULK_REMOVE_ANNOS" &&
-          ((a as { ids: string[] }).ids).join() === "t1,s1",
+          (a as { ids: string[] }).ids.join() === "t1,s1",
       ),
     ).toBe(true);
     expect(onBulkRemove).toHaveBeenCalled();
@@ -122,7 +129,14 @@ describe("MultiAnnoForm", () => {
     const scale = screen.getByLabelText("Size scale (%)");
     fireEvent.change(scale, { target: { value: "200" } });
     const updates = dispatch.mock.calls
-      .map(([a]) => a as { type: string; annotationId?: string; patch?: Record<string, unknown> })
+      .map(
+        ([a]) =>
+          a as {
+            type: string;
+            annotationId?: string;
+            patch?: Record<string, unknown>;
+          },
+      )
       .filter((a) => a.type === "UPDATE_ANNOTATION");
     expect(updates).toHaveLength(2);
     const byId = new Map(updates.map((u) => [u.annotationId, u.patch]));

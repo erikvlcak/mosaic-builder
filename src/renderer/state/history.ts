@@ -18,11 +18,7 @@ export function emptyHistory<T>(): History<T> {
   return { past: [], future: [] };
 }
 
-export function pushHistory<T>(
-  h: History<T>,
-  prev: T,
-  _next: T,
-): History<T> {
+export function pushHistory<T>(h: History<T>, prev: T, _next: T): History<T> {
   const past = [...h.past, prev];
   if (past.length > MAX_HISTORY) past.shift();
   // Any non-undo/non-redo mutation discards future.

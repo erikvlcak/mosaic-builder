@@ -982,9 +982,7 @@ export function figureReducer(s: FigureState, a: FigureAction): FigureState {
       // A fresh panel has no entry in a free-form rects map; revert to
       // uniform so the renderer has something to draw.
       const layout: GridLayout =
-        s.layout.kind === "free"
-          ? uniformLayoutFor(s.rows, s.cols)
-          : s.layout;
+        s.layout.kind === "free" ? uniformLayoutFor(s.rows, s.cols) : s.layout;
       return { ...s, panels, layout };
     }
 
@@ -997,15 +995,11 @@ export function figureReducer(s: FigureState, a: FigureAction): FigureState {
 
     case "SET_TRACK_WEIGHT": {
       if (s.layout.kind !== "uniform") return s;
-      const cur =
-        a.axis === "col" ? s.layout.colWeights : s.layout.rowWeights;
+      const cur = a.axis === "col" ? s.layout.colWeights : s.layout.rowWeights;
       const next = setTrackWeight(cur, a.index, a.weight);
       // setTrackWeight returns a copy even on no-op; compare values to keep
       // the ===-same-state contract for memoization.
-      if (
-        next.length === cur.length &&
-        next.every((v, i) => v === cur[i])
-      ) {
+      if (next.length === cur.length && next.every((v, i) => v === cur[i])) {
         return s;
       }
       const layout: GridLayout =
@@ -1102,10 +1096,7 @@ function arraysEqual(a: readonly number[], b: readonly number[]): boolean {
   return true;
 }
 
-function omitKey<T>(
-  map: Record<string, T>,
-  key: string,
-): Record<string, T> {
+function omitKey<T>(map: Record<string, T>, key: string): Record<string, T> {
   const out: Record<string, T> = {};
   for (const k in map) if (k !== key) out[k] = map[k]!;
   return out;

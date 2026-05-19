@@ -31,11 +31,7 @@ describe("panelCovers", () => {
 
 describe("findPanelAt", () => {
   it("returns the merged panel for any cell inside it", () => {
-    const ps: Panel[] = [
-      def("a", 0, 0, 2, 2),
-      def("b", 0, 2),
-      def("c", 1, 2),
-    ];
+    const ps: Panel[] = [def("a", 0, 0, 2, 2), def("b", 0, 2), def("c", 1, 2)];
     expect(findPanelAt(ps, 0, 0)?.id).toBe("a");
     expect(findPanelAt(ps, 1, 1)?.id).toBe("a");
     expect(findPanelAt(ps, 0, 2)?.id).toBe("b");

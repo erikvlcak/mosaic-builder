@@ -7,8 +7,11 @@ describe("buildMenuTemplate", () => {
     const tpl = buildMenuTemplate({ isMac: false, send });
     const file = tpl.find((m) => (m.label ?? "").toLowerCase() === "file");
     expect(file).toBeDefined();
-    const submenuArr = file?.submenu as { label?: string;
-      accelerator?: string; click?: () => void }[];
+    const submenuArr = file?.submenu as {
+      label?: string;
+      accelerator?: string;
+      click?: () => void;
+    }[];
     const labels = submenuArr.map((x) => x.label ?? "");
     expect(labels).toEqual(
       expect.arrayContaining(["New", "Open…", "Save", "Save As…"]),
@@ -23,7 +26,10 @@ describe("buildMenuTemplate", () => {
     const tpl = buildMenuTemplate({ isMac: true, send: vi.fn() });
     expect((tpl[0]?.label ?? "").toLowerCase()).toBe("mosaic builder");
     const file = tpl.find((m) => (m.label ?? "").toLowerCase() === "file");
-    const submenuArr = file?.submenu as { label?: string; accelerator?: string }[];
+    const submenuArr = file?.submenu as {
+      label?: string;
+      accelerator?: string;
+    }[];
     const open = submenuArr.find((x) => x.label === "Open…");
     expect(open?.accelerator).toBe("CommandOrControl+O");
   });
@@ -32,8 +38,11 @@ describe("buildMenuTemplate", () => {
     const send = vi.fn();
     const tpl = buildMenuTemplate({ isMac: false, send });
     const edit = tpl.find((m) => (m.label ?? "").toLowerCase() === "edit");
-    const items = edit?.submenu as { label?: string;
-      accelerator?: string; click?: () => void }[];
+    const items = edit?.submenu as {
+      label?: string;
+      accelerator?: string;
+      click?: () => void;
+    }[];
     const undo = items.find((x) => x.label === "Undo");
     const redo = items.find((x) => x.label === "Redo");
     expect(undo?.accelerator).toBe("CommandOrControl+Z");

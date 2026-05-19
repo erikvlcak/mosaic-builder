@@ -2,7 +2,7 @@ import { useId } from "react";
 
 interface Props {
   label: string;
-  value: string;          // "#RRGGBB" or "#RRGGBBAA"
+  value: string; // "#RRGGBB" or "#RRGGBBAA"
   onChange: (hex: string) => void;
   onBlur?: () => void;
   allowAlpha?: boolean;
@@ -23,7 +23,11 @@ function isValidHex(s: string, allowAlpha: boolean): boolean {
  * "paste a hex" affordance, not a free-form editor.
  */
 export function ColorField({
-  label, value, onChange, onBlur, allowAlpha = false,
+  label,
+  value,
+  onChange,
+  onBlur,
+  allowAlpha = false,
 }: Props): JSX.Element {
   const id = useId();
   // The native picker only emits 6-digit hex; the text input handles 8-digit if allowed.

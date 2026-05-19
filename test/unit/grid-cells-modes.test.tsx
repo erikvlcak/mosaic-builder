@@ -290,9 +290,7 @@ describe("GridCells — selected vs editing modes", () => {
 describe("GridCells — hidden panels and holes (spec 02)", () => {
   it("renders the 'hidden' badge for a hidden panel", () => {
     const s = stateWithImage();
-    s.panels = s.panels.map((p, i) =>
-      i === 1 ? { ...p, hidden: true } : p,
-    );
+    s.panels = s.panels.map((p, i) => (i === 1 ? { ...p, hidden: true } : p));
     const hiddenPanel = s.panels[1]!;
     render(
       <GridCells

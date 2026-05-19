@@ -42,7 +42,8 @@ export function SymbolGrid({
         const isActive = s.id === value;
         // A cell preview reflects the *current* style: filled if both the
         // user's fillMode is "filled" AND the geometry supports it.
-        const wantFill = currentFillMode === "filled" && s.geometry === "closed";
+        const wantFill =
+          currentFillMode === "filled" && s.geometry === "closed";
         const dash = STROKE_DASH_BY_STYLE[currentStrokeStyle];
         return (
           <button

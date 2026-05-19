@@ -16,26 +16,26 @@ export function MergeControls({
       data-testid="merge-controls"
       style={{ display: "flex", gap: 6, alignItems: "center" }}
     >
-        <button
-          type="button"
-          className="btn"
-          onClick={onMerge}
-          disabled={!canMerge}
-          title="Merge selected cells (M)"
-          data-testid="merge-button"
-        >
-          Merge
-        </button>
-        <button
-          type="button"
-          className="btn"
-          onClick={onUnmerge}
-          disabled={!canUnmerge}
-          title="Unmerge focused panel (U)"
-          data-testid="unmerge-button"
-        >
-          Unmerge
-        </button>
+      <button
+        type="button"
+        className="btn"
+        onClick={onMerge}
+        disabled={!canMerge}
+        title="Merge selected cells (M)"
+        data-testid="merge-button"
+      >
+        Merge
+      </button>
+      <button
+        type="button"
+        className="btn"
+        onClick={onUnmerge}
+        disabled={!canUnmerge}
+        title="Unmerge focused panel (U)"
+        data-testid="unmerge-button"
+      >
+        Unmerge
+      </button>
     </div>
   );
 }

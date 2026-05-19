@@ -6,10 +6,7 @@ import {
   redoHistory,
   type History,
 } from "./history";
-import {
-  figureReducer,
-  type FigureAction,
-} from "../model/figure-actions";
+import { figureReducer, type FigureAction } from "../model/figure-actions";
 import { type FigureState } from "../model/figure-state";
 
 /**
@@ -77,13 +74,14 @@ function combinedReducer(c: Combined, ca: CombinedAction): Combined {
     }
     case "undo": {
       // First flush any uncommitted transient changes so undo affects them too.
-      const base = c.state === c.lastCommitted
-        ? c
-        : {
-            ...c,
-            history: pushHistory(c.history, c.lastCommitted, c.state),
-            lastCommitted: c.state,
-          };
+      const base =
+        c.state === c.lastCommitted
+          ? c
+          : {
+              ...c,
+              history: pushHistory(c.history, c.lastCommitted, c.state),
+              lastCommitted: c.state,
+            };
       const u = undoHistory(base.history, base.state);
       if (u === null) return base;
       return { state: u.next, history: u.history, lastCommitted: u.next };
@@ -102,10 +100,11 @@ export { combinedReducer };
 export function useHistoryReducer(
   initial: FigureState,
 ): [FigureState, (a: FigureAction) => void, HistoryControls] {
-  const [combined, dispatchCombined] = useReducer(
-    combinedReducer,
-    { state: initial, history: emptyHistory<FigureState>(), lastCommitted: initial },
-  );
+  const [combined, dispatchCombined] = useReducer(combinedReducer, {
+    state: initial,
+    history: emptyHistory<FigureState>(),
+    lastCommitted: initial,
+  });
 
   const dispatch = useCallback((a: FigureAction) => {
     dispatchCombined({ kind: "dispatch", action: a });
@@ -120,7 +119,9 @@ export function useHistoryReducer(
     undo,
     redo,
     commit,
-    canUndo: combined.history.past.length > 0 || combined.state !== combined.lastCommitted,
+    canUndo:
+      combined.history.past.length > 0 ||
+      combined.state !== combined.lastCommitted,
     canRedo: combined.history.future.length > 0,
   };
 

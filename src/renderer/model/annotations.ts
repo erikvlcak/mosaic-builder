@@ -133,7 +133,4 @@ export interface LetterAnnotation extends BaseAnnotation {
 }
 
 /** User-creatable annotations. `LetterAnnotation` is derived, not in this union. */
-export type Annotation =
-  | TextAnnotation
-  | SymbolAnnotation
-  | ScaleBarAnnotation;
+export type Annotation = TextAnnotation | SymbolAnnotation | ScaleBarAnnotation;

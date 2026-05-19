@@ -1,5 +1,8 @@
 import { describe, it, expect } from "vitest";
-import { scaleBarFigurePx, scaleBarRect } from "../../src/renderer/render/scalebar";
+import {
+  scaleBarFigurePx,
+  scaleBarRect,
+} from "../../src/renderer/render/scalebar";
 import { effectivePanelScale } from "../../src/renderer/render/coords";
 import { DEFAULT_TRANSFORM } from "../../src/renderer/model/panels";
 import type { Calibration } from "../../src/renderer/model/pool";
@@ -12,8 +15,16 @@ const PANEL_H = 100;
 const IMG_W = 100;
 const IMG_H = 100;
 
-const CAL_UM: Calibration = { unit: "um", pixelsPerUnit: 6.45, source: "manual" };
-const CAL_MM: Calibration = { unit: "mm", pixelsPerUnit: 6450, source: "manual" }; // 6450 src px / mm == 6.45 src px / µm
+const CAL_UM: Calibration = {
+  unit: "um",
+  pixelsPerUnit: 6.45,
+  source: "manual",
+};
+const CAL_MM: Calibration = {
+  unit: "mm",
+  pixelsPerUnit: 6450,
+  source: "manual",
+}; // 6450 src px / mm == 6.45 src px / µm
 const CAL_PX: Calibration = { unit: "px", pixelsPerUnit: 1, source: "manual" };
 
 describe("effectivePanelScale", () => {
@@ -38,24 +49,69 @@ describe("effectivePanelScale", () => {
 
 describe("scaleBarFigurePx", () => {
   it("µm calibration 6.45 px/µm, 50 µm at S=1 → 322.5", () => {
-    const px = scaleBarFigurePx(50, "um", CAL_UM, T, PANEL_W, PANEL_H, IMG_W, IMG_H);
+    const px = scaleBarFigurePx(
+      50,
+      "um",
+      CAL_UM,
+      T,
+      PANEL_W,
+      PANEL_H,
+      IMG_W,
+      IMG_H,
+    );
     expect(px).toBeCloseTo(322.5, 6);
   });
 
   it("Same with zoom=2 → 645", () => {
     const t: PanelTransform = { ...T, zoom: 2 };
-    const px = scaleBarFigurePx(50, "um", CAL_UM, t, PANEL_W, PANEL_H, IMG_W, IMG_H);
+    const px = scaleBarFigurePx(
+      50,
+      "um",
+      CAL_UM,
+      t,
+      PANEL_W,
+      PANEL_H,
+      IMG_W,
+      IMG_H,
+    );
     expect(px).toBeCloseTo(645, 6);
   });
 
   it("mm length unit with µm calibration: 1 mm = 1000× the 1 µm result", () => {
-    const oneUm = scaleBarFigurePx(1, "um", CAL_UM, T, PANEL_W, PANEL_H, IMG_W, IMG_H);
-    const oneMm = scaleBarFigurePx(1, "mm", CAL_UM, T, PANEL_W, PANEL_H, IMG_W, IMG_H);
+    const oneUm = scaleBarFigurePx(
+      1,
+      "um",
+      CAL_UM,
+      T,
+      PANEL_W,
+      PANEL_H,
+      IMG_W,
+      IMG_H,
+    );
+    const oneMm = scaleBarFigurePx(
+      1,
+      "mm",
+      CAL_UM,
+      T,
+      PANEL_W,
+      PANEL_H,
+      IMG_W,
+      IMG_H,
+    );
     expect(oneMm).toBeCloseTo(oneUm * 1000, 6);
   });
 
   it("mm calibration with mm length: 1 mm at 6450 src-px/mm and S=1 → 6450", () => {
-    const px = scaleBarFigurePx(1, "mm", CAL_MM, T, PANEL_W, PANEL_H, IMG_W, IMG_H);
+    const px = scaleBarFigurePx(
+      1,
+      "mm",
+      CAL_MM,
+      T,
+      PANEL_W,
+      PANEL_H,
+      IMG_W,
+      IMG_H,
+    );
     expect(px).toBeCloseTo(6450, 6);
   });
 

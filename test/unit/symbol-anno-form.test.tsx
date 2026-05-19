@@ -13,9 +13,14 @@ function ann(overrides: Partial<SymbolAnnotation> = {}): SymbolAnnotation {
     kind: "symbol",
     z: 0,
     symbolId: "arrow-filled-right",
-    x: 50, y: 50, sizePx: 60, rotationDeg: 0,
-    color: "#FF0000", strokeWidthPx: 2,
-    fillMode: "filled", strokeStyle: "solid",
+    x: 50,
+    y: 50,
+    sizePx: 60,
+    rotationDeg: 0,
+    color: "#FF0000",
+    strokeWidthPx: 2,
+    fillMode: "filled",
+    strokeStyle: "solid",
     ...overrides,
   };
 }
@@ -42,7 +47,8 @@ describe("<SymbolAnnoForm>", () => {
     expect(
       calls.some(
         (c) =>
-          c.type === "UPDATE_ANNOTATION" && c.patch?.symbolId === "shape-circle",
+          c.type === "UPDATE_ANNOTATION" &&
+          c.patch?.symbolId === "shape-circle",
       ),
     ).toBe(true);
   });
@@ -56,9 +62,7 @@ describe("<SymbolAnnoForm>", () => {
       />,
     );
     expect(
-      screen
-        .getByTestId("symbol-fill-mode-filled")
-        .hasAttribute("disabled"),
+      screen.getByTestId("symbol-fill-mode-filled").hasAttribute("disabled"),
     ).toBe(true);
   });
 

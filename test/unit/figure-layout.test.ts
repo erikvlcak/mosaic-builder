@@ -10,7 +10,13 @@ describe("Figure type", () => {
       canvas: { widthPx: 800, heightPx: 600, background: "#FFFFFF" },
       grid: { rows: 2, cols: 2, gutterPx: 12, gutterColor: "#FFFFFF" },
       panels: [
-        { row: 0, col: 0, kind: "image", imageId: "sample", transform: DEFAULT_TRANSFORM },
+        {
+          row: 0,
+          col: 0,
+          kind: "image",
+          imageId: "sample",
+          transform: DEFAULT_TRANSFORM,
+        },
         { row: 0, col: 1, kind: "placeholder", label: "B" },
         { row: 1, col: 0, kind: "placeholder", label: "C" },
         { row: 1, col: 1, kind: "placeholder", label: "D" },
@@ -78,7 +84,14 @@ describe("computePanelRects with merged panels", () => {
       grid: { rows: 2, cols: 2, gutterPx: 12, gutterColor: "#FFFFFF" },
       panels: [
         // hero: row 0, col 0..1
-        { row: 0, col: 0, kind: "placeholder", label: "A", rowSpan: 1, colSpan: 2 },
+        {
+          row: 0,
+          col: 0,
+          kind: "placeholder",
+          label: "A",
+          rowSpan: 1,
+          colSpan: 2,
+        },
         { row: 1, col: 0, kind: "placeholder", label: "C" },
         { row: 1, col: 1, kind: "placeholder", label: "D" },
       ],
@@ -99,7 +112,14 @@ describe("computePanelRects with merged panels", () => {
       canvas: { widthPx: 800, heightPx: 600, background: "#FFFFFF" },
       grid: { rows: 2, cols: 2, gutterPx: 12, gutterColor: "#FFFFFF" },
       panels: [
-        { row: 0, col: 0, kind: "placeholder", label: "A", rowSpan: 2, colSpan: 1 },
+        {
+          row: 0,
+          col: 0,
+          kind: "placeholder",
+          label: "A",
+          rowSpan: 2,
+          colSpan: 1,
+        },
         { row: 0, col: 1, kind: "placeholder", label: "B" },
         { row: 1, col: 1, kind: "placeholder", label: "D" },
       ],

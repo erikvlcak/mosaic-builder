@@ -105,7 +105,9 @@ export function TextAnnoForm({ anno, dispatch, commit }: Props): JSX.Element {
             // EOPT prevents { bgColor: undefined } from typing as
             // Partial<TextAnnotation>; cast at the dispatch boundary
             // since the reducer just spreads the patch.
-            const p = { bgColor: undefined } as unknown as Partial<TextAnnotation>;
+            const p = {
+              bgColor: undefined,
+            } as unknown as Partial<TextAnnotation>;
             dispatch(updateAnnotation(anno.id, p));
             commit.markDirty();
             return;

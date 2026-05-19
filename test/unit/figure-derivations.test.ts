@@ -5,8 +5,14 @@ import {
   figureReducer,
   __resetPanelIdsForTests,
 } from "../../src/renderer/model/figure-state";
-import { addToPool, placeIntoPanel } from "../../src/renderer/model/figure-actions";
-import { findPanelAt, DEFAULT_TRANSFORM } from "../../src/renderer/model/panels";
+import {
+  addToPool,
+  placeIntoPanel,
+} from "../../src/renderer/model/figure-actions";
+import {
+  findPanelAt,
+  DEFAULT_TRANSFORM,
+} from "../../src/renderer/model/panels";
 import { deriveFigure } from "../../src/renderer/model/figure-derivations";
 
 const CANVAS = { widthPx: 800, heightPx: 600, background: "#FFFFFF" } as const;
@@ -32,10 +38,10 @@ describe("deriveFigure", () => {
       "placeholder",
     ]);
     // M6: cellLabel is no longer the placeholder label — letters go
-    // through the annotation pass. Placeholders display "(empty)".
+    // through the annotation pass. Placeholders carry no text.
     expect(
-      f.panels.map((p) => (p.kind === "placeholder" ? p.label : "")),
-    ).toEqual(["(empty)", "(empty)", "(empty)", "(empty)"]);
+      f.panels.map((p) => (p.kind === "placeholder" ? p.label : "x")),
+    ).toEqual(["", "", "", ""]);
     // Every derived panel carries its source panel id.
     expect(f.panels.every((p) => typeof p.panelId === "string")).toBe(true);
     // 1x1 panels: spans omitted is fine.
@@ -111,10 +117,17 @@ describe("deriveFigure", () => {
 
   it("derives image panels for occupied panels", () => {
     let s = initialFigureState();
-    s = figureReducer(s, addToPool({
-      id: "img-1", filename: "x.png", filePath: "/x", mime: "image/png",
-      width: 1, height: 1,
-    }));
+    s = figureReducer(
+      s,
+      addToPool({
+        id: "img-1",
+        filename: "x.png",
+        filePath: "/x",
+        mime: "image/png",
+        width: 1,
+        height: 1,
+      }),
+    );
     const pid = findPanelAt(s.panels, 0, 1)?.id;
     if (pid === undefined) throw new Error("no panel at (0,1)");
     s = figureReducer(s, placeIntoPanel("img-1", pid));
@@ -158,7 +171,7 @@ describe("deriveFigure", () => {
     expect(hero?.rowSpan).toBe(1);
     expect(hero?.colSpan).toBe(2);
     expect(hero?.kind).toBe("placeholder");
-    if (hero?.kind === "placeholder") expect(hero.label).toBe("(empty)");
+    if (hero?.kind === "placeholder") expect(hero.label).toBe("");
     // M6: Letters live on the annotation pass — the merged top-left cell's
     // letter text is derived from its row-major top-left index → "A".
     const heroLetter = f.annotations.find(

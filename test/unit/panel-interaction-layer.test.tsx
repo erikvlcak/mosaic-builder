@@ -17,8 +17,9 @@ beforeAll(() => {
         this.pointerType = init.pointerType ?? "mouse";
       }
     }
-    (window as unknown as { PointerEvent: typeof PointerEventPolyfill }).PointerEvent =
-      PointerEventPolyfill;
+    (
+      window as unknown as { PointerEvent: typeof PointerEventPolyfill }
+    ).PointerEvent = PointerEventPolyfill;
   }
 });
 

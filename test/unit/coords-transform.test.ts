@@ -43,7 +43,10 @@ describe("baseScale", () => {
     expect(baseScale(100, 100, 200, 100, "cover")).toBe(1);
   });
   it("Stretch returns {sx, sy}", () => {
-    expect(baseScale(100, 50, 200, 100, "stretch")).toEqual({ sx: 0.5, sy: 0.5 });
+    expect(baseScale(100, 50, 200, 100, "stretch")).toEqual({
+      sx: 0.5,
+      sy: 0.5,
+    });
   });
 });
 
@@ -86,7 +89,13 @@ describe("clampZoom", () => {
 
 describe("snapTransform", () => {
   it("stretch zeroes pan and forces zoom to 1", () => {
-    const t = { ...DEFAULT_TRANSFORM, fit: "stretch" as const, panX: 5, panY: 7, zoom: 3 };
+    const t = {
+      ...DEFAULT_TRANSFORM,
+      fit: "stretch" as const,
+      panX: 5,
+      panY: 7,
+      zoom: 3,
+    };
     expect(snapTransform(t, 100, 100, 200, 100)).toEqual({
       ...t,
       zoom: 1,
@@ -96,7 +105,13 @@ describe("snapTransform", () => {
   });
 
   it("contain raises sub-1 zoom to 1 and leaves pan untouched", () => {
-    const t = { ...DEFAULT_TRANSFORM, fit: "contain" as const, panX: 7, panY: -3, zoom: 0.5 };
+    const t = {
+      ...DEFAULT_TRANSFORM,
+      fit: "contain" as const,
+      panX: 7,
+      panY: -3,
+      zoom: 0.5,
+    };
     const out = snapTransform(t, 100, 100, 200, 100);
     expect(out.zoom).toBe(1);
     expect(out.panX).toBe(7);

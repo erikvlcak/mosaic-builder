@@ -45,7 +45,14 @@ export function ExportMenu({
         figure.canvas.widthPx,
         figure.canvas.heightPx,
       ),
-    [poolList, rows, cols, gutterPx, figure.canvas.widthPx, figure.canvas.heightPx],
+    [
+      poolList,
+      rows,
+      cols,
+      gutterPx,
+      figure.canvas.widthPx,
+      figure.canvas.heightPx,
+    ],
   );
   const [open, setOpen] = useState(false);
   const [status, setStatus] = useState<Status>({ kind: "idle" });
@@ -76,7 +83,10 @@ export function ExportMenu({
     };
   }, [open]);
 
-  function applyResult(format: string, r: Awaited<ReturnType<typeof exportFigureAsPng>>): void {
+  function applyResult(
+    format: string,
+    r: Awaited<ReturnType<typeof exportFigureAsPng>>,
+  ): void {
     if (r.ok) {
       setStatus({ kind: "success", filePath: r.filePath });
       setOpen(false);
@@ -93,7 +103,10 @@ export function ExportMenu({
 
   async function runPng(): Promise<void> {
     setStatus({ kind: "exporting", format: "PNG" });
-    applyResult("PNG", await exportFigureAsPng(figure, images, pool, exportScale));
+    applyResult(
+      "PNG",
+      await exportFigureAsPng(figure, images, pool, exportScale),
+    );
   }
   async function runJpeg(): Promise<void> {
     setStatus({ kind: "exporting", format: "JPEG" });
@@ -111,7 +124,10 @@ export function ExportMenu({
   }
   async function runPdf(): Promise<void> {
     setStatus({ kind: "exporting", format: "PDF" });
-    applyResult("PDF", await exportFigureAsPdf(figure, images, pool, exportScale));
+    applyResult(
+      "PDF",
+      await exportFigureAsPdf(figure, images, pool, exportScale),
+    );
   }
 
   const exporting = status.kind === "exporting";
@@ -120,7 +136,12 @@ export function ExportMenu({
     <span
       ref={wrapRef}
       data-testid="export-menu"
-      style={{ position: "relative", display: "inline-flex", alignItems: "center", gap: 8 }}
+      style={{
+        position: "relative",
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 8,
+      }}
     >
       <button
         type="button"
@@ -155,7 +176,13 @@ export function ExportMenu({
             disabled={exporting}
           >
             PNG
-            <span style={{ float: "right", color: "var(--c-text-faint)", marginLeft: 12 }}>
+            <span
+              style={{
+                float: "right",
+                color: "var(--c-text-faint)",
+                marginLeft: 12,
+              }}
+            >
               transparent OK
             </span>
           </button>
@@ -172,10 +199,7 @@ export function ExportMenu({
           </button>
           {jpegOpen && (
             <div className="menu-section">
-              <label
-                className="field"
-                style={{ gap: 4 }}
-              >
+              <label className="field" style={{ gap: 4 }}>
                 <span className="field-label">
                   Quality: {jpegQuality.toFixed(2)}
                 </span>
@@ -214,7 +238,13 @@ export function ExportMenu({
             disabled={exporting}
           >
             TIFF
-            <span style={{ float: "right", color: "var(--c-text-faint)", marginLeft: 12 }}>
+            <span
+              style={{
+                float: "right",
+                color: "var(--c-text-faint)",
+                marginLeft: 12,
+              }}
+            >
               {TIFF_DPI} dpi
             </span>
           </button>

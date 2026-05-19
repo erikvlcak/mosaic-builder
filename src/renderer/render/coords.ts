@@ -1,9 +1,6 @@
 import type { Figure, HardCodedPanel } from "../model/types";
 import type { PanelTransform, FitMode, Rotation } from "../model/panels";
-import {
-  rectsFromUniform,
-  uniformLayoutFor,
-} from "../model/grid-layout";
+import { rectsFromUniform, uniformLayoutFor } from "../model/grid-layout";
 
 export interface PanelRect {
   x: number;

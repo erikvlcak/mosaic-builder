@@ -35,7 +35,11 @@ export function ToastTray({ toasts, onDismiss }: Props): JSX.Element {
       }}
     >
       {toasts.map((t) => (
-        <div key={t.id} role={A11Y_ROLE[t.kind]} className={`toast toast--${t.kind}`}>
+        <div
+          key={t.id}
+          role={A11Y_ROLE[t.kind]}
+          className={`toast toast--${t.kind}`}
+        >
           <span
             aria-hidden="true"
             style={{

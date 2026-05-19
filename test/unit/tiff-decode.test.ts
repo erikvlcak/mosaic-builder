@@ -14,9 +14,7 @@ function ifd(partial: Partial<UtifIfd>): UtifIfd {
 
 describe("readCalibrationFromIFD", () => {
   it("decodes cm-unit XResolution as µm calibration (645/100 px/cm → 0.000645 px/µm)", () => {
-    const cal = readCalibrationFromIFD(
-      ifd({ t282: [645, 100], t296: [3] }),
-    );
+    const cal = readCalibrationFromIFD(ifd({ t282: [645, 100], t296: [3] }));
     expect(cal).toBeDefined();
     expect(cal!.unit).toBe("um");
     expect(cal!.source).toBe("tiff-meta");
@@ -24,9 +22,7 @@ describe("readCalibrationFromIFD", () => {
   });
 
   it("decodes inch-unit XResolution as µm calibration (300 px/in → 300/25400 px/µm)", () => {
-    const cal = readCalibrationFromIFD(
-      ifd({ t282: [300, 1], t296: [2] }),
-    );
+    const cal = readCalibrationFromIFD(ifd({ t282: [300, 1], t296: [2] }));
     expect(cal).toBeDefined();
     expect(cal!.unit).toBe("um");
     expect(cal!.source).toBe("tiff-meta");
@@ -34,9 +30,7 @@ describe("readCalibrationFromIFD", () => {
   });
 
   it("returns undefined when ResolutionUnit is 1 (no absolute unit)", () => {
-    const cal = readCalibrationFromIFD(
-      ifd({ t282: [300, 1], t296: [1] }),
-    );
+    const cal = readCalibrationFromIFD(ifd({ t282: [300, 1], t296: [1] }));
     expect(cal).toBeUndefined();
   });
 
@@ -46,16 +40,12 @@ describe("readCalibrationFromIFD", () => {
   });
 
   it("returns undefined for zero XResolution numerator", () => {
-    const cal = readCalibrationFromIFD(
-      ifd({ t282: [0, 1], t296: [2] }),
-    );
+    const cal = readCalibrationFromIFD(ifd({ t282: [0, 1], t296: [2] }));
     expect(cal).toBeUndefined();
   });
 
   it("returns undefined for zero denominator (avoid divide-by-zero)", () => {
-    const cal = readCalibrationFromIFD(
-      ifd({ t282: [300, 0], t296: [2] }),
-    );
+    const cal = readCalibrationFromIFD(ifd({ t282: [300, 0], t296: [2] }));
     expect(cal).toBeUndefined();
   });
 
@@ -65,9 +55,7 @@ describe("readCalibrationFromIFD", () => {
   });
 
   it("returns undefined for unknown ResolutionUnit tags (e.g. 42)", () => {
-    const cal = readCalibrationFromIFD(
-      ifd({ t282: [300, 1], t296: [42] }),
-    );
+    const cal = readCalibrationFromIFD(ifd({ t282: [300, 1], t296: [42] }));
     expect(cal).toBeUndefined();
   });
 });

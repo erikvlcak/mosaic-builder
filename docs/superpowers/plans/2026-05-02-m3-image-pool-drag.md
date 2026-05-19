@@ -21,7 +21,7 @@
 - `src/renderer/image/decode-bytes.ts` — `decodeImageBytes(bytes: Uint8Array, mime: string): Promise<ImageBitmap>`. Wraps `createImageBitmap(new Blob(...))` with mime allow-listing (PNG, JPEG only — TIFF lands in M6).
 - `src/renderer/dnd/drag-payload.ts` — `serialize`/`parse` for the native DnD payload. Small typed wrapper around `dataTransfer.setData("application/x-mosaic-drag", JSON.stringify(...))`.
 - `src/renderer/components/Sidebar/Tray.tsx` — left-column React component: header with "Add images…" button, scrollable list of `Thumbnail`s grouped unplaced-first.
-- `src/renderer/components/Sidebar/Thumbnail.tsx` — single tray entry. `<img>` + filename + greyed-out style when placed. `draggable=true` when unplaced; placed thumbnails are draggable too (so user can yank one off the grid back into the tray? no — placed thumbnails are *display only*; drag from the cell instead). For M3: `draggable=true` only when the item is unplaced.
+- `src/renderer/components/Sidebar/Thumbnail.tsx` — single tray entry. `<img>` + filename + greyed-out style when placed. `draggable=true` when unplaced; placed thumbnails are draggable too (so user can yank one off the grid back into the tray? no — placed thumbnails are _display only_; drag from the cell instead). For M3: `draggable=true` only when the item is unplaced.
 - `src/renderer/components/Grid/GridCells.tsx` — overlay above the canvas: an absolutely-positioned `<div>` per cell that owns drop targets and drag sources for occupied cells. The canvas underneath stays the source of truth for pixels; this overlay only handles pointer + DnD events.
 - `src/main/open-images.ts` — `pickAndReadImages(parentWindow)`: shows `dialog.showOpenDialog` filtered to PNG/JPEG, reads each picked file's bytes via `fs.promises.readFile`, returns `OpenImagesResult`.
 - `src/main/mime.ts` — tiny pure helper `mimeFromExt(filePath): "image/png" | "image/jpeg" | null`. (We don't trust filename alone in production, but for M3 our open dialog already restricts extensions — magic-byte sniffing arrives with TIFF in M6.)
@@ -68,6 +68,7 @@
 ## Task 0: Generate two more PNG/JPEG fixtures
 
 **Files:**
+
 - Create: `scripts/make-m3-fixtures.mjs`
 - Create: `resources/fixtures/red.png`
 - Create: `resources/fixtures/blue.jpg`
@@ -85,16 +86,75 @@ import path from "node:path";
 // Smallest valid 1x1 red PNG (8-bit RGB, no transparency).
 // Source: https://www.w3.org/TR/PNG/ minimal example, hand-verified.
 const RED_PNG = Buffer.from([
-  0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, // signature
-  0x00, 0x00, 0x00, 0x0d, 0x49, 0x48, 0x44, 0x52, // IHDR len + type
-  0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, // 1x1
-  0x08, 0x02, 0x00, 0x00, 0x00, 0x90, 0x77, 0x53, // 8bpp RGB + CRC
+  0x89,
+  0x50,
+  0x4e,
+  0x47,
+  0x0d,
+  0x0a,
+  0x1a,
+  0x0a, // signature
+  0x00,
+  0x00,
+  0x00,
+  0x0d,
+  0x49,
+  0x48,
+  0x44,
+  0x52, // IHDR len + type
+  0x00,
+  0x00,
+  0x00,
+  0x01,
+  0x00,
+  0x00,
+  0x00,
+  0x01, // 1x1
+  0x08,
+  0x02,
+  0x00,
+  0x00,
+  0x00,
+  0x90,
+  0x77,
+  0x53, // 8bpp RGB + CRC
   0xde,
-  0x00, 0x00, 0x00, 0x0c, 0x49, 0x44, 0x41, 0x54, // IDAT len + type
-  0x08, 0x99, 0x63, 0xf8, 0xcf, 0xc0, 0x00, 0x00,
-  0x00, 0x03, 0x00, 0x01, 0x5b, 0x6e, 0x2c, 0xfe, // CRC
-  0x00, 0x00, 0x00, 0x00, 0x49, 0x45, 0x4e, 0x44, // IEND
-  0xae, 0x42, 0x60, 0x82,
+  0x00,
+  0x00,
+  0x00,
+  0x0c,
+  0x49,
+  0x44,
+  0x41,
+  0x54, // IDAT len + type
+  0x08,
+  0x99,
+  0x63,
+  0xf8,
+  0xcf,
+  0xc0,
+  0x00,
+  0x00,
+  0x00,
+  0x03,
+  0x00,
+  0x01,
+  0x5b,
+  0x6e,
+  0x2c,
+  0xfe, // CRC
+  0x00,
+  0x00,
+  0x00,
+  0x00,
+  0x49,
+  0x45,
+  0x4e,
+  0x44, // IEND
+  0xae,
+  0x42,
+  0x60,
+  0x82,
 ]);
 
 // Smallest valid 1x1 blue JPEG. Generated with `magick -size 1x1 canvas:blue out.jpg`
@@ -120,6 +180,7 @@ Expected: `wrote resources/fixtures red.png + blue.jpg`
 
 Run: `file resources/fixtures/red.png resources/fixtures/blue.jpg`
 Expected:
+
 ```
 resources/fixtures/red.png:  PNG image data, 1 x 1, 8-bit/color RGB, non-interlaced
 resources/fixtures/blue.jpg: JPEG image data, JFIF standard 1.01, ...
@@ -139,6 +200,7 @@ git commit -m "chore: M3 fixture images for tray/open-dialog tests (M3.0)"
 ## Task 1: Mime helper in main
 
 **Files:**
+
 - Create: `src/main/mime.ts`
 - Test: `test/unit/mime.test.ts`
 
@@ -217,6 +279,7 @@ git commit -m "feat(main): mime helper for png/jpeg (M3.1)"
 ## Task 2: Open-images dialog + reader in main
 
 **Files:**
+
 - Create: `src/main/open-images.ts`
 - Test: `test/unit/open-images.test.ts`
 
@@ -306,7 +369,11 @@ Create `src/main/open-images.ts`:
 ```ts
 import { readFile } from "node:fs/promises";
 import path from "node:path";
-import type { BrowserWindow, OpenDialogOptions, OpenDialogReturnValue } from "electron";
+import type {
+  BrowserWindow,
+  OpenDialogOptions,
+  OpenDialogReturnValue,
+} from "electron";
 import { mimeFromExt, type ImageMime } from "./mime";
 
 /**
@@ -333,9 +400,7 @@ export interface PickAndReadInput {
   showOpenDialog: ShowOpenDialog;
 }
 
-const FILTERS = [
-  { name: "Images", extensions: ["png", "jpg", "jpeg"] },
-];
+const FILTERS = [{ name: "Images", extensions: ["png", "jpg", "jpeg"] }];
 
 export async function pickAndReadImages(
   input: PickAndReadInput,
@@ -379,6 +444,7 @@ git commit -m "feat(main): pickAndReadImages reads PNG/JPEG bytes via dialog (M3
 ## Task 3: Add `openImages` to the preload IPC contract
 
 **Files:**
+
 - Modify: `src/preload/api.ts`
 - Modify: `src/preload/preload.ts`
 - Modify: `test/unit/preload-api-shape.test.ts`
@@ -509,6 +575,7 @@ git commit -m "feat(ipc): openImages channel + preload binding (M3.3)"
 ## Task 4: Register the `openImages` IPC handler in main
 
 **Files:**
+
 - Modify: `src/main/index.ts`
 
 Wires the renderer-facing channel to the tested `pickAndReadImages` function, supplying the real `dialog.showOpenDialog`.
@@ -589,6 +656,7 @@ git commit -m "feat(ipc): register openImages handler with electron dialog (M3.4
 ## Task 5: Decode bytes → ImageBitmap in the renderer
 
 **Files:**
+
 - Create: `src/renderer/image/decode-bytes.ts`
 - Test: `test/unit/decode-bytes.test.ts`
 
@@ -614,9 +682,11 @@ let originalCreate: unknown;
 beforeAll(() => {
   originalCreate = (globalThis as unknown as { createImageBitmap?: unknown })
     .createImageBitmap;
-  (globalThis as unknown as {
-    createImageBitmap: (b: Blob) => Promise<ImageBitmap>;
-  }).createImageBitmap = async (blob: Blob) =>
+  (
+    globalThis as unknown as {
+      createImageBitmap: (b: Blob) => Promise<ImageBitmap>;
+    }
+  ).createImageBitmap = async (blob: Blob) =>
     ({
       width: 1,
       height: 1,
@@ -701,6 +771,7 @@ git commit -m "feat(image): decodeImageBytes wraps createImageBitmap (M3.5)"
 ## Task 6: Image pool data model
 
 **Files:**
+
 - Create: `src/renderer/model/pool.ts`
 
 The persistent pool holds metadata (`ImagePoolItem`); decoded `ImageBitmap`s live out-of-band in a parallel `Map<id, ImageBitmap>` so mutating the pool array doesn't invalidate bitmaps. This mirrors the design's "bitmap caches live outside snapshots" rule (will matter for M7's undo).
@@ -747,6 +818,7 @@ git commit -m "feat(model): ImagePoolItem type + newImageId (M3.6)"
 ## Task 7: Figure state + reducer
 
 **Files:**
+
 - Create: `src/renderer/model/figure-state.ts`
 - Create: `src/renderer/model/figure-actions.ts`
 - Test: `test/unit/figure-actions.test.ts`
@@ -828,10 +900,7 @@ describe("figureReducer", () => {
     let s = withPool(IMG_A, IMG_B);
     s = figureReducer(s, placeFromTray("a", { row: 0, col: 0 }));
     s = figureReducer(s, placeFromTray("b", { row: 1, col: 1 }));
-    s = figureReducer(
-      s,
-      swapCells({ row: 0, col: 0 }, { row: 1, col: 1 }),
-    );
+    s = figureReducer(s, swapCells({ row: 0, col: 0 }, { row: 1, col: 1 }));
     expect(s.placements.get(cellKey(0, 0))).toBe("b");
     expect(s.placements.get(cellKey(1, 1))).toBe("a");
   });
@@ -839,10 +908,7 @@ describe("figureReducer", () => {
   it("SWAP_CELLS moves image into empty cell when one side is empty", () => {
     let s = withPool(IMG_A);
     s = figureReducer(s, placeFromTray("a", { row: 0, col: 0 }));
-    s = figureReducer(
-      s,
-      swapCells({ row: 0, col: 0 }, { row: 0, col: 1 }),
-    );
+    s = figureReducer(s, swapCells({ row: 0, col: 0 }, { row: 0, col: 1 }));
     expect(s.placements.has(cellKey(0, 0))).toBe(false);
     expect(s.placements.get(cellKey(0, 1))).toBe("a");
   });
@@ -939,11 +1005,7 @@ Create `src/renderer/model/figure-actions.ts`:
 
 ```ts
 import type { ImagePoolItem } from "./pool";
-import {
-  cellKey,
-  type CellCoord,
-  type FigureState,
-} from "./figure-state";
+import { cellKey, type CellCoord, type FigureState } from "./figure-state";
 
 export type FigureAction =
   | { type: "ADD_TO_POOL"; item: ImagePoolItem }
@@ -985,10 +1047,7 @@ function withPlacements(
   return { ...s, placements: next };
 }
 
-export function figureReducer(
-  s: FigureState,
-  a: FigureAction,
-): FigureState {
+export function figureReducer(s: FigureState, a: FigureAction): FigureState {
   switch (a.type) {
     case "ADD_TO_POOL": {
       if (s.pool.some((p) => p.id === a.item.id)) return s;
@@ -1070,6 +1129,7 @@ git commit -m "feat(state): figure reducer with place/swap/replace (M3.7)"
 ## Task 8: Derive a `Figure` from `FigureState`
 
 **Files:**
+
 - Create: `src/renderer/model/figure-derivations.ts`
 - Test: `test/unit/figure-derivations.test.ts`
 
@@ -1155,12 +1215,7 @@ Expected: FAIL — module not found.
 Create `src/renderer/model/figure-derivations.ts`:
 
 ```ts
-import type {
-  Figure,
-  FigureCanvas,
-  FigureGrid,
-  HardCodedPanel,
-} from "./types";
+import type { Figure, FigureCanvas, FigureGrid, HardCodedPanel } from "./types";
 import { cellKey, type FigureState } from "./figure-state";
 
 export interface DeriveOptions {
@@ -1179,10 +1234,7 @@ function emptyLabel(index: number): string {
   return LETTERS[index] ?? "?";
 }
 
-export function deriveFigure(
-  state: FigureState,
-  opts: DeriveOptions,
-): Figure {
+export function deriveFigure(state: FigureState, opts: DeriveOptions): Figure {
   const panels: HardCodedPanel[] = [];
   let i = 0;
   for (let row = 0; row < state.rows; row++) {
@@ -1231,6 +1283,7 @@ git commit -m "feat(model): deriveFigure(state) -> Figure for renderer (M3.8)"
 ## Task 9: Drag payload (pure)
 
 **Files:**
+
 - Create: `src/renderer/dnd/drag-payload.ts`
 - Test: `test/unit/drag-payload.test.ts`
 
@@ -1339,6 +1392,7 @@ git commit -m "feat(dnd): drag payload serializer + parser (M3.9)"
 ## Task 10: Sidebar Tray + Thumbnail components
 
 **Files:**
+
 - Create: `src/renderer/components/Sidebar/Thumbnail.tsx`
 - Create: `src/renderer/components/Sidebar/Tray.tsx`
 
@@ -1506,12 +1560,7 @@ export function Tray({
         <Empty text="—" />
       ) : (
         placed.map((it) => (
-          <Thumbnail
-            key={it.id}
-            item={it}
-            bitmap={bitmaps.get(it.id)}
-            placed
-          />
+          <Thumbnail key={it.id} item={it} bitmap={bitmaps.get(it.id)} placed />
         ))
       )}
     </aside>
@@ -1555,14 +1604,16 @@ git commit -m "feat(ui): sidebar tray + thumbnail with drag source (M3.10)"
 ## Task 11: Grid drop overlay
 
 **Files:**
+
 - Create: `src/renderer/components/Grid/GridCells.tsx`
 
 This is an absolutely-positioned overlay with one `<div>` per cell, positioned to match `computePanelRects`. Each cell:
+
 - Is a drop target. On drop, it parses the payload and calls `onDrop({ from, target })`.
 - Is a drag source if it has an image. Drag emits `{ kind: "cell", row, col }`.
 - Highlights on drag-over.
 
-The overlay sits inside a wrapper that also contains the `<canvas>`. Both share the wrapper's width/height in CSS px. We pass the figure's pixel size and the wrapper's *displayed* CSS size in so the overlay can scale rect coordinates correctly.
+The overlay sits inside a wrapper that also contains the `<canvas>`. Both share the wrapper's width/height in CSS px. We pass the figure's pixel size and the wrapper's _displayed_ CSS size in so the overlay can scale rect coordinates correctly.
 
 - [ ] **Step 1: Implement**
 
@@ -1718,15 +1769,16 @@ git commit -m "feat(ui): grid drop overlay with hover highlight (M3.11)"
 ## Task 12: Drop dispatcher
 
 **Files:**
+
 - Create: `src/renderer/dnd/dispatch-drop.ts`
 - Test: `test/unit/dispatch-drop.test.ts`
 
 A pure function from `(state, DropEvent)` to a `FigureAction | null`. Centralizes the rules:
 
-| from.kind | target empty | target occupied |
-| --- | --- | --- |
-| `tray`    | `PLACE_FROM_TRAY`    | `REPLACE_FROM_TRAY` |
-| `cell`    | `SWAP_CELLS`         | `SWAP_CELLS`        |
+| from.kind | target empty      | target occupied     |
+| --------- | ----------------- | ------------------- |
+| `tray`    | `PLACE_FROM_TRAY` | `REPLACE_FROM_TRAY` |
+| `cell`    | `SWAP_CELLS`      | `SWAP_CELLS`        |
 
 Cell→same cell = no-op. Tray→cell where image is already placed = no-op (the reducer also rejects, but rejecting earlier keeps the action stream clean).
 
@@ -1752,7 +1804,12 @@ const A: ImagePoolItem = {
   width: 1,
   height: 1,
 };
-const B: ImagePoolItem = { ...A, id: "b", filename: "b.png", filePath: "/b.png" };
+const B: ImagePoolItem = {
+  ...A,
+  id: "b",
+  filename: "b.png",
+  filePath: "/b.png",
+};
 
 function withPool(...items: ImagePoolItem[]): FigureState {
   const s = initialFigureState();
@@ -1858,10 +1915,7 @@ export function dispatchDrop(
     if (ev.from.row === ev.target.row && ev.from.col === ev.target.col) {
       return null;
     }
-    return swapCells(
-      { row: ev.from.row, col: ev.from.col },
-      ev.target,
-    );
+    return swapCells({ row: ev.from.row, col: ev.from.col }, ev.target);
   }
   // tray
   // Refuse if the dragged image is already placed somewhere.
@@ -1892,6 +1946,7 @@ git commit -m "feat(dnd): drop event dispatcher (M3.12)"
 ## Task 13: Wire it all in `App.tsx`
 
 **Files:**
+
 - Modify: `src/renderer/App.tsx`
 
 Bring it together: the `useReducer` holds `FigureState`, an out-of-band `Map<id, ImageBitmap>` holds decoded bitmaps, the tray's "Add images…" button calls `window.api.openImages()`, and the canvas + grid overlay render side-by-side.
@@ -1908,14 +1963,8 @@ import { EditorCanvas } from "./components/Canvas/EditorCanvas";
 import { ExportButton } from "./components/Toolbar/ExportButton";
 import { Tray } from "./components/Sidebar/Tray";
 import { GridCells, type DropEvent } from "./components/Grid/GridCells";
-import {
-  initialFigureState,
-  type FigureState,
-} from "./model/figure-state";
-import {
-  addToPool,
-  figureReducer,
-} from "./model/figure-actions";
+import { initialFigureState, type FigureState } from "./model/figure-state";
+import { addToPool, figureReducer } from "./model/figure-actions";
 import { newImageId, type ImagePoolItem } from "./model/pool";
 import { deriveFigure } from "./model/figure-derivations";
 import { decodeImageBytes } from "./image/decode-bytes";
@@ -2132,12 +2181,14 @@ Expected: window opens; tray on the left ("No images yet. Click Add images…");
 - [ ] **Step 2: Add images**
 
 Click **Add images…** Pick `resources/fixtures/red.png`, `resources/fixtures/blue.jpg`, and `resources/fixtures/sample.png` (Cmd-click for multi-select). Confirm:
+
 - Three thumbnails appear under "Unplaced" in pick order.
 - "Placed" section is empty.
 
 - [ ] **Step 3: Place from tray**
 
 Drag the `red.png` thumbnail onto cell **A** (top-left). Confirm:
+
 - Cell A now displays the image (Contain fit, centred).
 - The thumbnail moves to "Placed" and is greyed out.
 - The thumbnail is no longer draggable.
@@ -2147,12 +2198,14 @@ Drag `sample.png` onto cell **D** (bottom-right). Confirm same behaviour.
 - [ ] **Step 4: Swap cells**
 
 Drag from cell **A** to cell **D**. Confirm:
+
 - The two images swap.
 - The tray's placed/unplaced grouping is unchanged (both still placed).
 
 - [ ] **Step 5: Replace from tray**
 
 Drag `blue.jpg` from the tray onto cell **A** (currently `sample.png` after the swap). Confirm:
+
 - Cell A now shows `blue.jpg`.
 - `sample.png` is back in "Unplaced" (the kicked image returned to the tray).
 - `blue.jpg` is now greyed-out under "Placed".
@@ -2181,6 +2234,7 @@ Run: `pnpm lint`
 Expected: 0 errors, 0 warnings.
 
 If lint complains about the new files, fix in place — common issues:
+
 - `@typescript-eslint/no-misused-promises` on `onClick={() => { void onAddImagesClick(); }}` — already handled with `void`.
 - `@typescript-eslint/no-floating-promises` on the `void onAddImagesClick()` call — already handled with `void`.
 - `react/no-unknown-property` on `data-testid` — allowed; if the rule flags it, add `"data-testid"` to the rule's allowlist or use `dataset` (not necessary; `data-*` is valid HTML).
@@ -2219,7 +2273,7 @@ git commit -m "chore: M3 — image pool + drag complete (M3.14)"
 - Undo/redo (M7)
 - Project save/load (M7)
 - Annotations, scale bars (M6)
-- Drag thumbnails *back* from tray's "Placed" section (the design says cell→cell drag handles unplacement implicitly; explicit "remove from grid" is M5/UX polish)
+- Drag thumbnails _back_ from tray's "Placed" section (the design says cell→cell drag handles unplacement implicitly; explicit "remove from grid" is M5/UX polish)
 - Reordering within the tray (not a stated requirement)
 - Image bytes embedded in `.mosaic` (design says path refs only; M7 deals with this)
 
@@ -2228,6 +2282,7 @@ git commit -m "chore: M3 — image pool + drag complete (M3.14)"
 ## Self-review notes
 
 **Spec coverage** (from design doc M3 line: "Native file picker → load PNG/JPEG → sidebar tray → drag onto cell with Contain fit. Cell↔cell swap. Tray→occupied = replace (returns to tray)."):
+
 - Native file picker → Tasks 2, 4, 13.
 - Load PNG/JPEG → Tasks 1, 5.
 - Sidebar tray → Task 10.
@@ -2238,6 +2293,7 @@ git commit -m "chore: M3 — image pool + drag complete (M3.14)"
 - New uploads append to unplaced → Task 7 (`ADD_TO_POOL` appends; `Tray` filters by `placedIds`).
 
 **Type consistency check:**
+
 - `ImageMime` defined in `src/main/mime.ts` and `src/renderer/image/decode-bytes.ts` — both `"image/png" | "image/jpeg"`. `OpenImagesMime` in `src/preload/api.ts` is the same shape (deliberately structurally compatible across the IPC boundary, no shared import since main and renderer have separate tsconfigs).
 - `OpenImagesResult` defined in `src/preload/api.ts` and `src/main/open-images.ts` — both `{ canceled: true } | { canceled: false; files: ... }`. The shapes match field-for-field.
 - `CellCoord`, `cellKey`, `FigureState` — defined once in `figure-state.ts`, imported everywhere.

@@ -69,9 +69,9 @@ describe("AnnotationOverview", () => {
     const textRow = screen.getByTestId("anno-overview-row-text");
     expect(textRow.textContent).toContain("Text");
     expect(textRow.textContent).toContain("(2)");
-    expect(screen.getByTestId("anno-overview-row-symbol").textContent).toContain(
-      "(1)",
-    );
+    expect(
+      screen.getByTestId("anno-overview-row-symbol").textContent,
+    ).toContain("(1)");
     expect(screen.queryByTestId("anno-overview-row-scalebar")).toBeNull();
   });
 

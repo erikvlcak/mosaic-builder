@@ -39,7 +39,10 @@ const api: MosaicApi = {
   openImages: () =>
     ipcRenderer.invoke(API_CHANNELS.openImages) as Promise<OpenImagesResult>,
   saveProject: (input: SaveProjectInput) =>
-    ipcRenderer.invoke(API_CHANNELS.projectSave, input) as Promise<SaveProjectResult>,
+    ipcRenderer.invoke(
+      API_CHANNELS.projectSave,
+      input,
+    ) as Promise<SaveProjectResult>,
   loadProject: () =>
     ipcRenderer.invoke(API_CHANNELS.projectLoad) as Promise<LoadProjectResult>,
   onMenuEvent(handler) {

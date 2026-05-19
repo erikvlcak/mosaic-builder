@@ -51,7 +51,10 @@ export function resizePanels(
       continue;
     }
     const fullyInside =
-      r0 === p.row && c0 === p.col && r1 === p.row + p.rowSpan && c1 === p.col + p.colSpan;
+      r0 === p.row &&
+      c0 === p.col &&
+      r1 === p.row + p.rowSpan &&
+      c1 === p.col + p.colSpan;
     if (fullyInside) {
       out.push(p);
       for (let r = r0; r < r1; r++)
@@ -59,11 +62,18 @@ export function resizePanels(
       continue;
     }
     // Split: merged panel partially clipped — emit 1x1 panels.
-    const tlInside = p.row >= 0 && p.row < toRows && p.col >= 0 && p.col < toCols;
+    const tlInside =
+      p.row >= 0 && p.row < toRows && p.col >= 0 && p.col < toCols;
     let imageAssigned = false;
     for (let r = r0; r < r1; r++) {
       for (let c = c0; c < c1; c++) {
-        const np: Panel = { id: freshId(), row: r, col: c, rowSpan: 1, colSpan: 1 };
+        const np: Panel = {
+          id: freshId(),
+          row: r,
+          col: c,
+          rowSpan: 1,
+          colSpan: 1,
+        };
         if (tlInside && r === p.row && c === p.col && p.imageId !== undefined) {
           np.imageId = p.imageId;
           if (p.transform !== undefined) np.transform = p.transform;
@@ -80,7 +90,13 @@ export function resizePanels(
   for (let r = 0; r < toRows; r++) {
     for (let c = 0; c < toCols; c++) {
       if (cover[r * toCols + c] === null) {
-        const np: Panel = { id: freshId(), row: r, col: c, rowSpan: 1, colSpan: 1 };
+        const np: Panel = {
+          id: freshId(),
+          row: r,
+          col: c,
+          rowSpan: 1,
+          colSpan: 1,
+        };
         out.push(np);
       }
     }

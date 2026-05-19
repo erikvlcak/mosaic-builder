@@ -149,17 +149,18 @@ mosaic-builder/
 
 ```ts
 type UUID = string;
-type Hex = string;       // "#RRGGBB" or "#RRGGBBAA"
+type Hex = string; // "#RRGGBB" or "#RRGGBBAA"
 type FitMode = "contain" | "cover" | "stretch";
 type Unit = "in" | "cm" | "mm" | "px";
 
 interface ImagePoolItem {
   id: UUID;
-  sourcePath: string;        // absolute on disk
-  relPath?: string;          // relative to .mosaic file when saved
+  sourcePath: string; // absolute on disk
+  relPath?: string; // relative to .mosaic file when saved
   filename: string;
   mime: "image/png" | "image/jpeg" | "image/tiff";
-  width: number; height: number;
+  width: number;
+  height: number;
   bitDepth: 8 | 16 | 32;
   sha256?: string;
   calibration?: {
@@ -172,79 +173,133 @@ interface ImagePoolItem {
 
 interface PanelTransform {
   fit: FitMode;
-  panX: number; panY: number;       // panel-local px, 0,0 = panel center
-  zoom: number;                     // 1.0 = fit baseline
+  panX: number;
+  panY: number; // panel-local px, 0,0 = panel center
+  zoom: number; // 1.0 = fit baseline
   rotation: 0 | 90 | 180 | 270;
-  flipH: boolean; flipV: boolean;
+  flipH: boolean;
+  flipV: boolean;
 }
 
 interface Panel {
   id: UUID;
-  row: number; col: number;         // top-left in grid (0-based)
-  rowSpan: number; colSpan: number; // >= 1
+  row: number;
+  col: number; // top-left in grid (0-based)
+  rowSpan: number;
+  colSpan: number; // >= 1
   imageId?: UUID;
   transform: PanelTransform;
   letterOverride?: string;
 }
 
 interface Grid {
-  rows: number; cols: number;       // 1..10
-  gutterPx: number; gutterColor: Hex;
-  panels: Panel[];                  // covers grid; merged cells = single panel
+  rows: number;
+  cols: number; // 1..10
+  gutterPx: number;
+  gutterColor: Hex;
+  panels: Panel[]; // covers grid; merged cells = single panel
 }
 
 type Annotation =
-  | TextAnnotation | ArrowAnnotation | BoxAnnotation | ScaleBarAnnotation;
+  | TextAnnotation
+  | ArrowAnnotation
+  | BoxAnnotation
+  | ScaleBarAnnotation;
 
-interface BaseAnno { id: UUID; panelId?: UUID; z: number; }
+interface BaseAnno {
+  id: UUID;
+  panelId?: UUID;
+  z: number;
+}
 interface TextAnnotation extends BaseAnno {
-  kind: "text"; x: number; y: number; text: string;
-  font: string; sizePt: number; bold: boolean; italic: boolean;
-  color: Hex; bgColor?: Hex;
+  kind: "text";
+  x: number;
+  y: number;
+  text: string;
+  font: string;
+  sizePt: number;
+  bold: boolean;
+  italic: boolean;
+  color: Hex;
+  bgColor?: Hex;
 }
 interface ArrowAnnotation extends BaseAnno {
-  kind: "arrow"; x1: number; y1: number; x2: number; y2: number;
-  color: Hex; thicknessPx: number; head: "none"|"open"|"filled";
+  kind: "arrow";
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+  color: Hex;
+  thicknessPx: number;
+  head: "none" | "open" | "filled";
 }
 interface BoxAnnotation extends BaseAnno {
-  kind: "box"; x: number; y: number; w: number; h: number;
-  stroke: Hex; strokeWidthPx: number; fill?: Hex;
+  kind: "box";
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  stroke: Hex;
+  strokeWidthPx: number;
+  fill?: Hex;
 }
 interface ScaleBarAnnotation extends BaseAnno {
-  kind: "scalebar"; panelId: UUID;
-  lengthValue: number; lengthUnit: "um"|"mm"|"px";
-  cornerOverride?: "tl"|"tr"|"bl"|"br";
+  kind: "scalebar";
+  panelId: UUID;
+  lengthValue: number;
+  lengthUnit: "um" | "mm" | "px";
+  cornerOverride?: "tl" | "tr" | "bl" | "br";
 }
 
 interface GlobalAnnoStyle {
-  letters:  { enabled: boolean; font: string; sizePt: number;
-              color: Hex; bgColor?: Hex; corner: "tl"|"tr"|"bl"|"br";
-              paddingPx: number; bold: boolean; };
-  scalebar: { font: string; sizePt: number; color: Hex;
-              barColor: Hex; thicknessPx: number;
-              corner: "tl"|"tr"|"bl"|"br"; paddingPx: number;
-              showLabel: boolean; };
+  letters: {
+    enabled: boolean;
+    font: string;
+    sizePt: number;
+    color: Hex;
+    bgColor?: Hex;
+    corner: "tl" | "tr" | "bl" | "br";
+    paddingPx: number;
+    bold: boolean;
+  };
+  scalebar: {
+    font: string;
+    sizePt: number;
+    color: Hex;
+    barColor: Hex;
+    thicknessPx: number;
+    corner: "tl" | "tr" | "bl" | "br";
+    paddingPx: number;
+    showLabel: boolean;
+  };
 }
 
 interface FigureCanvas {
   mode: "physical" | "pixel";
-  widthPhys?: number; heightPhys?: number; unit?: Unit;
+  widthPhys?: number;
+  heightPhys?: number;
+  unit?: Unit;
   dpi?: number;
-  widthPx?: number; heightPx?: number;
+  widthPx?: number;
+  heightPx?: number;
   background: Hex;
 }
 
 interface Project {
   schemaVersion: 1;
   id: UUID;
-  createdAt: string; modifiedAt: string;
+  createdAt: string;
+  modifiedAt: string;
   canvas: FigureCanvas;
   grid: Grid;
   imagePool: ImagePoolItem[];
   annotations: Annotation[];
   globalStyle: GlobalAnnoStyle;
-  exportDefaults: { format: "png"|"jpeg"|"tiff"|"pdf";
-                    jpegQuality: number; dpi: number; };
+  exportDefaults: {
+    format: "png" | "jpeg" | "tiff" | "pdf";
+    jpegQuality: number;
+    dpi: number;
+  };
 }
 ```
 
@@ -274,8 +329,9 @@ T_panel(sx, sy) =
 ```
 
 `baseScale`:
+
 - **Contain**: `min(panelW/imgW, panelH/imgH)`
-- **Cover**:   `max(panelW/imgW, panelH/imgH)`
+- **Cover**: `max(panelW/imgW, panelH/imgH)`
 - **Stretch**: anisotropic — separate sx, sy with `zoom` locked to 1.
 
 For 90°/270° rotations, swap `imgW` and `imgH` in `baseScale`. Hit-tests run in figure-canvas space using the per-panel inverse transform.
@@ -305,11 +361,13 @@ Apply clamp after every pan/zoom action. Contain mode: no pan clamp; enforce `zo
 ## Render loops
 
 **Editor loop** (`editor-renderer.ts`):
+
 - Mounted once on `<canvas ref>`. Subscribes to relevant store slices; schedules a single `requestAnimationFrame` per change (coalescing).
 - Each frame: clear → fill background → for each panel: clip to panel rect, draw image with the section-5 transform using preview `ImageBitmap`s, restore → draw gutter (if `gutterColor !== background`) → draw annotations → draw selection chrome.
 - Applies `editorScale` once via `ctx.setTransform` so the figure can be larger than the viewport.
 
 **Export loop** (`export-renderer.ts`):
+
 - On demand. Uses `OffscreenCanvas` sized to final figure pixels (physical: `inches*dpi`; pixel: literal).
 - Uses **full-resolution** `ImageBitmap`s from the cache. No `editorScale`.
 - Calls the same `draw-panel`/`draw-annotations` routines, parameterized by `(targetCtx, scaleFactor=1, useFullRes=true)`. WYSIWYG by construction.
@@ -340,40 +398,88 @@ UTF-8 JSON. Image bytes are NOT embedded; only path refs + sha256 for integrity 
   "id": "9c1...",
   "createdAt": "2026-05-01T10:00:00Z",
   "modifiedAt": "2026-05-01T10:42:00Z",
-  "canvas": { "mode": "physical", "widthPhys": 7, "heightPhys": 5,
-              "unit": "in", "dpi": 300, "background": "#FFFFFF" },
+  "canvas": {
+    "mode": "physical",
+    "widthPhys": 7,
+    "heightPhys": 5,
+    "unit": "in",
+    "dpi": 300,
+    "background": "#FFFFFF"
+  },
   "grid": {
-    "rows": 2, "cols": 3, "gutterPx": 12, "gutterColor": "#FFFFFF",
+    "rows": 2,
+    "cols": 3,
+    "gutterPx": 12,
+    "gutterColor": "#FFFFFF",
     "panels": [
-      { "id": "p1", "row": 0, "col": 0, "rowSpan": 1, "colSpan": 2,
+      {
+        "id": "p1",
+        "row": 0,
+        "col": 0,
+        "rowSpan": 1,
+        "colSpan": 2,
         "imageId": "img1",
-        "transform": { "fit": "cover", "panX": 0, "panY": 0,
-                       "zoom": 1.0, "rotation": 0,
-                       "flipH": false, "flipV": false } }
+        "transform": {
+          "fit": "cover",
+          "panX": 0,
+          "panY": 0,
+          "zoom": 1.0,
+          "rotation": 0,
+          "flipH": false,
+          "flipV": false
+        }
+      }
     ]
   },
   "imagePool": [
-    { "id": "img1",
+    {
+      "id": "img1",
       "relPath": "./images/sample.tif",
       "sourcePath": "/Users/x/Desktop/proj/images/sample.tif",
-      "filename": "sample.tif", "mime": "image/tiff",
-      "width": 4096, "height": 3072, "bitDepth": 16,
+      "filename": "sample.tif",
+      "mime": "image/tiff",
+      "width": 4096,
+      "height": 3072,
+      "bitDepth": 16,
       "sha256": "...",
-      "calibration": { "unit": "um", "pixelsPerUnit": 6.45,
-                       "source": "tiff-meta" } }
+      "calibration": {
+        "unit": "um",
+        "pixelsPerUnit": 6.45,
+        "source": "tiff-meta"
+      }
+    }
   ],
   "annotations": [
-    { "id": "a1", "kind": "scalebar", "panelId": "p1", "z": 10,
-      "lengthValue": 50, "lengthUnit": "um" }
+    {
+      "id": "a1",
+      "kind": "scalebar",
+      "panelId": "p1",
+      "z": 10,
+      "lengthValue": 50,
+      "lengthUnit": "um"
+    }
   ],
-  "globalStyle": { "letters":  { "enabled": true, "font": "Arial",
-                                  "sizePt": 12, "color": "#000000",
-                                  "corner": "tl", "paddingPx": 6,
-                                  "bold": true },
-                   "scalebar": { "font": "Arial", "sizePt": 10,
-                                 "color": "#FFFFFF", "barColor": "#FFFFFF",
-                                 "thicknessPx": 4, "corner": "br",
-                                 "paddingPx": 8, "showLabel": true } },
+  "globalStyle": {
+    "letters": {
+      "enabled": true,
+      "font": "Arial",
+      "sizePt": 12,
+      "color": "#000000",
+      "corner": "tl",
+      "paddingPx": 6,
+      "bold": true
+    },
+    "scalebar": {
+      "font": "Arial",
+      "sizePt": 10,
+      "color": "#FFFFFF",
+      "barColor": "#FFFFFF",
+      "thicknessPx": 4,
+      "corner": "br",
+      "paddingPx": 8,
+      "showLabel": true
+    }
+  },
   "exportDefaults": { "format": "png", "jpegQuality": 0.92, "dpi": 300 }
 }
 ```
@@ -385,7 +491,7 @@ On open: validate via `zod` (or hand validator), run migrations, attempt `relPat
 Each milestone produces something demoable.
 
 1. **M1 — Skeleton.** Electron + React + Vite scaffold; main/preload/renderer talking via `contextBridge`. Empty white window.
-2. **M2 — Hard-coded export.** Hard-coded 2×2 grid with placeholder rectangles + one bundled PNG; "Export as PNG" writes to disk via IPC. *End-to-end pixel out.*
+2. **M2 — Hard-coded export.** Hard-coded 2×2 grid with placeholder rectangles + one bundled PNG; "Export as PNG" writes to disk via IPC. _End-to-end pixel out._
 3. **M3 — Image pool + drag.** Native file picker → load PNG/JPEG → sidebar tray → drag onto cell with Contain fit. Cell↔cell swap. Tray→occupied = replace (returns to tray).
 4. **M4 — Grid model + merge.** Configurable rows/cols (up to 10×10), gutter px and color; shift-click multi-select; Merge/Unmerge with `M`/`U`.
 5. **M5 — Per-panel transforms + selection.** Click to select, drag to pan, scroll to zoom, rotation/flip buttons; Cover-fit clamping; Contain/Cover/Stretch picker.
@@ -451,5 +557,6 @@ Each milestone ends with a recorded GIF and a manual-test checklist that passes.
 15. Stress: 50 images in pool, 10×10 grid, all panels filled — editor stays > 30 fps; export completes under 30s.
 
 **Automated coverage**:
+
 - Vitest: `coords.ts`, `scalebar.ts`, `history.ts`, schema migrations, Cover-fit clamp math.
 - Playwright (Electron driver): launch, drag-drop a fixture PNG, export PNG, assert exported file pixel dimensions match project setting.

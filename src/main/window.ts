@@ -8,9 +8,7 @@ export interface WindowFactoryInput {
   devServerUrl: string | undefined;
 }
 
-export type LoadTarget =
-  | { kind: "url"; url: string }
-  | { kind: "file" };
+export type LoadTarget = { kind: "url"; url: string } | { kind: "file" };
 
 export interface ResolvedWindowConfig {
   width: number;

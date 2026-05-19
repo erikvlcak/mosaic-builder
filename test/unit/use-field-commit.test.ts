@@ -9,11 +9,17 @@ describe("useFieldCommit", () => {
     const commit = vi.fn();
     const { result } = renderHook(() => useFieldCommit(commit, 400));
     act(() => result.current.markDirty());
-    act(() => { vi.advanceTimersByTime(200); });
+    act(() => {
+      vi.advanceTimersByTime(200);
+    });
     act(() => result.current.markDirty());
-    act(() => { vi.advanceTimersByTime(399); });
+    act(() => {
+      vi.advanceTimersByTime(399);
+    });
     expect(commit).not.toHaveBeenCalled();
-    act(() => { vi.advanceTimersByTime(1); });
+    act(() => {
+      vi.advanceTimersByTime(1);
+    });
     expect(commit).toHaveBeenCalledTimes(1);
     vi.useRealTimers();
   });
@@ -25,7 +31,9 @@ describe("useFieldCommit", () => {
     act(() => result.current.markDirty());
     act(() => result.current.flush());
     expect(commit).toHaveBeenCalledTimes(1);
-    act(() => { vi.advanceTimersByTime(1000); });
+    act(() => {
+      vi.advanceTimersByTime(1000);
+    });
     expect(commit).toHaveBeenCalledTimes(1);
     vi.useRealTimers();
   });

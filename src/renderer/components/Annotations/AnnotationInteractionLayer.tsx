@@ -52,6 +52,8 @@ import { DRAG_MIME, parseDrag } from "../../dnd/drag-payload";
 import type { ImagePoolItem } from "../../model/pool";
 import type { Tool } from "../Toolbar/AnnotationToolbar";
 import type { DefaultSymbolStyle } from "../../model/default-symbol-style";
+import type { DefaultTextStyle } from "../../model/default-text-style";
+import type { DefaultScalebarStyle } from "../../model/default-scalebar-style";
 import {
   addToSelection,
   clearSelection,
@@ -83,6 +85,21 @@ interface Props {
    * the user can keep stamping more symbols of the same style).
    */
   defaultSymbolStyle: DefaultSymbolStyle;
+  /**
+   * Text-tool picker state. `commitPendingText` reads font/sizePt/bold/
+   * italic/color/bgColor from this so the picker form actually steers
+   * placement instead of being a no-op preview.
+   */
+  defaultTextStyle: DefaultTextStyle;
+  /**
+   * Scalebar-tool picker state. The click-to-place popover reads length/
+   * unit from this (so the picker pre-fills the popover), and
+   * `commitScalebar` reads `cornerOverride` for the new annotation.
+   * Edits inside the popover write back through `onDefaultScalebarStyleChange`
+   * so the sidebar picker stays in sync with the popover.
+   */
+  defaultScalebarStyle: DefaultScalebarStyle;
+  onDefaultScalebarStyleChange: (next: DefaultScalebarStyle) => void;
   figure: Figure;
   /** Panel rects in FIGURE-PX, keyed by panel id. */
   panelRectsById: Map<string, PanelRect>;
@@ -173,11 +190,7 @@ interface DragState {
    * - "marquee": rubber-band drag in select mode from empty space — selects
    *   every annotation whose bounds intersect the drag rect on pointerup.
    */
-  kind:
-    | "move"
-    | "symbol-corner"
-    | "symbol-rotate"
-    | "marquee";
+  kind: "move" | "symbol-corner" | "symbol-rotate" | "marquee";
   /** Origin in figure-px. */
   startFx: number;
   startFy: number;
@@ -240,9 +253,6 @@ interface PendingText {
   cssY: number;
 }
 
-const DEFAULT_TEXT_FONT = "Arial, Helvetica, sans-serif";
-const DEFAULT_TEXT_SIZE_PT = 12;
-const DEFAULT_TEXT_COLOR = "#000000";
 const DEFAULT_SYMBOL_SIZE = 60;
 
 // Default z-values for new annotations: scalebar always on top so it can't be hidden;
@@ -477,6 +487,9 @@ function annoBounds(
 export function AnnotationInteractionLayer({
   activeTool,
   defaultSymbolStyle,
+  defaultTextStyle,
+  defaultScalebarStyle,
+  onDefaultScalebarStyleChange,
   figure,
   panelRectsById,
   imagesById,
@@ -522,8 +535,13 @@ export function AnnotationInteractionLayer({
   // (instead of relying on the DOM input's defaultValue) makes the commit
   // path immune to focus loss / blur racing the keydown.
   const [pendingTextValue, setPendingTextValue] = useState<string>("");
-  const [scalebarLength, setScalebarLength] = useState<string>("100");
-  const [scalebarUnit, setScalebarUnit] = useState<"um" | "mm">("um");
+  /**
+   * Edit buffer for the popover's length input. Stored as a string so the
+   * user can momentarily clear it while retyping (the picker's number value
+   * stays at the last valid parse until Add). Seeded from the picker when
+   * the popover opens (see the setPendingScalebar call site).
+   */
+  const [scalebarLengthDraft, setScalebarLengthDraft] = useState<string>("100");
   /**
    * Transient error banner shown when the scalebar tool clicks an
    * uncalibrated/empty panel. Auto-dismissed after SCALEBAR_ERROR_TTL_MS.
@@ -661,6 +679,7 @@ export function AnnotationInteractionLayer({
         );
         return;
       }
+      setScalebarLengthDraft(String(defaultScalebarStyle.lengthValue));
       setPendingScalebar({ panelId, cssX: c.cssX, cssY: c.cssY });
       return;
     }
@@ -1271,15 +1290,20 @@ export function AnnotationInteractionLayer({
 
   function commitScalebar(): void {
     if (pendingScalebar === null) return;
-    const lengthValue = parseFloat(scalebarLength);
+    const lengthValue = parseFloat(scalebarLengthDraft);
     if (!Number.isFinite(lengthValue) || lengthValue <= 0) return;
+    // Sync the picker so subsequent placements remember this length.
+    if (lengthValue !== defaultScalebarStyle.lengthValue) {
+      onDefaultScalebarStyleChange({ ...defaultScalebarStyle, lengthValue });
+    }
     const ann: ScaleBarAnnotation = {
       id: newAnnoId(),
       kind: "scalebar",
       z: Z_SCALEBAR,
       panelId: pendingScalebar.panelId,
       lengthValue,
-      lengthUnit: scalebarUnit,
+      lengthUnit: defaultScalebarStyle.lengthUnit,
+      cornerOverride: defaultScalebarStyle.cornerOverride,
     };
     // Bind to the image on this panel: scale bars are conceptually
     // anchored to the calibration on the image, so when that image moves
@@ -1312,11 +1336,14 @@ export function AnnotationInteractionLayer({
       x: pendingText.fx,
       y: pendingText.fy,
       text: trimmed,
-      font: DEFAULT_TEXT_FONT,
-      sizePt: DEFAULT_TEXT_SIZE_PT,
-      bold: false,
-      italic: false,
-      color: DEFAULT_TEXT_COLOR,
+      font: defaultTextStyle.font,
+      sizePt: defaultTextStyle.sizePt,
+      bold: defaultTextStyle.bold,
+      italic: defaultTextStyle.italic,
+      color: defaultTextStyle.color,
+      ...(defaultTextStyle.bgColor !== undefined
+        ? { bgColor: defaultTextStyle.bgColor }
+        : {}),
     };
     // If the click landed on an image-bearing panel, bind the annotation
     // to that image so it follows the image when swapped to another panel.
@@ -1975,8 +2002,10 @@ export function AnnotationInteractionLayer({
             top: pendingText.cssY,
             // Match the eventual annotation's font/size so the user sees
             // the result roughly in place as they type.
-            font: `${DEFAULT_TEXT_SIZE_PT}px ${DEFAULT_TEXT_FONT}`,
-            color: DEFAULT_TEXT_COLOR,
+            font: `${defaultTextStyle.italic ? "italic " : ""}${
+              defaultTextStyle.bold ? "700 " : ""
+            }${defaultTextStyle.sizePt}px ${defaultTextStyle.font}`,
+            color: defaultTextStyle.color,
             background: "rgba(255,255,255,0.95)",
             border: "1px dashed #0066FF",
             padding: "1px 3px",
@@ -2012,15 +2041,20 @@ export function AnnotationInteractionLayer({
             type="number"
             min={0}
             step="any"
-            value={scalebarLength}
-            onChange={(e) => setScalebarLength(e.target.value)}
+            value={scalebarLengthDraft}
+            onChange={(e) => setScalebarLengthDraft(e.target.value)}
             style={{ width: 60 }}
             data-testid="anno-scalebar-length"
             autoFocus
           />
           <select
-            value={scalebarUnit}
-            onChange={(e) => setScalebarUnit(e.target.value as "um" | "mm")}
+            value={defaultScalebarStyle.lengthUnit}
+            onChange={(e) =>
+              onDefaultScalebarStyleChange({
+                ...defaultScalebarStyle,
+                lengthUnit: e.target.value as "um" | "mm",
+              })
+            }
             data-testid="anno-scalebar-unit"
           >
             <option value="um">µm</option>

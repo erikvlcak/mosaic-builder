@@ -36,9 +36,12 @@ async function showSave(
 export async function pickPngSavePath(
   input: PickPathInput,
 ): Promise<PickPathResult> {
-  return showSave(input.parentWindow, "Export figure as PNG", input.defaultName, [
-    { name: "PNG image", extensions: ["png"] },
-  ]);
+  return showSave(
+    input.parentWindow,
+    "Export figure as PNG",
+    input.defaultName,
+    [{ name: "PNG image", extensions: ["png"] }],
+  );
 }
 
 export async function pickJpegSavePath(
@@ -66,9 +69,12 @@ export async function pickTiffSavePath(
 export async function pickPdfSavePath(
   input: PickPathInput,
 ): Promise<PickPathResult> {
-  return showSave(input.parentWindow, "Export figure as PDF", input.defaultName, [
-    { name: "PDF document", extensions: ["pdf"] },
-  ]);
+  return showSave(
+    input.parentWindow,
+    "Export figure as PDF",
+    input.defaultName,
+    [{ name: "PDF document", extensions: ["pdf"] }],
+  );
 }
 
 export async function pickMosaicSavePath(

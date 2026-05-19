@@ -30,9 +30,7 @@ const MICROMETERS_PER_CM = 10000;
  * if the IFD lacks an absolute resolution unit, lacks XResolution, or
  * carries a degenerate/zero rational.
  */
-export function readCalibrationFromIFD(
-  ifd: UtifIfd,
-): Calibration | undefined {
+export function readCalibrationFromIFD(ifd: UtifIfd): Calibration | undefined {
   const xres = ratioToFloat(ifd.t282);
   const unitTag = ifd.t296?.[0] ?? 1;
   if (xres === undefined || xres <= 0 || !Number.isFinite(xres)) {

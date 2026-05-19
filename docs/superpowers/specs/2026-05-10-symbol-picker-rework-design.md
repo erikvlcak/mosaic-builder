@@ -18,7 +18,7 @@ Three issues with the current Symbol tool:
 - A larger, more useful set of shapes — primarily geometric primitives that scientific figures actually need.
 - Each outlined shape supports stroke style variants (solid, dashed, dotted).
 - Clicking the `Symbol` toolbar button immediately opens the picker in the right panel — no canvas click required.
-- Style choices in the picker apply to the *next* placement, so the user picks shape + style, then clicks canvas to drop.
+- Style choices in the picker apply to the _next_ placement, so the user picks shape + style, then clicks canvas to drop.
 - Selecting an existing symbol on canvas continues to show that symbol's editing form (unchanged behavior pattern, but with the new fields).
 
 ## Non-goals
@@ -50,8 +50,12 @@ export type Tool = "select" | "text" | "symbol" | "scalebar";
 
 const TOOLS = [
   { id: "select", label: "Select", title: "Select and move annotations" },
-  { id: "text",   label: "Text",   title: "Add text — click to place" },
-  { id: "symbol", label: "Symbol", title: "Pick a symbol — click canvas to place" },
+  { id: "text", label: "Text", title: "Add text — click to place" },
+  {
+    id: "symbol",
+    label: "Symbol",
+    title: "Pick a symbol — click canvas to place",
+  },
   { id: "scalebar", label: "Scale", title: "Add scale bar — click a panel" },
 ];
 ```
@@ -64,9 +68,9 @@ Title for `symbol` updated to reflect the new flow ("pick a symbol — click can
 
 ```typescript
 export interface SymbolDef {
-  id: string;            // stable id, persisted in .mosaic files
-  label: string;         // human label shown in the picker tooltip
-  pathD: string;         // 100×100 viewport, centered at (50, 50)
+  id: string; // stable id, persisted in .mosaic files
+  label: string; // human label shown in the picker tooltip
+  pathD: string; // 100×100 viewport, centered at (50, 50)
   geometry: "closed" | "stroke-only";
   // "closed"      — path forms a closed region; supports both fill and stroke
   // "stroke-only" — path is an open stroke; the "filled" mode is invalid and
@@ -189,11 +193,18 @@ function drawSymbol(ctx: DrawCtx, a: SymbolAnnotation): void {
   }
 }
 
-function dashPatternFor(style: StrokeStyle, w: number, scale: number): number[] {
+function dashPatternFor(
+  style: StrokeStyle,
+  w: number,
+  scale: number,
+): number[] {
   switch (style) {
-    case "solid":  return [];
-    case "dashed": return [(8 * w) / scale, (4 * w) / scale];
-    case "dotted": return [(1.5 * w) / scale, (3 * w) / scale];
+    case "solid":
+      return [];
+    case "dashed":
+      return [(8 * w) / scale, (4 * w) / scale];
+    case "dotted":
+      return [(1.5 * w) / scale, (3 * w) / scale];
   }
 }
 ```

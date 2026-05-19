@@ -63,7 +63,11 @@ describe("figureToSource", () => {
     // So a click at the panel CENTER (200, 150) corresponds to a source
     // point (40, 50) — i.e. left of source-center because the image was
     // panned right.
-    const t: PanelTransform = { ...DEFAULT_TRANSFORM, fit: "contain", panX: 20 };
+    const t: PanelTransform = {
+      ...DEFAULT_TRANSFORM,
+      fit: "contain",
+      panX: 20,
+    };
     const result = figureToSource(RECT, t, 100, 100, 200, 150);
     expect(result).not.toBeNull();
     expect(result!.sx).toBeCloseTo(40, 6);
@@ -71,7 +75,11 @@ describe("figureToSource", () => {
   });
 
   it("flipH: panel-center click still maps to image center", () => {
-    const t: PanelTransform = { ...DEFAULT_TRANSFORM, fit: "contain", flipH: true };
+    const t: PanelTransform = {
+      ...DEFAULT_TRANSFORM,
+      fit: "contain",
+      flipH: true,
+    };
     const result = figureToSource(RECT, t, 100, 100, 200, 150);
     expect(result).not.toBeNull();
     expect(result!.sx).toBeCloseTo(50, 6);

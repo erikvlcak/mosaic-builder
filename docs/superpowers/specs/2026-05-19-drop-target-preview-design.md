@@ -31,8 +31,11 @@ In `App.tsx`, we compute the hypothetical post-drop state on every dragover via 
 ```ts
 previewState = useMemo(() => {
   if (dragSource === null || hoverPanelId === null) return null;
-  const action = dispatchDrop(state, { from: dragSource, targetPanelId: hoverPanelId });
-  if (action === null) return null;  // invalid → no preview
+  const action = dispatchDrop(state, {
+    from: dragSource,
+    targetPanelId: hoverPanelId,
+  });
+  if (action === null) return null; // invalid → no preview
   return figureReducer(state, action);
 }, [state, dragSource, hoverPanelId]);
 ```
@@ -43,7 +46,7 @@ The figure passed to `EditorCanvas` derives from `previewState ?? state`. The re
 
 ### Module: `dnd/preview-for-drop.ts`
 
-Now only used by `GridCells` to decide whether to apply the invalid-drop outline. Returns `{ valid: boolean, ... }`. `dispatchDrop` is the single source of truth for *what* would happen; `previewForDrop` is a thin "is this allowed?" helper kept in lockstep via tests.
+Now only used by `GridCells` to decide whether to apply the invalid-drop outline. Returns `{ valid: boolean, ... }`. `dispatchDrop` is the single source of truth for _what_ would happen; `previewForDrop` is a thin "is this allowed?" helper kept in lockstep via tests.
 
 ### Drag-source plumbing
 
@@ -58,15 +61,15 @@ Now only used by `GridCells` to decide whether to apply the invalid-drop outline
 
 ### Files touched
 
-| File | Change |
-|------|--------|
-| `src/renderer/dnd/preview-for-drop.ts` | helper for "is this drop valid?" |
-| `src/renderer/components/Grid/GridCells.tsx` | accepts lifted hover/dragSource props; invalid-drop outline branch |
-| `src/renderer/components/Sidebar/Tray.tsx` | accepts + forwards `onDragSourceChange` |
-| `src/renderer/components/Sidebar/Thumbnail.tsx` | calls `onDragSourceChange` on dragstart/dragend |
-| `src/renderer/components/Annotations/AnnotationInteractionLayer.tsx` | `onTrayDragHoverChange` callback for the passthrough |
-| `src/renderer/App.tsx` | owns drag state; derives `previewState`; threads it into figure derivation |
-| `test/unit/preview-for-drop.test.ts` | unit tests for the validity helper |
+| File                                                                 | Change                                                                     |
+| -------------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| `src/renderer/dnd/preview-for-drop.ts`                               | helper for "is this drop valid?"                                           |
+| `src/renderer/components/Grid/GridCells.tsx`                         | accepts lifted hover/dragSource props; invalid-drop outline branch         |
+| `src/renderer/components/Sidebar/Tray.tsx`                           | accepts + forwards `onDragSourceChange`                                    |
+| `src/renderer/components/Sidebar/Thumbnail.tsx`                      | calls `onDragSourceChange` on dragstart/dragend                            |
+| `src/renderer/components/Annotations/AnnotationInteractionLayer.tsx` | `onTrayDragHoverChange` callback for the passthrough                       |
+| `src/renderer/App.tsx`                                               | owns drag state; derives `previewState`; threads it into figure derivation |
+| `test/unit/preview-for-drop.test.ts`                                 | unit tests for the validity helper                                         |
 
 ### Tests
 

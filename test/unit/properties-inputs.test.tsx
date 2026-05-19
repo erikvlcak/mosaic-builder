@@ -20,7 +20,15 @@ import { CornerField } from "../../src/renderer/components/Properties/inputs/Cor
 describe("NumberField", () => {
   it("clamps within [min,max] and calls onChange with parsed number", () => {
     const onChange = vi.fn();
-    render(<NumberField label="Size" value={10} min={1} max={20} onChange={onChange} />);
+    render(
+      <NumberField
+        label="Size"
+        value={10}
+        min={1}
+        max={20}
+        onChange={onChange}
+      />,
+    );
     const input = screen.getByLabelText("Size");
     fireEvent.change(input, { target: { value: "15" } });
     expect(onChange).toHaveBeenLastCalledWith(15);
@@ -38,13 +46,20 @@ describe("NumberField", () => {
   });
 });
 
-function ControlledText({ onChange }: { onChange: (s: string) => void }): JSX.Element {
+function ControlledText({
+  onChange,
+}: {
+  onChange: (s: string) => void;
+}): JSX.Element {
   const [v, setV] = useState("");
   return (
     <TextField
       label="Caption"
       value={v}
-      onChange={(s) => { setV(s); onChange(s); }}
+      onChange={(s) => {
+        setV(s);
+        onChange(s);
+      }}
     />
   );
 }
@@ -76,12 +91,17 @@ describe("SelectField", () => {
   it("emits the chosen value", async () => {
     const onChange = vi.fn();
     render(
-      <SelectField label="Fit" value="contain"
-        options={[
-          { value: "contain", label: "Contain" },
-          { value: "cover", label: "Cover" },
-        ] as const}
-        onChange={onChange} />,
+      <SelectField
+        label="Fit"
+        value="contain"
+        options={
+          [
+            { value: "contain", label: "Contain" },
+            { value: "cover", label: "Cover" },
+          ] as const
+        }
+        onChange={onChange}
+      />,
     );
     await userEvent.selectOptions(screen.getByLabelText("Fit"), "cover");
     expect(onChange).toHaveBeenLastCalledWith("cover");

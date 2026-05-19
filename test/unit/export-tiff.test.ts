@@ -17,8 +17,12 @@ beforeEach(() => {
 
 describe.skipIf(!HAS_OFFSCREEN)("exportFigureAsTiff", () => {
   it("calls window.api.exportTiff with non-zero bytes and a .tif defaultName", async () => {
-    const { exportFigureAsTiff } = await import("../../src/renderer/export/tiff");
-    const { HARDCODED_FIGURE } = await import("../../src/renderer/model/hardcoded");
+    const { exportFigureAsTiff } = await import(
+      "../../src/renderer/export/tiff"
+    );
+    const { HARDCODED_FIGURE } = await import(
+      "../../src/renderer/model/hardcoded"
+    );
 
     const result = await exportFigureAsTiff(HARDCODED_FIGURE, new Map(), 300);
     expect(result.ok).toBe(true);
@@ -32,8 +36,12 @@ describe.skipIf(!HAS_OFFSCREEN)("exportFigureAsTiff", () => {
   });
 
   it("emits TIFF byte order marker (II or MM) at offset 0", async () => {
-    const { exportFigureAsTiff } = await import("../../src/renderer/export/tiff");
-    const { HARDCODED_FIGURE } = await import("../../src/renderer/model/hardcoded");
+    const { exportFigureAsTiff } = await import(
+      "../../src/renderer/export/tiff"
+    );
+    const { HARDCODED_FIGURE } = await import(
+      "../../src/renderer/model/hardcoded"
+    );
 
     await exportFigureAsTiff(HARDCODED_FIGURE, new Map(), 300);
 

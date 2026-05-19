@@ -25,7 +25,9 @@ beforeEach(() => {
 describe.skipIf(!HAS_OFFSCREEN)("exportFigureAsPdf", () => {
   it("emits a PDF whose first 4 bytes are %PDF", async () => {
     const { exportFigureAsPdf } = await import("../../src/renderer/export/pdf");
-    const { HARDCODED_FIGURE } = await import("../../src/renderer/model/hardcoded");
+    const { HARDCODED_FIGURE } = await import(
+      "../../src/renderer/model/hardcoded"
+    );
 
     const result = await exportFigureAsPdf(HARDCODED_FIGURE, new Map());
     expect(result.ok).toBe(true);
@@ -44,7 +46,9 @@ describe.skipIf(!HAS_OFFSCREEN)("exportFigureAsPdf", () => {
 
   it("produces non-zero bytes", async () => {
     const { exportFigureAsPdf } = await import("../../src/renderer/export/pdf");
-    const { HARDCODED_FIGURE } = await import("../../src/renderer/model/hardcoded");
+    const { HARDCODED_FIGURE } = await import(
+      "../../src/renderer/model/hardcoded"
+    );
 
     await exportFigureAsPdf(HARDCODED_FIGURE, new Map());
 
@@ -70,8 +74,8 @@ describe("pdfPageSize", () => {
     expect(at1.hPt).toBe((900 / PDF_DPI) * PT_PER_INCH);
 
     const at3 = pdfPageSize(figure, 3);
-    expect(at3.wPt).toBe((1200 * 3 / PDF_DPI) * PT_PER_INCH);
-    expect(at3.hPt).toBe((900 * 3 / PDF_DPI) * PT_PER_INCH);
+    expect(at3.wPt).toBe(((1200 * 3) / PDF_DPI) * PT_PER_INCH);
+    expect(at3.hPt).toBe(((900 * 3) / PDF_DPI) * PT_PER_INCH);
   });
 
   it("at exportScale=1 a typical editor canvas yields a 5–9 inch page", () => {
