@@ -198,12 +198,7 @@ export function MultiAnnoForm({
         />
       )}
       {homogeneousKind === "symbol" && first?.kind === "symbol" && (
-        <SymbolOnlyControls
-          anno={first}
-          ids={ids}
-          dispatch={dispatch}
-          commit={commit}
-        />
+        <SymbolOnlyControls />
       )}
 
       <button
@@ -283,16 +278,10 @@ function TextOnlyControls({
   );
 }
 
-function SymbolOnlyControls({
-  anno: _anno,
-  ids: _ids,
-  dispatch: _dispatch,
-  commit: _commit,
-}: KindOnlyProps<SymbolAnnotation>): JSX.Element {
-  // The full symbol gallery lives in SymbolAnnoForm. Reusing it requires a
-  // single-anno target; for multi-select we keep the section as a hint
-  // pointing the user at the homogeneous case. (Future iteration could
-  // hoist the gallery into a kind-aware control.)
+// The full symbol gallery lives in SymbolAnnoForm and needs a single-anno
+// target. For multi-select we surface a hint pointing the user at the
+// single-select path instead of duplicating the gallery here.
+function SymbolOnlyControls(): JSX.Element {
   return (
     <div
       style={{
