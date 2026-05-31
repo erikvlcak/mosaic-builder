@@ -40,4 +40,9 @@ linux:
 nsis:
   oneClick: false
   allowToChangeInstallationDirectory: true
+  createDesktopShortcut: always
+  createStartMenuShortcut: true
+  runAfterFinish: true
+  shortcutName: Mosaic Builder
+  artifactName: Mosaic-Builder-Setup-${version}.${ext}
 publish: null
