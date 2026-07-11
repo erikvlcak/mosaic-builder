@@ -251,6 +251,9 @@ export function App(): JSX.Element {
     focusedPanel?.imageId !== undefined ? focusedPanel : undefined;
 
   const fieldCommit = useFieldCommit(history.commit, 400);
+  // Stable across renders (useCallback in the hook); depend on this — not the
+  // freshly-allocated `fieldCommit` object — in the target-change effect below.
+  const flushFieldCommit = fieldCommit.flush;
   // Single-selected anno is only meaningful for the legacy properties-panel
   // path. With > 1 in the set, PropertiesPanel routes to MultiAnnoForm
   // instead and reads `selectedAnnotationIds` directly.
@@ -278,6 +281,18 @@ export function App(): JSX.Element {
     if (!singleSelectedAnnoId.startsWith("letter:")) return undefined;
     return singleSelectedAnnoId.slice("letter:".length);
   }, [singleSelectedAnnoId]);
+
+  // 1.3: PropertiesPanel shares one debounced `fieldCommit` across every
+  // property form. Editing target A then target B inside the 400 ms window
+  // would reset the shared timer and collapse two logically separate edits
+  // into one undo step. Flush the pending commit whenever the edit target
+  // changes so each target's edits seal into their own step. We flush
+  // (rather than key the hook to the id) because unmount cleanup only clears
+  // the timer — it never fires the pending commit, silently dropping the
+  // first edit. `flush()` is a safe no-op when nothing is pending.
+  useEffect(() => {
+    flushFieldCommit();
+  }, [singleSelectedAnnoId, focusedPanelId, flushFieldCommit]);
 
   const onRotate90 = useCallback(() => {
     if (selectedImagePanel === undefined) return;
