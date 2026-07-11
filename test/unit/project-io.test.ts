@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { mkdtemp, writeFile, rm, readFile } from "node:fs/promises";
+import { mkdtemp, writeFile, rm, readFile, mkdir, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import {
@@ -36,6 +36,42 @@ describe("saveProjectToPath", () => {
     await expect(
       saveProjectToPath(path.join(dir, "fig.json"), file),
     ).rejects.toThrow(/extension/);
+  });
+
+  it("leaves the previous good file intact when the write fails (atomic replace)", async () => {
+    const target = path.join(dir, "fig.mosaic");
+    // A previous good save the user must not lose.
+    const original = '{"schemaVersion":5,"good":true}';
+    await writeFile(target, original, "utf8");
+
+    // Force writeFile(`${target}.tmp`) to fail: make the temp path a directory,
+    // so the write hits EISDIR before any rename could touch the target.
+    await mkdir(`${target}.tmp`);
+
+    const file = toMosaicFile({
+      state: initialFigureState(),
+      canvas: { widthPx: 800, heightPx: 600, background: "#FFFFFF" },
+      mosaicPath: target,
+      appVersion: "0.1.0",
+      now: () => "2026-05-02T10:00:00Z",
+    });
+    await expect(saveProjectToPath(target, file)).rejects.toThrow();
+
+    // The original file is byte-for-byte untouched.
+    expect(await readFile(target, "utf8")).toBe(original);
+  });
+
+  it("does not leave a stray .tmp behind on a successful save", async () => {
+    const target = path.join(dir, "fig.mosaic");
+    const file = toMosaicFile({
+      state: initialFigureState(),
+      canvas: { widthPx: 800, heightPx: 600, background: "#FFFFFF" },
+      mosaicPath: target,
+      appVersion: "0.1.0",
+      now: () => "2026-05-02T10:00:00Z",
+    });
+    await saveProjectToPath(target, file);
+    await expect(stat(`${target}.tmp`)).rejects.toThrow();
   });
 });
 
