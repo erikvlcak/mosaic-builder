@@ -12,6 +12,8 @@ interface Props {
   onUnplacePanel: (panelId: string) => void;
   /** Reports tray drag start/end so the drop-ghost layer can preview. */
   onDragSourceChange?: (src: DragPayload | null) => void;
+  /** Remove an unplaced image from the pool (hover × on its thumbnail). */
+  onRemoveImage: (imageId: string) => void;
 }
 
 export function Tray({
@@ -21,6 +23,7 @@ export function Tray({
   onAddImagesClick,
   onUnplacePanel,
   onDragSourceChange,
+  onRemoveImage,
 }: Props): JSX.Element {
   const unplaced = pool.filter((p) => !placedIds.has(p.id));
   const placed = pool.filter((p) => placedIds.has(p.id));
@@ -115,6 +118,7 @@ export function Tray({
             item={it}
             bitmap={bitmaps.get(it.id)}
             placed={false}
+            onRemove={onRemoveImage}
             {...(onDragSourceChange !== undefined
               ? { onDragSourceChange }
               : {})}

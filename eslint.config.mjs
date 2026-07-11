@@ -12,7 +12,6 @@ export default tseslint.config(
       "out/**",
       "release/**",
       "coverage/**",
-      "scripts/**",
     ],
   },
   js.configs.recommended,
@@ -22,6 +21,14 @@ export default tseslint.config(
     ...tseslint.configs.disableTypeChecked,
   },
   {
+    // Node build scripts run under Node, not the browser — declare the Node
+    // globals they use so no-undef doesn't flag console/process.
+    files: ["scripts/**/*.mjs"],
+    languageOptions: {
+      globals: { console: "readonly", process: "readonly" },
+    },
+  },
+  {
     languageOptions: {
       parserOptions: {
         projectService: {
@@ -29,6 +36,7 @@ export default tseslint.config(
             "eslint.config.mjs",
             "vite.config.ts",
             "vitest.config.ts",
+            "scripts/generate-icons.mjs",
           ],
         },
         tsconfigRootDir: import.meta.dirname,

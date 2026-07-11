@@ -15,10 +15,12 @@ import { type FigureState } from "../model/figure-state";
  * `pointerup` on a pan/zoom drag emits a `commit()` afterwards. Keep this
  * list small; anything missing here records every interim state.
  */
-const TRANSIENT_ACTIONS: ReadonlySet<FigureAction["type"]> = new Set([
+export const TRANSIENT_ACTIONS: ReadonlySet<FigureAction["type"]> = new Set([
   "SET_PANEL_TRANSFORM",
   "UPDATE_ANNOTATION",
   "SET_GLOBAL_STYLE",
+  "SET_TRACK_WEIGHT",
+  "RESIZE_PANEL_FREEFORM",
 ]);
 
 interface HistoryControls {
@@ -87,8 +89,21 @@ function combinedReducer(c: Combined, ca: CombinedAction): Combined {
       return { state: u.next, history: u.history, lastCommitted: u.next };
     }
     case "redo": {
-      const r = redoHistory(c.history, c.state);
-      if (r === null) return c;
+      // Symmetric with undo: flush any uncommitted transient changes first so
+      // they seal into their own step instead of being carried onto `past` as
+      // if committed. Flushing clears `future` (pushHistory), which correctly
+      // makes redo a no-op here — new edits after an undo fork the timeline and
+      // invalidate the redo stack.
+      const base =
+        c.state === c.lastCommitted
+          ? c
+          : {
+              ...c,
+              history: pushHistory(c.history, c.lastCommitted, c.state),
+              lastCommitted: c.state,
+            };
+      const r = redoHistory(base.history, base.state);
+      if (r === null) return base;
       return { state: r.next, history: r.history, lastCommitted: r.next };
     }
   }

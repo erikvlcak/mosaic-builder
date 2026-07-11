@@ -1,4 +1,4 @@
-import { writeFile, readFile, stat } from "node:fs/promises";
+import { writeFile, readFile, stat, rename, rm } from "node:fs/promises";
 import path from "node:path";
 import { validateMosaicFile, type MosaicFile } from "../renderer/model/schema";
 import { mimeFromExt, type ImageMime } from "./mime";
@@ -41,7 +41,18 @@ export async function saveProjectToPath(
     );
   }
   const json = JSON.stringify(file, null, 2);
-  await writeFile(target, json, "utf8");
+  // Atomic replace: write to a sibling temp file, then rename over the target.
+  // rename is atomic on the same filesystem (POSIX and NTFS), so a crash or
+  // power loss mid-write can never truncate the user's existing good file —
+  // the worst case is a leftover .tmp, which we clean up on failure.
+  const tmp = `${target}.tmp`;
+  try {
+    await writeFile(tmp, json, "utf8");
+    await rename(tmp, target);
+  } catch (e) {
+    await rm(tmp, { force: true }).catch(() => undefined);
+    throw e;
+  }
 }
 
 export async function loadProjectFromPath(

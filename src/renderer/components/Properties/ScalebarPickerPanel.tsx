@@ -29,6 +29,10 @@ export function ScalebarPickerPanel({ value, onChange }: Props): JSX.Element {
           [
             { value: "um", label: "µm" },
             { value: "mm", label: "mm" },
+            // px is the only calibration-independent mode — the user must be
+            // able to pick it up front for an uncalibrated panel, matching
+            // ScalebarAnnoForm's options (kept in sync by a parity test).
+            { value: "px", label: "px" },
           ] as const
         }
         onChange={(lengthUnit) => patch({ lengthUnit })}

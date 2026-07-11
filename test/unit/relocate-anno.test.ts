@@ -31,6 +31,7 @@ const IMG_A: ImagePoolItem = {
   mime: "image/png",
   width: 200,
   height: 200,
+  bitDepth: 8,
 };
 const IMG_B: ImagePoolItem = {
   id: "b",
@@ -39,6 +40,7 @@ const IMG_B: ImagePoolItem = {
   mime: "image/jpeg",
   width: 200,
   height: 200,
+  bitDepth: 8,
 };
 
 function panelIdAt(
@@ -129,6 +131,8 @@ describe("figureReducer image-bound annotation behavior", () => {
       rotationDeg: 0,
       color: "#FF0000",
       strokeWidthPx: 2,
+      fillMode: "outlined",
+      strokeStyle: "solid",
       imageId: "a",
       panelId: pidA,
       anchor: { imgU: 0.5, imgV: 0.5 },
@@ -163,6 +167,7 @@ describe("figureReducer image-bound annotation behavior", () => {
       mime: "image/png",
       width: 200,
       height: 200,
+      bitDepth: 8,
     };
     s = figureReducer(s, addToPool(IMG_C));
     const pidA = panelIdAt(s, 0, 0);
@@ -178,6 +183,8 @@ describe("figureReducer image-bound annotation behavior", () => {
       rotationDeg: 0,
       color: "#FF0000",
       strokeWidthPx: 2,
+      fillMode: "outlined",
+      strokeStyle: "solid",
       imageId: "a",
       panelId: pidA,
       anchor: { imgU: 0.55, imgV: 0.55 },
@@ -206,6 +213,8 @@ describe("figureReducer image-bound annotation behavior", () => {
       rotationDeg: 0,
       color: "#FF0000",
       strokeWidthPx: 2,
+      fillMode: "outlined",
+      strokeStyle: "solid",
       imageId: "a",
       panelId: pidA,
       anchor: { imgU: 0.5, imgV: 0.5 },
@@ -365,7 +374,9 @@ describe("figureReducer image-bound annotation behavior", () => {
     const pidB = panelIdAt(s, 1, 1);
 
     s = figureReducer(s, swapPanels(pidA, pidB));
-    expect(s.annotations.every((a) => a.kind !== "letter")).toBe(true);
+    expect(s.annotations.every((a) => (a.kind as string) !== "letter")).toBe(
+      true,
+    );
   });
 
   it("Bound annotation without anchor data on the relevant kind is left untouched (defensive)", () => {
@@ -414,6 +425,8 @@ describe("figureReducer image-bound annotation behavior", () => {
       rotationDeg: 0,
       color: "#FF0000",
       strokeWidthPx: 2,
+      fillMode: "outlined",
+      strokeStyle: "solid",
       imageId: "a",
       panelId: "p1",
       anchor: { imgU: 0.55, imgV: 0.55 },

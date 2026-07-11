@@ -44,4 +44,32 @@ describe("useFieldCommit", () => {
     act(() => result.current.flush());
     expect(commit).not.toHaveBeenCalled();
   });
+
+  it("flushing on a target change yields one commit per target (1.3)", () => {
+    // Models App.tsx's edit-target-change effect: editing target 1, then
+    // switching selection (which flushes), then editing target 2 must produce
+    // two distinct commits — not one coalesced step. Without the flush on the
+    // switch, both markDirty bursts share the single debounce timer and
+    // collapse into one commit spanning two logically separate edits.
+    vi.useFakeTimers();
+    const commit = vi.fn();
+    const { result } = renderHook(() => useFieldCommit(commit, 400));
+
+    // Edit target 1 (within the debounce window — timer still pending).
+    act(() => result.current.markDirty());
+    act(() => {
+      vi.advanceTimersByTime(100);
+    });
+    // Selection switches to target 2 → App flushes the pending commit.
+    act(() => result.current.flush());
+    expect(commit).toHaveBeenCalledTimes(1);
+
+    // Edit target 2, let its own debounce elapse.
+    act(() => result.current.markDirty());
+    act(() => {
+      vi.advanceTimersByTime(400);
+    });
+    expect(commit).toHaveBeenCalledTimes(2);
+    vi.useRealTimers();
+  });
 });

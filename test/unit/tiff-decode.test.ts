@@ -1,7 +1,9 @@
 import { describe, it, expect } from "vitest";
 import {
   readCalibrationFromIFD,
+  decodeTiffToRgba,
   type UtifIfd,
+  type UtifLike,
 } from "../../src/renderer/image/tiff-decode";
 
 function ifd(partial: Partial<UtifIfd>): UtifIfd {
@@ -57,5 +59,87 @@ describe("readCalibrationFromIFD", () => {
   it("returns undefined for unknown ResolutionUnit tags (e.g. 42)", () => {
     const cal = readCalibrationFromIFD(ifd({ t282: [300, 1], t296: [42] }));
     expect(cal).toBeUndefined();
+  });
+});
+
+// Build a fake UtifLike whose toRGBA8 returns `rgba` and whose decodeImage
+// optionally emits a UTIF-style console complaint (UTIF logs instead of
+// throwing for unsupported formats).
+function fakeUtif(opts: {
+  ifds?: UtifIfd[];
+  rgba?: Uint8Array;
+  complaint?: string;
+}): UtifLike {
+  const ifds = opts.ifds ?? [{ width: 2, height: 2, t258: [8] }];
+  return {
+    decode: () => ifds,
+    decodeImage: () => {
+      if (opts.complaint !== undefined) console.log(opts.complaint);
+    },
+    toRGBA8: () => opts.rgba ?? new Uint8Array([1, 2, 3, 255, 4, 5, 6, 255]),
+  };
+}
+
+describe("decodeTiffToRgba", () => {
+  it("decodes a supported TIFF to rgba + dims + bit depth", () => {
+    const out = decodeTiffToRgba(
+      new ArrayBuffer(8),
+      fakeUtif({ ifds: [{ width: 2, height: 2, t258: [16] }] }),
+    );
+    expect(out.width).toBe(2);
+    expect(out.height).toBe(2);
+    expect(out.bitDepth).toBe(16);
+    expect(out.rgba.length).toBe(8);
+  });
+
+  it("rejects an unsupported compression (UTIF logs 'Unknown compression')", () => {
+    expect(() =>
+      decodeTiffToRgba(
+        new ArrayBuffer(8),
+        fakeUtif({ complaint: "Unknown compression: 7" }),
+      ),
+    ).toThrow(/unsupported tiff/i);
+  });
+
+  it("rejects an unsupported photometric interpretation", () => {
+    expect(() =>
+      decodeTiffToRgba(
+        new ArrayBuffer(8),
+        fakeUtif({ complaint: "Unknown Photometric type: 32803" }),
+      ),
+    ).toThrow(/unsupported tiff/i);
+  });
+
+  it("rejects 32-bit (float) TIFFs with a bit-depth message (3.2)", () => {
+    expect(() =>
+      decodeTiffToRgba(
+        new ArrayBuffer(8),
+        fakeUtif({ ifds: [{ width: 2, height: 2, t258: [32] }] }),
+      ),
+    ).toThrow(/bit depth/i);
+  });
+
+  it("rejects an all-zero decode of a non-trivial image (silent-black backstop)", () => {
+    expect(() =>
+      decodeTiffToRgba(
+        new ArrayBuffer(8),
+        fakeUtif({ rgba: new Uint8Array(16) }), // all zeros
+      ),
+    ).toThrow(/unsupported tiff/i);
+  });
+
+  it("rejects a TIFF with no IFDs", () => {
+    expect(() =>
+      decodeTiffToRgba(new ArrayBuffer(8), fakeUtif({ ifds: [] })),
+    ).toThrow(/no image data/i);
+  });
+
+  it("rejects zero-dimension images with a friendly message (3.5)", () => {
+    expect(() =>
+      decodeTiffToRgba(
+        new ArrayBuffer(8),
+        fakeUtif({ ifds: [{ width: 0, height: 4, t258: [8] }] }),
+      ),
+    ).toThrow(/invalid dimensions/i);
   });
 });

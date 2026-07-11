@@ -61,8 +61,11 @@ import {
   setTrackWeightAction,
   resizePanelFreeformAction,
   resetToUniformGridAction,
+  relinkPoolImage,
+  removeFromPool,
 } from "./model/figure-actions";
 import { useHistoryReducer } from "./state/use-history-reducer";
+import { isDirty } from "./state/dirty";
 import { applyLoadedProject } from "./state/load-project";
 import { emptySelection, singleSelectedId } from "./state/anno-selection";
 import { newImageId, type ImagePoolItem } from "./model/pool";
@@ -126,6 +129,34 @@ export function App(): JSX.Element {
   const stateRef = useRef<FigureState>(state);
   stateRef.current = state;
 
+  // Unsaved-changes tracking. `savedStateRef` marks the last clean point (app
+  // start / save / load / New); the document is dirty when the live state is a
+  // different reference. See state/dirty.ts for why reference identity is the
+  // right signal.
+  const savedStateRef = useRef<FigureState>(state);
+  // Load/New dispatch a reducer action, so the clean state lands on the *next*
+  // render — `state` in this closure is still stale. This flag defers the
+  // clean-marking to the effect below, which runs after that render settles.
+  const markCleanNextRef = useRef(false);
+  const dirty = isDirty(state, savedStateRef.current);
+  // Save happens synchronously against the current `state`, so it can mark
+  // clean immediately.
+  const markCleanNow = useCallback(() => {
+    savedStateRef.current = stateRef.current;
+    window.api.setDirty(false);
+  }, []);
+  // Keep main's cached dirty flag in sync so its window-close guard is correct,
+  // and consume a deferred clean request once the post-dispatch state is live.
+  useEffect(() => {
+    if (markCleanNextRef.current) {
+      markCleanNextRef.current = false;
+      savedStateRef.current = state;
+      window.api.setDirty(false);
+      return;
+    }
+    window.api.setDirty(dirty);
+  }, [state, dirty]);
+
   const selection = useMergeSelection();
 
   // Live drag preview: when the cursor is over a valid drop target, compute
@@ -179,15 +210,15 @@ export function App(): JSX.Element {
       return;
     }
     if (result.canceled) return;
+    const failures: string[] = [];
     for (const f of result.files) {
       let decoded;
       try {
         decoded = await decodeImageBytes(f.bytes, f.mime);
-      } catch (err) {
-        toasts.push({
-          kind: "error",
-          message: `decode failed for ${f.filePath}: ${err instanceof Error ? err.message : String(err)}`,
-        });
+      } catch {
+        // Collect failures and surface them as ONE toast after the loop, so a
+        // batch of 20 corrupt files doesn't push 20 toasts past the viewport.
+        failures.push(basename(f.filePath));
         continue;
       }
       const { bitmap, bitDepth, calibration } = decoded;
@@ -208,7 +239,37 @@ export function App(): JSX.Element {
       });
       dispatch(addToPool(item));
     }
+    if (failures.length > 0) {
+      const total = result.files.length;
+      const list = failures.slice(0, 3).join(", ");
+      const more = failures.length > 3 ? ` +${failures.length - 3} more` : "";
+      toasts.push({
+        kind: "error",
+        message:
+          failures.length === 1
+            ? `Failed to decode ${failures[0]!}`
+            : `${failures.length} of ${total} images failed to decode: ${list}${more}`,
+      });
+    }
   }, [dispatch, toasts]);
+
+  const onRemoveImage = useCallback(
+    (imageId: string): void => {
+      dispatch(removeFromPool(imageId));
+      // Prune the live bitmap cache alongside the pool entry (it's keyed by
+      // imageId and never otherwise pruned — a leak the moment removal exists)
+      // and release the decoded ImageBitmap's GPU/CPU memory.
+      setBitmaps((prev) => {
+        const bm = prev.get(imageId);
+        if (bm === undefined) return prev;
+        bm.close();
+        const next = new Map(prev);
+        next.delete(imageId);
+        return next;
+      });
+    },
+    [dispatch],
+  );
 
   const onDrop = useCallback(
     (ev: DropEvent): void => {
@@ -251,6 +312,9 @@ export function App(): JSX.Element {
     focusedPanel?.imageId !== undefined ? focusedPanel : undefined;
 
   const fieldCommit = useFieldCommit(history.commit, 400);
+  // Stable across renders (useCallback in the hook); depend on this — not the
+  // freshly-allocated `fieldCommit` object — in the target-change effect below.
+  const flushFieldCommit = fieldCommit.flush;
   // Single-selected anno is only meaningful for the legacy properties-panel
   // path. With > 1 in the set, PropertiesPanel routes to MultiAnnoForm
   // instead and reads `selectedAnnotationIds` directly.
@@ -278,6 +342,18 @@ export function App(): JSX.Element {
     if (!singleSelectedAnnoId.startsWith("letter:")) return undefined;
     return singleSelectedAnnoId.slice("letter:".length);
   }, [singleSelectedAnnoId]);
+
+  // 1.3: PropertiesPanel shares one debounced `fieldCommit` across every
+  // property form. Editing target A then target B inside the 400 ms window
+  // would reset the shared timer and collapse two logically separate edits
+  // into one undo step. Flush the pending commit whenever the edit target
+  // changes so each target's edits seal into their own step. We flush
+  // (rather than key the hook to the id) because unmount cleanup only clears
+  // the timer — it never fires the pending commit, silently dropping the
+  // first edit. `flush()` is a safe no-op when nothing is pending.
+  useEffect(() => {
+    flushFieldCommit();
+  }, [singleSelectedAnnoId, focusedPanelId, flushFieldCommit]);
 
   const onRotate90 = useCallback(() => {
     if (selectedImagePanel === undefined) return;
@@ -467,7 +543,7 @@ export function App(): JSX.Element {
     setCroppingPanelId(selectedImagePanel.id);
   }, [selectedImagePanel]);
 
-  const onSaveProject = useCallback(async () => {
+  const onSaveProject = useCallback(async (): Promise<boolean> => {
     const file = toMosaicFile({
       state,
       canvas: {
@@ -490,13 +566,26 @@ export function App(): JSX.Element {
           message: `Save failed: ${r.message ?? r.reason}`,
         });
       }
-      return;
+      return false;
     }
     setProjectPath(r.filePath);
+    markCleanNow();
     toasts.push({ kind: "success", message: "Project saved" });
-  }, [state, projectPath, toasts]);
+    return true;
+  }, [state, projectPath, toasts, markCleanNow]);
+
+  // Gate a destructive action (New / Open) behind a native confirm when the
+  // document is dirty. Returns true if the caller should proceed.
+  const confirmDiscardIfDirty = useCallback(async (): Promise<boolean> => {
+    if (!isDirty(stateRef.current, savedStateRef.current)) return true;
+    const choice = await window.api.confirmDiscard();
+    if (choice === "cancel") return false;
+    if (choice === "save") return onSaveProject();
+    return true; // discard
+  }, [onSaveProject]);
 
   const onOpenProject = useCallback(async () => {
+    if (!(await confirmDiscardIfDirty())) return;
     const r = await window.api.loadProject();
     if (!r.ok) {
       if (r.reason !== "canceled") {
@@ -512,6 +601,9 @@ export function App(): JSX.Element {
     setPanelInteraction(null);
     setProjectPath(r.filePath);
     setMissingImages(r.missing);
+    // The loaded project is the new clean baseline (RESET_TO_STATE lands next
+    // render, so defer the clean-mark).
+    markCleanNextRef.current = true;
     if (outcome.decodeFailures.length > 0) {
       toasts.push({
         kind: "error",
@@ -521,16 +613,19 @@ export function App(): JSX.Element {
       });
     }
     toasts.push({ kind: "success", message: "Project loaded" });
-  }, [dispatch, toasts]);
+  }, [dispatch, toasts, confirmDiscardIfDirty]);
 
-  const onNew = useCallback(() => {
+  const onNew = useCallback(async () => {
+    if (!(await confirmDiscardIfDirty())) return;
     dispatch(resetFigureAction());
     setBitmaps(new Map());
     setProjectPath(null);
     setPanelInteraction(null);
     setSelectedAnnotationIds(emptySelection());
+    // The reset figure is clean (lands next render, so defer the clean-mark).
+    markCleanNextRef.current = true;
     toasts.push({ kind: "info", message: "New figure" });
-  }, [dispatch, toasts]);
+  }, [dispatch, toasts, confirmDiscardIfDirty]);
 
   const onSaveAs = useCallback(async () => {
     setProjectPath(null);
@@ -559,6 +654,20 @@ export function App(): JSX.Element {
     onUndo: history.undo,
     onRedo: history.redo,
   });
+
+  // Window-close save flow: main shows the unsaved-changes dialog and, on
+  // "Save", pushes this event. Save, then ask main to close the now-clean
+  // window. If the save is canceled or fails, we simply don't call
+  // requestClose — the window stays open.
+  useEffect(() => {
+    return window.api.onAppEvent((ev) => {
+      if (ev === "app:before-close") {
+        void onSaveProject().then((saved) => {
+          if (saved) window.api.requestClose();
+        });
+      }
+    });
+  }, [onSaveProject]);
 
   const calibratingBitmap =
     calibratingImageId !== null ? bitmaps.get(calibratingImageId) : undefined;
@@ -672,6 +781,7 @@ export function App(): JSX.Element {
           }}
           onUnplacePanel={(panelId) => dispatch(unplacePanel(panelId))}
           onDragSourceChange={setDragSource}
+          onRemoveImage={onRemoveImage}
         />
         <section
           onClick={(e) => {
@@ -860,14 +970,18 @@ export function App(): JSX.Element {
       {missingImages.length > 0 && (
         <RelinkModal
           missing={missingImages}
-          dispatch={dispatch}
           onClose={() => setMissingImages([])}
-          onRelinked={(newBitmaps, stillMissing) => {
+          onRelinked={(resolutions, stillMissing) => {
             setBitmaps((prev) => {
               const next = new Map(prev);
-              for (const [k, v] of newBitmaps) next.set(k, v);
+              for (const r of resolutions) next.set(r.imageId, r.bitmap);
               return next;
             });
+            // Persist the new path/dims/mime into FigureState so the next save
+            // records the relinked location instead of the stale broken path.
+            for (const r of resolutions) {
+              dispatch(relinkPoolImage(r.imageId, r.patch));
+            }
             setMissingImages(stillMissing);
           }}
         />

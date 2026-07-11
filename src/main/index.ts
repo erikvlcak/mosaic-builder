@@ -2,7 +2,7 @@ import { app, BrowserWindow, dialog, ipcMain } from "electron";
 import path from "node:path";
 import { resolveWindowConfig } from "./window";
 import { installMenu } from "./menu";
-import { API_CHANNELS } from "../preload/api";
+import { API_CHANNELS, APP_EVENTS, type DiscardChoice } from "../preload/api";
 import {
   pickJpegSavePath,
   pickMosaicOpenPath,
@@ -25,6 +25,35 @@ const DEV_URL =
     : undefined;
 
 let mainWindow: BrowserWindow | null = null;
+
+// Latest dirty state pushed by the renderer (api.setDirty). Read by the
+// window `close` handler to decide whether to prompt.
+let rendererDirty = false;
+// Set true once the user has cleared the unsaved-changes gate for the current
+// close attempt (chose Don't Save, or Save completed via requestClose), so the
+// next `close` proceeds without re-prompting.
+let allowClose = false;
+
+/**
+ * Native three-choice unsaved-changes prompt. Returns the user's decision.
+ * Buttons are ordered so the default (0) is the safe "Save" and Escape maps to
+ * "Cancel".
+ */
+async function promptUnsavedChanges(
+  parent: BrowserWindow,
+): Promise<DiscardChoice> {
+  const { response } = await dialog.showMessageBox(parent, {
+    type: "warning",
+    buttons: ["Save", "Don't Save", "Cancel"],
+    defaultId: 0,
+    cancelId: 2,
+    title: "Unsaved changes",
+    message: "This figure has unsaved changes.",
+    detail: "Do you want to save them before continuing?",
+    noLink: true,
+  });
+  return response === 0 ? "save" : response === 1 ? "discard" : "cancel";
+}
 
 function createWindow(): void {
   const preloadPath = path.join(__dirname, "../preload/preload.js");
@@ -56,8 +85,28 @@ function createWindow(): void {
     void mainWindow.loadFile(indexHtml);
   }
 
+  mainWindow.on("close", (event) => {
+    if (allowClose || !rendererDirty || mainWindow === null) return;
+    // Hold the window open and ask what to do with the unsaved changes.
+    event.preventDefault();
+    const win = mainWindow;
+    void promptUnsavedChanges(win).then((choice) => {
+      if (choice === "cancel") return;
+      if (choice === "discard") {
+        allowClose = true;
+        win.destroy();
+        return;
+      }
+      // "save": ask the renderer to save; it calls requestClose() on success,
+      // which re-issues close with allowClose set.
+      win.webContents.send(APP_EVENTS.beforeClose);
+    });
+  });
+
   mainWindow.on("closed", () => {
     mainWindow = null;
+    rendererDirty = false;
+    allowClose = false;
   });
 }
 
@@ -166,6 +215,25 @@ function registerIpc(): void {
     },
   );
 
+  ipcMain.handle(API_CHANNELS.confirmDiscard, async (event) => {
+    const senderWindow = BrowserWindow.fromWebContents(event.sender);
+    if (senderWindow === null) return "discard" as DiscardChoice;
+    return promptUnsavedChanges(senderWindow);
+  });
+
+  ipcMain.on(API_CHANNELS.setDirty, (_event, dirty: boolean) => {
+    rendererDirty = dirty;
+  });
+
+  ipcMain.on(API_CHANNELS.requestClose, (event) => {
+    const senderWindow = BrowserWindow.fromWebContents(event.sender);
+    if (senderWindow === null) return;
+    // Reached only after a save triggered by the close prompt; bypass the
+    // guard so the now-clean window actually closes.
+    allowClose = true;
+    senderWindow.close();
+  });
+
   ipcMain.handle(API_CHANNELS.projectLoad, async (event) => {
     const senderWindow = BrowserWindow.fromWebContents(event.sender);
     const picked = await pickMosaicOpenPath({ parentWindow: senderWindow });
@@ -190,14 +258,25 @@ function registerIpc(): void {
   });
 }
 
-void app.whenReady().then(() => {
-  registerIpc();
-  createWindow();
+app
+  .whenReady()
+  .then(() => {
+    registerIpc();
+    createWindow();
 
-  app.on("activate", () => {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow();
+    app.on("activate", () => {
+      if (BrowserWindow.getAllWindows().length === 0) createWindow();
+    });
+  })
+  .catch((err: unknown) => {
+    // A synchronous throw during setup would otherwise fail silently. Surface
+    // it (log + native dialog) so the user isn't left with a dead app, then
+    // quit — there's no recoverable state at this point.
+    const message = err instanceof Error ? err.message : String(err);
+    console.error("Fatal error during startup:", err);
+    dialog.showErrorBox("Mosaic Builder failed to start", message);
+    app.quit();
   });
-});
 
 app.on("window-all-closed", () => {
   if (process.platform !== "darwin") app.quit();

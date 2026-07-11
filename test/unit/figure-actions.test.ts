@@ -52,6 +52,7 @@ import {
   resizeGrid,
   mergeCells,
   unmergePanelAction,
+  relinkPoolImage,
 } from "../../src/renderer/model/figure-actions";
 import {
   findPanelAt,
@@ -65,6 +66,7 @@ const IMG_A: ImagePoolItem = {
   mime: "image/png",
   width: 100,
   height: 100,
+  bitDepth: 8,
 };
 const IMG_B: ImagePoolItem = {
   id: "b",
@@ -73,6 +75,7 @@ const IMG_B: ImagePoolItem = {
   mime: "image/jpeg",
   width: 200,
   height: 100,
+  bitDepth: 8,
 };
 
 function withPool(...items: ImagePoolItem[]): FigureState {
@@ -201,6 +204,71 @@ describe("figureReducer (panel-id actions)", () => {
     s = figureReducer(s, removeFromPool("a"));
     expect(s.pool.map((i) => i.id)).toEqual(["b"]);
     expect(s.panels.find((p) => p.id === p1)?.imageId).toBeUndefined();
+  });
+
+  it("RELINK_POOL_IMAGE patches path/dims/mime by imageId, preserving order", () => {
+    let s = withPool(IMG_A, IMG_B);
+    s = figureReducer(
+      s,
+      relinkPoolImage("a", {
+        filePath: "/new/loc/a2.tif",
+        filename: "a2.tif",
+        mime: "image/tiff",
+        width: 300,
+        height: 400,
+        bitDepth: 16,
+      }),
+    );
+    const a = s.pool.find((i) => i.id === "a")!;
+    expect(a.filePath).toBe("/new/loc/a2.tif");
+    expect(a.filename).toBe("a2.tif");
+    expect(a.mime).toBe("image/tiff");
+    expect(a.width).toBe(300);
+    expect(a.height).toBe(400);
+    expect(a.bitDepth).toBe(16);
+    // Insertion order and the other item are untouched.
+    expect(s.pool.map((i) => i.id)).toEqual(["a", "b"]);
+    expect(s.pool.find((i) => i.id === "b")!.filePath).toBe("/x/b.jpg");
+  });
+
+  it("RELINK_POOL_IMAGE preserves an existing calibration (relink != recalibrate)", () => {
+    const calibrated: ImagePoolItem = {
+      ...IMG_A,
+      calibration: { unit: "um", pixelsPerUnit: 6.45, source: "manual" },
+    };
+    let s = withPool(calibrated);
+    s = figureReducer(
+      s,
+      relinkPoolImage("a", {
+        filePath: "/new/a.png",
+        filename: "a.png",
+        mime: "image/png",
+        width: 100,
+        height: 100,
+        bitDepth: 8,
+      }),
+    );
+    expect(s.pool.find((i) => i.id === "a")!.calibration).toEqual({
+      unit: "um",
+      pixelsPerUnit: 6.45,
+      source: "manual",
+    });
+  });
+
+  it("RELINK_POOL_IMAGE on an unknown id is a no-op (=== same state)", () => {
+    const s = withPool(IMG_A);
+    const next = figureReducer(
+      s,
+      relinkPoolImage("nope", {
+        filePath: "/x",
+        filename: "x",
+        mime: "image/png",
+        width: 1,
+        height: 1,
+        bitDepth: 8,
+      }),
+    );
+    expect(next).toBe(s);
   });
 
   it("UNPLACE_PANEL clears imageId and transform, leaves the pool untouched", () => {
@@ -715,7 +783,7 @@ function textAnno(id: string, panelId?: string): TextAnnotation {
     id,
     kind: "text",
     z: 0,
-    panelId,
+    ...(panelId !== undefined ? { panelId } : {}),
     x: 10,
     y: 10,
     text: "hello",
@@ -731,7 +799,7 @@ function symbolAnno(id: string, panelId?: string): SymbolAnnotation {
     id,
     kind: "symbol",
     z: 0,
-    panelId,
+    ...(panelId !== undefined ? { panelId } : {}),
     symbolId: "arrow-filled-right",
     x: 25,
     y: 25,
@@ -915,6 +983,39 @@ describe("figureReducer (M6 annotations)", () => {
     expect(s).toBe(before);
     const sb = s.annotations.find((x) => x.id === "sb1");
     expect(sb?.panelId).toBe(pid_cal);
+  });
+
+  it("UPDATE_ANNOTATION rejects unbinding a scale bar (explicit panelId: undefined) (2.6)", () => {
+    let s = withPool(IMG_CAL);
+    const pid = panelIdAt(s, 0, 0);
+    s = figureReducer(s, placeIntoPanel("cal", pid));
+    s = figureReducer(s, addAnnotation(scalebarAnno("sb1", pid)));
+    const before = s;
+    // An explicit `panelId: undefined` patch must NOT silently unbind the
+    // scalebar (would violate its always-bound invariant). No-op expected.
+    s = figureReducer(
+      s,
+      updateAnnotation("sb1", {
+        panelId: undefined,
+      } as unknown as Partial<Annotation>),
+    );
+    expect(s).toBe(before);
+    expect(s.annotations.find((x) => x.id === "sb1")?.panelId).toBe(pid);
+  });
+
+  it("UPDATE_ANNOTATION allows unbinding a text annotation (panelId: undefined) (2.6)", () => {
+    let s = initialFigureState();
+    const pid = panelIdAt(s, 0, 0);
+    s = figureReducer(s, addAnnotation(textAnno("t1", pid)));
+    expect(s.annotations[0]?.panelId).toBe(pid);
+    s = figureReducer(
+      s,
+      updateAnnotation("t1", {
+        panelId: undefined,
+      } as unknown as Partial<Annotation>),
+    );
+    // Text may be figure-global, so unbinding is valid and applied.
+    expect(s.annotations[0]?.panelId).toBeUndefined();
   });
 
   it("REMOVE_ANNOTATION filters out by id", () => {
@@ -1169,6 +1270,55 @@ describe("figureReducer (M6 annotations)", () => {
       panelId: merged.id,
     } as const);
     expect(s.letterOverrides[merged.id]).toBeUndefined();
+  });
+
+  it("RESIZE_GRID prunes annotations bound to panels that no longer exist (2.5)", () => {
+    let s = initialFigureState(); // 2x2
+    const keepPid = panelIdAt(s, 0, 0);
+    const dropPid = panelIdAt(s, 1, 1);
+    s = figureReducer(s, addAnnotation(textAnno("keep", keepPid)));
+    s = figureReducer(s, addAnnotation(symbolAnno("drop", dropPid)));
+    s = figureReducer(s, addAnnotation(textAnno("global"))); // no panelId
+    // Shrink to 1x1: only the (0,0) panel survives.
+    s = figureReducer(s, resizeGrid(1, 1));
+    const ids = s.annotations.map((a) => a.id).sort();
+    // "keep" (on surviving panel) and "global" (unbound) stay; "drop" pruned.
+    expect(ids).toEqual(["global", "keep"]);
+  });
+
+  it("MERGE_CELLS prunes annotations bound to the now-merged sub-panels (2.5)", () => {
+    let s = initialFigureState(); // 2x2
+    const a = panelIdAt(s, 0, 0);
+    const b = panelIdAt(s, 0, 1);
+    s = figureReducer(s, addAnnotation(textAnno("onA", a)));
+    s = figureReducer(s, addAnnotation(symbolAnno("onB", b)));
+    // Merge (0,0)+(0,1) — both sub-panels get replaced by one fresh id.
+    s = figureReducer(
+      s,
+      mergeCells([
+        { row: 0, col: 0 },
+        { row: 0, col: 1 },
+      ]),
+    );
+    // Both annotations were bound to ids that no longer exist → pruned.
+    expect(s.annotations).toEqual([]);
+  });
+
+  it("UNMERGE_PANEL prunes annotations bound to the old merged panel (2.5)", () => {
+    let s = initialFigureState();
+    s = figureReducer(
+      s,
+      mergeCells([
+        { row: 0, col: 0 },
+        { row: 0, col: 1 },
+      ]),
+    );
+    const merged = s.panels.find((p) => p.colSpan === 2)!;
+    s = figureReducer(s, addAnnotation(textAnno("onMerged", merged.id)));
+    expect(s.annotations).toHaveLength(1);
+    s = figureReducer(s, unmergePanelAction(merged.id));
+    // The merged id is gone; its annotation is pruned rather than dangling.
+    expect(s.annotations).toEqual([]);
   });
 
   it("REMOVE_FROM_POOL drops scale-bar annotations on affected panel; keeps text/symbol/box", () => {

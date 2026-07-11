@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { SAMPLE_FIGURE } from "../helpers/sample-figure";
 
 // OffscreenCanvas is not available in Node by default. Skip cleanly so
 // CI without a browser-like env still runs the rest of the suite.
@@ -23,11 +24,8 @@ describe.skipIf(!HAS_OFFSCREEN)("exportFigureAsJpeg", () => {
     const { exportFigureAsJpeg } = await import(
       "../../src/renderer/export/jpeg"
     );
-    const { HARDCODED_FIGURE } = await import(
-      "../../src/renderer/model/hardcoded"
-    );
 
-    const result = await exportFigureAsJpeg(HARDCODED_FIGURE, new Map(), 0.92);
+    const result = await exportFigureAsJpeg(SAMPLE_FIGURE, new Map(), 0.92);
     expect(result.ok).toBe(true);
 
     const call = exportJpeg.mock.calls[0];

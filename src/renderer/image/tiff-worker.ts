@@ -1,7 +1,11 @@
 /// <reference lib="webworker" />
 import * as UTIF from "utif";
 import type { Calibration } from "../model/pool";
-import { readCalibrationFromIFD, type UtifIfd } from "./tiff-decode";
+import { decodeTiffToRgba, type UtifLike } from "./tiff-decode";
+
+// UTIF's runtime surface matches UtifLike structurally; the cast documents the
+// dependency we inject into the pure decoder.
+const utif = UTIF as unknown as UtifLike;
 
 export interface TiffDecodeRequest {
   reqId: string;
@@ -36,19 +40,8 @@ self.onmessage = (e: MessageEvent<TiffDecodeRequest>): void => {
   const { reqId } = e.data;
   try {
     const { buffer } = e.data;
-    const ifds = UTIF.decode(buffer);
-    if (ifds.length === 0) throw new Error("no IFD");
-    const ifd0 = ifds[0]!;
-    UTIF.decodeImage(buffer, ifd0);
-    const rgba = UTIF.toRGBA8(ifd0);
-    const width = ifd0.width;
-    const height = ifd0.height;
-    const bps = (ifd0.t258 as number[] | undefined)?.[0] ?? 8;
-    const bitDepth: 8 | 16 = bps >= 16 ? 16 : 8;
-    // Intentional structural cast: UTIF.IFD carries `data: Uint8Array` and a
-    // permissive index signature; UtifIfd is our minimal subset of the tags
-    // we actually read (t258/t282/t283/t296 + width/height).
-    const calibration = readCalibrationFromIFD(ifd0 as unknown as UtifIfd);
+    const decoded = decodeTiffToRgba(buffer, utif);
+    const rgba = decoded.rgba;
     const clamped = new Uint8ClampedArray(
       rgba.buffer,
       rgba.byteOffset,
@@ -58,10 +51,12 @@ self.onmessage = (e: MessageEvent<TiffDecodeRequest>): void => {
       reqId,
       ok: true,
       rgba: clamped,
-      width,
-      height,
-      bitDepth,
-      ...(calibration !== undefined ? { calibration } : {}),
+      width: decoded.width,
+      height: decoded.height,
+      bitDepth: decoded.bitDepth,
+      ...(decoded.calibration !== undefined
+        ? { calibration: decoded.calibration }
+        : {}),
     };
     post(out, [clamped.buffer]);
   } catch (err) {

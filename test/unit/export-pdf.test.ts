@@ -6,6 +6,7 @@ import {
 } from "../../src/renderer/export/pdf";
 import { DEFAULT_GLOBAL_STYLE } from "../../src/renderer/model/global-style";
 import type { Figure } from "../../src/renderer/model/types";
+import { SAMPLE_FIGURE } from "../helpers/sample-figure";
 
 const HAS_OFFSCREEN = typeof OffscreenCanvas !== "undefined";
 
@@ -25,11 +26,8 @@ beforeEach(() => {
 describe.skipIf(!HAS_OFFSCREEN)("exportFigureAsPdf", () => {
   it("emits a PDF whose first 4 bytes are %PDF", async () => {
     const { exportFigureAsPdf } = await import("../../src/renderer/export/pdf");
-    const { HARDCODED_FIGURE } = await import(
-      "../../src/renderer/model/hardcoded"
-    );
 
-    const result = await exportFigureAsPdf(HARDCODED_FIGURE, new Map());
+    const result = await exportFigureAsPdf(SAMPLE_FIGURE, new Map());
     expect(result.ok).toBe(true);
 
     const call = exportPdf.mock.calls[0];
@@ -46,16 +44,52 @@ describe.skipIf(!HAS_OFFSCREEN)("exportFigureAsPdf", () => {
 
   it("produces non-zero bytes", async () => {
     const { exportFigureAsPdf } = await import("../../src/renderer/export/pdf");
-    const { HARDCODED_FIGURE } = await import(
-      "../../src/renderer/model/hardcoded"
-    );
 
-    await exportFigureAsPdf(HARDCODED_FIGURE, new Map());
+    await exportFigureAsPdf(SAMPLE_FIGURE, new Map());
 
     const call = exportPdf.mock.calls[0];
     expect(call).toBeDefined();
     const [bytes] = call as [Uint8Array, string];
     expect(bytes.byteLength).toBeGreaterThan(100);
+  });
+
+  it("flattens an alpha canvas background — embedded PNG has no transparency (3.4)", async () => {
+    const { exportFigureAsPdf } = await import("../../src/renderer/export/pdf");
+    const { renderFigureToOffscreen } = await import(
+      "../../src/renderer/render/export-renderer"
+    );
+    const { DEFAULT_GLOBAL_STYLE } = await import(
+      "../../src/renderer/model/global-style"
+    );
+
+    // A translucent background: #RRGGBBAA is legal per schema, and the old PDF
+    // path (renderFigureToPngBlob) preserved that alpha, so viewers composited
+    // it against black. The fixed path renders through the white-flattening
+    // renderFigureToOffscreen.
+    const figure: Figure = {
+      canvas: { widthPx: 16, heightPx: 16, background: "#3366FF80" },
+      grid: { rows: 1, cols: 1, gutterPx: 0, gutterColor: "#00000000" },
+      panels: [{ row: 0, col: 0, kind: "placeholder", label: "" }],
+      annotations: [],
+      globalStyle: DEFAULT_GLOBAL_STYLE,
+    };
+
+    const result = await exportFigureAsPdf(figure, new Map());
+    expect(result.ok).toBe(true);
+    const call = exportPdf.mock.calls[0];
+    expect(call).toBeDefined();
+    const [bytes] = call as [Uint8Array, string];
+    expect(bytes[0]).toBe(0x25); // valid %PDF
+
+    // The embedded image comes from the flattening renderer: assert that path
+    // produces a fully-opaque bitmap for this figure (no zero-alpha pixels).
+    const out = renderFigureToOffscreen(figure, new Map(), PDF_DPI);
+    const ctx = out.canvas.getContext("2d");
+    if (ctx === null) throw new Error("no ctx");
+    const data = ctx.getImageData(0, 0, out.width, out.height).data;
+    let zeroAlpha = 0;
+    for (let i = 3; i < data.length; i += 4) if (data[i] === 0) zeroAlpha++;
+    expect(zeroAlpha).toBe(0);
   });
 });
 

@@ -39,7 +39,12 @@ export async function decodeImageBytes(
     throw new Error(`decodeImageBytes: unsupported mime "${mime as string}"`);
   }
   const blob = new Blob([bytes as BlobPart], { type: mime });
-  const bitmap = await createImageBitmap(blob);
+  // Honor EXIF orientation: Chromium's default ignores the tag, so camera /
+  // microscope JPEGs with a rotation flag would display sideways, breaking
+  // pixel-WYSIWYG. No-op for PNG (no orientation metadata).
+  const bitmap = await createImageBitmap(blob, {
+    imageOrientation: "from-image",
+  });
   return { bitmap, bitDepth: 8 };
 }
 

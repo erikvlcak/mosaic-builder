@@ -3,6 +3,9 @@
   "version": "0.1.0",
   "description": "Standalone desktop app for assembling multi-panel scientific image figures.",
   "private": true,
+  "author": "Mosaic Builder contributors",
+  "license": "UNLICENSED",
+  "packageManager": "pnpm@10.18.3",
   "main": "dist-electron/main/index.js",
   "engines": {
     "node": ">=22",
@@ -11,7 +14,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
-    "typecheck": "tsc -b --pretty",
+    "typecheck": "tsc -b --pretty && tsc -p tsconfig.test.json --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
     "lint": "eslint . --max-warnings 0",

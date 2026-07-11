@@ -126,6 +126,7 @@ describe("deriveFigure", () => {
         mime: "image/png",
         width: 1,
         height: 1,
+        bitDepth: 8,
       }),
     );
     const pid = findPanelAt(s.panels, 0, 1)?.id;

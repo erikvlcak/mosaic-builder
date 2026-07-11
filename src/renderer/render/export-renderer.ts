@@ -1,6 +1,34 @@
 import type { Figure } from "../model/types";
 import type { ImagePoolItem } from "../model/pool";
-import { drawFigure } from "./draw-figure";
+import { drawFigure, type DrawCtx } from "./draw-figure";
+
+/**
+ * Paint the figure into a DrawCtx for a non-PNG export (JPEG/TIFF/PDF): fill an
+ * opaque white base first (those formats have no alpha; encoders flatten
+ * transparent pixels to black), then apply the export scale and draw the
+ * figure. Split out from `renderFigureToOffscreen` so the flatten+scale
+ * orchestration is testable against a DrawCtx recorder without a real canvas.
+ *
+ * The white fill is emitted in device-px (before scale) so it covers the whole
+ * output regardless of exportScale; the scale is applied afterward so the
+ * figure draws in editor-figure-px space.
+ */
+export function paintFlattenedFigure(
+  ctx: DrawCtx,
+  figure: Figure,
+  images: Map<string, ImageBitmap>,
+  deviceW: number,
+  deviceH: number,
+  exportScale: number,
+  pool?: Map<string, ImagePoolItem>,
+): void {
+  ctx.save();
+  ctx.fillStyle = "#FFFFFF";
+  ctx.fillRect(0, 0, deviceW, deviceH);
+  ctx.restore();
+  if (exportScale !== 1) ctx.scale(exportScale, exportScale);
+  drawFigure(ctx, figure, images, pool);
+}
 
 /**
  * Renders the figure into an OffscreenCanvas at full pixel size and
@@ -61,15 +89,7 @@ export function renderFigureToOffscreen(
   if (ctx === null) {
     throw new Error("renderFigureToOffscreen: failed to get 2D context");
   }
-  // JPEG/TIFF/PDF have no alpha channel; encoders flatten transparent
-  // pixels to black. Paint an opaque white base in canvas-px (before scale)
-  // so any alpha in the figure background composites against white instead.
-  ctx.save();
-  ctx.fillStyle = "#FFFFFF";
-  ctx.fillRect(0, 0, w, h);
-  ctx.restore();
-  if (exportScale !== 1) ctx.scale(exportScale, exportScale);
-  drawFigure(ctx, figure, images, pool);
+  paintFlattenedFigure(ctx, figure, images, w, h, exportScale, pool);
   return {
     canvas: off,
     width: w,

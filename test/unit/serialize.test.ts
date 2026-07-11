@@ -4,8 +4,13 @@ import {
   fromMosaicFile,
 } from "../../src/renderer/model/serialize";
 import { initialFigureState } from "../../src/renderer/model/figure-state";
+import {
+  figureReducer,
+  relinkPoolImage,
+} from "../../src/renderer/model/figure-actions";
 import type { ImagePoolItem } from "../../src/renderer/model/pool";
 import type {
+  MosaicFile,
   MosaicFileV1,
   V1ArrowAnnotation,
 } from "../../src/renderer/model/schema";
@@ -69,6 +74,91 @@ describe("toMosaicFile", () => {
     expect(f.state.pool[0]!.relPath).toBeUndefined();
   });
 
+  // 2.1: relPath was silently never produced on Windows because the old
+  // isPosixAbsolute check only matched "/"-rooted paths. These use a genuinely
+  // Windows-native mosaicPath (drive letter + backslashes), which the previous
+  // "different volume" test never did.
+  it("computes forward-slash relPath for a same-drive Windows path", () => {
+    const winImg: ImagePoolItem = {
+      ...SAMPLE_IMG,
+      filePath: "C:\\Users\\erik\\proj\\images\\sample.png",
+    };
+    const state = { ...initialFigureState(), pool: [winImg] };
+    const f = toMosaicFile({
+      state,
+      canvas: { widthPx: 800, heightPx: 600, background: "#FFFFFF" },
+      mosaicPath: "C:\\Users\\erik\\proj\\figure.mosaic",
+      appVersion: "0.1.0",
+      now: () => "2026-05-02T10:00:00Z",
+    });
+    // Stored relPath is always forward-slash so it round-trips on both OSes.
+    expect(f.state.pool[0]!.relPath).toBe("./images/sample.png");
+  });
+
+  it("compares Windows drive letters case-insensitively", () => {
+    const winImg: ImagePoolItem = {
+      ...SAMPLE_IMG,
+      filePath: "c:\\Users\\erik\\proj\\images\\sample.png",
+    };
+    const state = { ...initialFigureState(), pool: [winImg] };
+    const f = toMosaicFile({
+      state,
+      canvas: { widthPx: 800, heightPx: 600, background: "#FFFFFF" },
+      mosaicPath: "C:\\Users\\erik\\proj\\figure.mosaic",
+      appVersion: "0.1.0",
+      now: () => "2026-05-02T10:00:00Z",
+    });
+    expect(f.state.pool[0]!.relPath).toBe("./images/sample.png");
+  });
+
+  it("omits relPath when the image is on a different Windows drive", () => {
+    const winImg: ImagePoolItem = {
+      ...SAMPLE_IMG,
+      filePath: "D:\\media\\sample.png",
+    };
+    const state = { ...initialFigureState(), pool: [winImg] };
+    const f = toMosaicFile({
+      state,
+      canvas: { widthPx: 800, heightPx: 600, background: "#FFFFFF" },
+      mosaicPath: "C:\\Users\\erik\\proj\\figure.mosaic",
+      appVersion: "0.1.0",
+      now: () => "2026-05-02T10:00:00Z",
+    });
+    expect(f.state.pool[0]!.relPath).toBeUndefined();
+  });
+
+  it("computes relPath for UNC paths on the same share", () => {
+    const uncImg: ImagePoolItem = {
+      ...SAMPLE_IMG,
+      filePath: "\\\\nas\\lab\\proj\\images\\sample.png",
+    };
+    const state = { ...initialFigureState(), pool: [uncImg] };
+    const f = toMosaicFile({
+      state,
+      canvas: { widthPx: 800, heightPx: 600, background: "#FFFFFF" },
+      mosaicPath: "\\\\nas\\lab\\proj\\figure.mosaic",
+      appVersion: "0.1.0",
+      now: () => "2026-05-02T10:00:00Z",
+    });
+    expect(f.state.pool[0]!.relPath).toBe("./images/sample.png");
+  });
+
+  it("omits relPath across different UNC shares", () => {
+    const uncImg: ImagePoolItem = {
+      ...SAMPLE_IMG,
+      filePath: "\\\\nas\\other\\sample.png",
+    };
+    const state = { ...initialFigureState(), pool: [uncImg] };
+    const f = toMosaicFile({
+      state,
+      canvas: { widthPx: 800, heightPx: 600, background: "#FFFFFF" },
+      mosaicPath: "\\\\nas\\lab\\proj\\figure.mosaic",
+      appVersion: "0.1.0",
+      now: () => "2026-05-02T10:00:00Z",
+    });
+    expect(f.state.pool[0]!.relPath).toBeUndefined();
+  });
+
   it("attaches sha256 if provided in shaByImageId", () => {
     const state = { ...initialFigureState(), pool: [SAMPLE_IMG] };
     const f = toMosaicFile({
@@ -97,9 +187,11 @@ describe("fromMosaicFile", () => {
     expect(r.state.pool[0]!.id).toBe("img1");
     // runtime pool item has no relPath/sha256 — those are loader-side hints.
     expect(
-      (r.state.pool[0] as Record<string, unknown>).relPath,
+      (r.state.pool[0] as unknown as Record<string, unknown>).relPath,
     ).toBeUndefined();
-    expect((r.state.pool[0] as Record<string, unknown>).sha256).toBeUndefined();
+    expect(
+      (r.state.pool[0] as unknown as Record<string, unknown>).sha256,
+    ).toBeUndefined();
     expect(r.canvas.widthPx).toBe(800);
     // relink hints surfaced separately for the loader.
     expect(r.relinkHints[0]).toEqual({
@@ -108,6 +200,44 @@ describe("fromMosaicFile", () => {
       relPath: "./images/sample.png",
       sha256: "deadbeef",
     });
+  });
+});
+
+describe("relink round-trip (2.2)", () => {
+  it("a relinked image's new path is what serialize writes on the next save", () => {
+    // Simulate loading a project whose image sits at a now-broken path.
+    const broken: ImagePoolItem = {
+      ...SAMPLE_IMG,
+      filePath: "/old/gone/sample.png",
+    };
+    let state = { ...initialFigureState(), pool: [broken] };
+
+    // User relinks it to a new location (RelinkModal → relinkPoolImage).
+    state = figureReducer(
+      state,
+      relinkPoolImage("img1", {
+        filePath: "/Users/erik/proj/images/sample.png",
+        filename: "sample.png",
+        mime: "image/png",
+        width: 100,
+        height: 100,
+        bitDepth: 8,
+      }),
+    );
+
+    // The next save must record the relinked location — path AND a fresh
+    // relPath relative to the .mosaic dir — not the stale broken path.
+    const f = toMosaicFile({
+      state,
+      canvas: { widthPx: 800, heightPx: 600, background: "#FFFFFF" },
+      mosaicPath: "/Users/erik/proj/figure.mosaic",
+      appVersion: "0.1.0",
+      now: () => "2026-05-02T10:00:00Z",
+    });
+    expect(f.state.pool[0]!.filePath).toBe(
+      "/Users/erik/proj/images/sample.png",
+    );
+    expect(f.state.pool[0]!.relPath).toBe("./images/sample.png");
   });
 });
 
@@ -161,6 +291,7 @@ describe("v1 → v2 migration on fromMosaicFile", () => {
             color: "#000000",
             paddingPx: 4,
             bold: true,
+            italic: false,
             corner: "tl",
           },
           scalebar: {
@@ -175,6 +306,13 @@ describe("v1 → v2 migration on fromMosaicFile", () => {
           },
         },
         letterOverrides: {},
+        // v1 predates letterPattern/layout; loader ignores these for v1 files.
+        letterPattern: "uppercase",
+        layout: {
+          kind: "uniform",
+          colWeights: [1],
+          rowWeights: [1],
+        },
       },
     };
     const { state } = fromMosaicFile(v1);
@@ -246,6 +384,15 @@ describe("v1 → v2 migration on fromMosaicFile", () => {
         letterOverrides: {
           p1: "A1",
         } as unknown as MosaicFileV1["state"]["letterOverrides"],
+        // v1 files predate letterPattern/layout; the loader ignores these for
+        // schemaVersion 1 (see fromMosaicFile), so they're present only to
+        // satisfy the FigureState-derived type.
+        letterPattern: "uppercase",
+        layout: {
+          kind: "uniform",
+          colWeights: [1],
+          rowWeights: [1],
+        },
       },
     };
     const { state } = fromMosaicFile(v1);
@@ -348,9 +495,11 @@ describe("serialize — layout v5 (spec 11 carried into v5)", () => {
         },
         letterOverrides: {},
         letterPattern: "uppercase" as const,
+        // Intentionally no `layout`: v3 files predate spec-11 layout, and this
+        // test verifies the loader seeds a uniform layout on read.
       },
     };
-    const r = fromMosaicFile(v3);
+    const r = fromMosaicFile(v3 as unknown as MosaicFile);
     expect(r.state.layout.kind).toBe("uniform");
     if (r.state.layout.kind !== "uniform") throw new Error("unreachable");
     expect(r.state.layout.colWeights.length).toBe(2);

@@ -52,9 +52,9 @@ function makeRecorder(): DrawCtx & { calls: Call[] } {
     measureText(text: string) {
       return { width: text.length * 8 };
     },
-    drawImage(...args) {
+    drawImage: ((...args: unknown[]) => {
       calls.push(snapshot("drawImage", args));
-    },
+    }) as DrawCtx["drawImage"],
     save() {
       calls.push(snapshot("save", []));
     },

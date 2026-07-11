@@ -41,7 +41,7 @@ export interface ToMosaicInput {
 
 export function toMosaicFile(inp: ToMosaicInput): MosaicFileV5 {
   const now = inp.now ?? (() => new Date().toISOString());
-  const baseDir = posixDirname(inp.mosaicPath);
+  const baseDir = pathDirname(inp.mosaicPath);
   const stamp = now();
 
   const pool = inp.state.pool.map((item) => {
@@ -157,35 +157,96 @@ function migrateLetterOverridesV2ToV3(
   return out;
 }
 
-function isPosixAbsolute(p: string): boolean {
-  return p.startsWith("/");
-}
-
-function posixDirname(p: string): string {
-  const i = p.lastIndexOf("/");
-  if (i < 0) return ".";
-  if (i === 0) return "/";
-  return p.slice(0, i);
+/**
+ * A parsed absolute path split into its volume `root` and its `parts`.
+ *
+ * `root` is the volume identity used to decide whether two paths live on the
+ * same volume: `"/"` for POSIX, a lower-cased drive prefix like `"c:"` for
+ * Windows drive paths, or `"//server/share"` for UNC. Comparing roots for
+ * equality answers "same volume?" — a different drive or share yields no
+ * relative path.
+ */
+interface ParsedPath {
+  root: string;
+  parts: string[];
 }
 
 /**
- * Compute a posix-form relative path from `fromDir` to `toFile`, or null
- * if either path isn't posix-absolute. The returned path always begins with
- * "./" or "../" so it's unambiguously relative.
+ * Parse a POSIX or Windows absolute path, or return null if it isn't absolute.
+ * Separators (`/` and `\`) are treated interchangeably so the same code path
+ * serves both platforms; drive letters compare case-insensitively (Windows
+ * treats `C:` and `c:` as one volume). Recognized absolute forms:
+ *   - POSIX:        /a/b/c
+ *   - Windows drive: C:\a\b  or  C:/a/b
+ *   - UNC:          \\server\share\a  or  //server/share/a
+ */
+function parseAbsolute(p: string): ParsedPath | null {
+  // UNC: \\server\share\... — the server+share pair is the volume root.
+  const unc = /^[\\/]{2}([^\\/]+)[\\/]+([^\\/]+)(.*)$/.exec(p);
+  if (unc !== null) {
+    const [, server, share, rest] = unc;
+    return {
+      root: `//${server!.toLowerCase()}/${share!.toLowerCase()}`,
+      parts: splitSegments(rest!),
+    };
+  }
+  // Windows drive: C:\... or C:/...
+  const drive = /^([A-Za-z]):[\\/](.*)$/.exec(p);
+  if (drive !== null) {
+    const [, letter, rest] = drive;
+    return { root: `${letter!.toLowerCase()}:`, parts: splitSegments(rest!) };
+  }
+  // POSIX absolute.
+  if (p.startsWith("/")) {
+    return { root: "/", parts: splitSegments(p) };
+  }
+  return null;
+}
+
+function splitSegments(p: string): string[] {
+  return p.split(/[\\/]+/).filter((s) => s.length > 0);
+}
+
+/**
+ * Directory portion of an absolute path, preserving the original volume root.
+ * Falls back to `"."` for non-absolute inputs (unreachable for save paths,
+ * which always come from a native dialog).
+ */
+function pathDirname(p: string): string {
+  const parsed = parseAbsolute(p);
+  if (parsed === null) return ".";
+  const dirParts = parsed.parts.slice(0, -1);
+  return joinFromRoot(parsed.root, dirParts);
+}
+
+function joinFromRoot(root: string, parts: string[]): string {
+  if (root === "/") return `/${parts.join("/")}`;
+  // Drive (`c:`) and UNC (`//server/share`) roots are followed by a separator.
+  return `${root}/${parts.join("/")}`;
+}
+
+/**
+ * Compute a forward-slash relative path from `fromDir` to `toFile`, or null if
+ * either path isn't absolute or the two sit on different volumes (different
+ * drive letter / UNC share). The result always begins with "./" or "../" so
+ * it's unambiguously relative, and always uses "/" so the stored `.mosaic`
+ * form is portable (Node's `path.resolve` reads it back on both platforms).
  */
 function posixRelative(fromDir: string, toFile: string): string | null {
-  if (!isPosixAbsolute(fromDir) || !isPosixAbsolute(toFile)) return null;
-  const fromParts = fromDir.split("/").filter((s) => s.length > 0);
-  const toParts = toFile.split("/").filter((s) => s.length > 0);
+  const from = parseAbsolute(fromDir);
+  const to = parseAbsolute(toFile);
+  if (from === null || to === null) return null;
+  // Different volume → no meaningful relative path.
+  if (from.root !== to.root) return null;
   let i = 0;
   while (
-    i < fromParts.length &&
-    i < toParts.length &&
-    fromParts[i] === toParts[i]
+    i < from.parts.length &&
+    i < to.parts.length &&
+    from.parts[i] === to.parts[i]
   )
     i++;
-  const ups = fromParts.slice(i).map(() => "..");
-  const downs = toParts.slice(i);
+  const ups = from.parts.slice(i).map(() => "..");
+  const downs = to.parts.slice(i);
   const segs = [...ups, ...downs];
   if (segs.length === 0) return null;
   const joined = segs.join("/");

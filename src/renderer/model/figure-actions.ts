@@ -32,6 +32,22 @@ import {
   type GridLayout,
 } from "./grid-layout";
 
+/**
+ * Fields refreshed when an image is relinked to a new file on disk. The new
+ * file may differ from the original (re-exported, different format), so path,
+ * dimensions, mime and bit depth are all replaced. Calibration is deliberately
+ * NOT part of the patch — a user's manual calibration or the original TIFF's
+ * embedded calibration should survive a relink, not be silently reset.
+ */
+export interface RelinkPatch {
+  filePath: string;
+  filename: string;
+  mime: ImagePoolItem["mime"];
+  width: number;
+  height: number;
+  bitDepth: ImagePoolItem["bitDepth"];
+}
+
 export type FigureAction =
   | { type: "ADD_TO_POOL"; item: ImagePoolItem }
   | { type: "PLACE_INTO_PANEL"; imageId: string; panelId: string }
@@ -39,6 +55,7 @@ export type FigureAction =
   | { type: "REPLACE_INTO_PANEL"; imageId: string; panelId: string }
   | { type: "UNPLACE_PANEL"; panelId: string }
   | { type: "REMOVE_FROM_POOL"; imageId: string }
+  | { type: "RELINK_POOL_IMAGE"; imageId: string; patch: RelinkPatch }
   | { type: "RESIZE_GRID"; rows: number; cols: number }
   | { type: "SET_GUTTER_PX"; gutterPx: number }
   | { type: "SET_GUTTER_COLOR"; gutterColor: string }
@@ -121,6 +138,10 @@ export const removeFromPool = (imageId: string): FigureAction => ({
   type: "REMOVE_FROM_POOL",
   imageId,
 });
+export const relinkPoolImage = (
+  imageId: string,
+  patch: RelinkPatch,
+): FigureAction => ({ type: "RELINK_POOL_IMAGE", imageId, patch });
 export const unplacePanel = (panelId: string): FigureAction => ({
   type: "UNPLACE_PANEL",
   panelId,
@@ -365,6 +386,15 @@ export function figureReducer(s: FigureState, a: FigureAction): FigureState {
       return { ...s, pool: [...s.pool, a.item] };
     }
 
+    case "RELINK_POOL_IMAGE": {
+      const idx = s.pool.findIndex((p) => p.id === a.imageId);
+      if (idx < 0) return s;
+      const pool = s.pool.map((p) =>
+        p.id === a.imageId ? { ...p, ...a.patch } : p,
+      );
+      return { ...s, pool };
+    }
+
     case "PLACE_INTO_PANEL": {
       if (!isImageInPool(s, a.imageId)) return s;
       if (isImagePlaced(s.panels, a.imageId)) return s;
@@ -502,6 +532,7 @@ export function figureReducer(s: FigureState, a: FigureAction): FigureState {
       // Released imageIds simply stay in the pool unplaced — no pool mutation.
       const keptPanelIds = new Set(r.panels.map((p) => p.id));
       const letterOverrides = filterOverrides(s.letterOverrides, keptPanelIds);
+      const annotations = pruneDanglingAnnotations(s.annotations, keptPanelIds);
       // Resizing the grid invalidates per-track weights (length changes) and
       // any free-form rects (some panels may not exist in the new dims).
       // Easiest correct behavior: revert to a uniform layout.
@@ -511,6 +542,7 @@ export function figureReducer(s: FigureState, a: FigureAction): FigureState {
         cols,
         panels: r.panels,
         letterOverrides,
+        annotations,
         layout: uniformLayoutFor(rows, cols),
       };
     }
@@ -559,12 +591,14 @@ export function figureReducer(s: FigureState, a: FigureAction): FigureState {
           letterOverrides = { ...letterOverrides, [merged.id]: tlOverride };
         }
       }
+      const annotations = pruneDanglingAnnotations(s.annotations, keptPanelIds);
       // Merge mints a fresh panel id; any free-form rects keyed by old ids
       // would dangle. Reverting to uniform is simpler than rect surgery.
       return {
         ...s,
         panels: nextPanels,
         letterOverrides,
+        annotations,
         layout: uniformLayoutFor(s.rows, s.cols),
       };
     }
@@ -573,12 +607,17 @@ export function figureReducer(s: FigureState, a: FigureAction): FigureState {
       const next = unmergePanel(s.panels, a.panelId);
       if (next === s.panels) return s;
       const letterOverrides = deleteOverride(s.letterOverrides, a.panelId);
+      // unmergePanel replaces the merged panel with fresh 1x1 cells, so any
+      // annotation bound to the old merged id now dangles.
+      const keptPanelIds = new Set(next.map((p) => p.id));
+      const annotations = pruneDanglingAnnotations(s.annotations, keptPanelIds);
       // Same rationale as MERGE_CELLS: unmerged panels have fresh ids; revert
       // to uniform.
       return {
         ...s,
         panels: next,
         letterOverrides,
+        annotations,
         layout: uniformLayoutFor(s.rows, s.cols),
       };
     }
@@ -770,15 +809,24 @@ export function figureReducer(s: FigureState, a: FigureAction): FigureState {
         id?: string;
         kind?: AnnotationKind;
       };
-      // If the patch references a panelId, that panel must exist.
-      if (typeof rest.panelId === "string") {
-        const panel = findPanelById(s.panels, rest.panelId);
-        if (panel === undefined) return s;
-        // Scale bars require the new target panel to also have a calibrated image.
-        if (existing.kind === "scalebar") {
-          if (panel.imageId === undefined) return s;
-          const img = s.pool.find((p) => p.id === panel.imageId);
-          if (img === undefined || img.calibration === undefined) return s;
+      // Validate any panelId change. Use `in` (not `typeof === "string"`) so an
+      // explicit `panelId: undefined` in the patch is validated too — otherwise
+      // the spread below would silently unbind the annotation while skipping
+      // every check, which for a scalebar violates its "always bound" invariant.
+      if ("panelId" in rest) {
+        if (rest.panelId === undefined) {
+          // Unbinding: forbidden for scale bars (they require a calibrated
+          // panel). Harmless for text/symbol, which may be figure-global.
+          if (existing.kind === "scalebar") return s;
+        } else {
+          const panel = findPanelById(s.panels, rest.panelId);
+          if (panel === undefined) return s;
+          // Scale bars require the new target panel to also have a calibrated image.
+          if (existing.kind === "scalebar") {
+            if (panel.imageId === undefined) return s;
+            const img = s.pool.find((p) => p.id === panel.imageId);
+            if (img === undefined || img.calibration === undefined) return s;
+          }
         }
       }
       const merged = { ...existing, ...rest } as Annotation;
@@ -942,8 +990,9 @@ export function figureReducer(s: FigureState, a: FigureAction): FigureState {
       // to this panel (text/symbol/box keyed by panelId, plus scale bars
       // — though scale bars require an image and so won't appear here).
       const letterOverrides = deleteOverride(s.letterOverrides, a.panelId);
-      const annotations = s.annotations.filter(
-        (an) => an.panelId !== a.panelId,
+      const annotations = pruneDanglingAnnotations(
+        s.annotations,
+        new Set(panels.map((p) => p.id)),
       );
       // Drop the deleted panel's rect entry from a free layout; uniform
       // layouts don't need touching.
@@ -1116,6 +1165,27 @@ function isHexColor(s: string): boolean {
  * Return a fresh letterOverrides object containing only entries whose key
  * is in `keepIds`. Always allocates a new object.
  */
+/**
+ * Drop annotations anchored to a panel that no longer exists. Annotations with
+ * no `panelId` (figure-global text/symbols) are always kept — only panel-bound
+ * ones are checked against the live panel set. Returns the same array
+ * reference when nothing is pruned, preserving the reducer's ===-on-no-op
+ * contract. `deriveFigure` already hides danglers at render time; pruning here
+ * keeps them out of the serialized .mosaic file, where they would otherwise
+ * accumulate across every grid edit.
+ */
+function pruneDanglingAnnotations(
+  annotations: readonly Annotation[],
+  keepPanelIds: Set<string>,
+): Annotation[] {
+  const kept = annotations.filter(
+    (an) => an.panelId === undefined || keepPanelIds.has(an.panelId),
+  );
+  return kept.length === annotations.length
+    ? (annotations as Annotation[])
+    : kept;
+}
+
 function filterOverrides(
   overrides: Record<string, LetterOverride>,
   keepIds: Set<string>,

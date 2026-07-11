@@ -139,7 +139,8 @@ Key modules (all under `src/renderer/`):
 - **`export/{png,jpeg,tiff,pdf}.ts`** — all four route through one
   OffscreenCanvas pipeline. PNG/TIFF/PDF are byte-faithful to the figure
   canvas; JPEG is opt-in lossy. PDF pages are sized to physical dimensions
-  at 300 dpi (`pdf-lib`).
+  at `PDF_DPI = 160` (`pdf-lib`; see
+  `docs/superpowers/specs/2026-05-08-qa-feedback/04-fix-pdf-export.md`).
 
 ### UI vs domain state
 

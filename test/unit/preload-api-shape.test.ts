@@ -34,6 +34,11 @@ describe("preload API contract", () => {
       saveProject: () =>
         Promise.resolve({ ok: true, filePath: "/tmp/x.mosaic" }),
       loadProject: () => Promise.resolve({ ok: false, reason: "canceled" }),
+      onMenuEvent: () => () => {},
+      confirmDiscard: () => Promise.resolve("cancel"),
+      setDirty: () => {},
+      requestClose: () => {},
+      onAppEvent: () => () => {},
     };
     expect(typeof fake.ping).toBe("function");
     expect(typeof fake.exportPng).toBe("function");
