@@ -1,5 +1,15 @@
 # Full-resolution canvas — design
 
+> **Implementation status (annotated 2026-07-11).** Partially shipped, by
+> design. The **export** path achieves full source resolution via the
+> `exportScale` parameter on `renderFigureToOffscreen` / `renderFigureToPngBlob`
+> (PNG/JPEG/TIFF/PDF), so exports are no longer capped at the editor's backing
+> store. The **editor** canvas remains fixed at `FIGURE_PX_W/H = 800×600` in
+> `src/renderer/App.tsx` — the "editor stays fixed-size; export-time scaling
+> preserves source pixels" decision. So the "full source resolution in the
+> in-app preview" goal below was intentionally NOT adopted; only the export
+> half was. (Also note: `PDF_DPI` is `160`, not the `300` this spec cites.)
+
 ## Problem
 
 The figure's pixel canvas is hardcoded at 800×600 in `src/renderer/App.tsx`
@@ -39,7 +49,7 @@ Export — must be byte-faithful w.r.t. the figure canvas pixels:
   scope here.
 - **PDF**: embeds a PNG at full canvas dims. Lossless. Already correct.
   Note: with a much larger canvas, the PDF page size in points grows
-  proportionally (`PDF_DPI = 300` is preserved). That's intentional — the
+  proportionally (`PDF_DPI = 160` is preserved). That's intentional — the
   PDF still contains all the pixels; it just describes a physically
   larger page.
 - **JPEG**: JPEG is lossy by format. Kept in the export menu with the
