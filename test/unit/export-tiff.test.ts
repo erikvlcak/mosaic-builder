@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { SAMPLE_FIGURE } from "../helpers/sample-figure";
 
 const HAS_OFFSCREEN = typeof OffscreenCanvas !== "undefined";
 
@@ -20,11 +21,8 @@ describe.skipIf(!HAS_OFFSCREEN)("exportFigureAsTiff", () => {
     const { exportFigureAsTiff } = await import(
       "../../src/renderer/export/tiff"
     );
-    const { HARDCODED_FIGURE } = await import(
-      "../../src/renderer/model/hardcoded"
-    );
 
-    const result = await exportFigureAsTiff(HARDCODED_FIGURE, new Map(), 300);
+    const result = await exportFigureAsTiff(SAMPLE_FIGURE, new Map(), 300);
     expect(result.ok).toBe(true);
 
     const call = exportTiff.mock.calls[0];
@@ -39,11 +37,8 @@ describe.skipIf(!HAS_OFFSCREEN)("exportFigureAsTiff", () => {
     const { exportFigureAsTiff } = await import(
       "../../src/renderer/export/tiff"
     );
-    const { HARDCODED_FIGURE } = await import(
-      "../../src/renderer/model/hardcoded"
-    );
 
-    await exportFigureAsTiff(HARDCODED_FIGURE, new Map(), 300);
+    await exportFigureAsTiff(SAMPLE_FIGURE, new Map(), 300);
 
     const call = exportTiff.mock.calls[0];
     expect(call).toBeDefined();

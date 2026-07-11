@@ -1,15 +1,15 @@
-import type { Figure } from "./types";
-import { DEFAULT_TRANSFORM } from "./panels";
-import { DEFAULT_GLOBAL_STYLE } from "./global-style";
+import type { Figure } from "../../src/renderer/model/types";
+import { DEFAULT_TRANSFORM } from "../../src/renderer/model/panels";
+import { DEFAULT_GLOBAL_STYLE } from "../../src/renderer/model/global-style";
 
-export const SAMPLE_IMAGE_URL = "/fixtures/sample.png";
 export const SAMPLE_IMAGE_ID = "sample";
 
 /**
- * The single, hard-coded figure rendered in M2. M3 replaces this with
- * a real, drag-driven image pool + grid state.
+ * A small, self-contained figure used by the (OffscreenCanvas-gated) export
+ * tests. Lives under test/ rather than src/ — it was the M2 milestone's
+ * hard-coded figure and is no longer referenced by any production code.
  */
-export const HARDCODED_FIGURE: Figure = {
+export const SAMPLE_FIGURE: Figure = {
   canvas: { widthPx: 800, heightPx: 600, background: "#FFFFFF" },
   grid: { rows: 2, cols: 2, gutterPx: 12, gutterColor: "#FFFFFF" },
   panels: [

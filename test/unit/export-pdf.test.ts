@@ -6,6 +6,7 @@ import {
 } from "../../src/renderer/export/pdf";
 import { DEFAULT_GLOBAL_STYLE } from "../../src/renderer/model/global-style";
 import type { Figure } from "../../src/renderer/model/types";
+import { SAMPLE_FIGURE } from "../helpers/sample-figure";
 
 const HAS_OFFSCREEN = typeof OffscreenCanvas !== "undefined";
 
@@ -25,11 +26,8 @@ beforeEach(() => {
 describe.skipIf(!HAS_OFFSCREEN)("exportFigureAsPdf", () => {
   it("emits a PDF whose first 4 bytes are %PDF", async () => {
     const { exportFigureAsPdf } = await import("../../src/renderer/export/pdf");
-    const { HARDCODED_FIGURE } = await import(
-      "../../src/renderer/model/hardcoded"
-    );
 
-    const result = await exportFigureAsPdf(HARDCODED_FIGURE, new Map());
+    const result = await exportFigureAsPdf(SAMPLE_FIGURE, new Map());
     expect(result.ok).toBe(true);
 
     const call = exportPdf.mock.calls[0];
@@ -46,11 +44,8 @@ describe.skipIf(!HAS_OFFSCREEN)("exportFigureAsPdf", () => {
 
   it("produces non-zero bytes", async () => {
     const { exportFigureAsPdf } = await import("../../src/renderer/export/pdf");
-    const { HARDCODED_FIGURE } = await import(
-      "../../src/renderer/model/hardcoded"
-    );
 
-    await exportFigureAsPdf(HARDCODED_FIGURE, new Map());
+    await exportFigureAsPdf(SAMPLE_FIGURE, new Map());
 
     const call = exportPdf.mock.calls[0];
     expect(call).toBeDefined();

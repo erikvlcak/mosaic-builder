@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { SAMPLE_FIGURE } from "../helpers/sample-figure";
 
 // OffscreenCanvas is not available in Node by default. Skip cleanly so
 // CI without a browser-like env still runs the rest of the suite.
@@ -9,10 +10,8 @@ describe.skipIf(!HAS_OFFSCREEN)("renderFigureToPngBlob", () => {
     const { renderFigureToPngBlob } = await import(
       "../../src/renderer/render/export-renderer"
     );
-    const figure = (await import("../../src/renderer/model/hardcoded"))
-      .HARDCODED_FIGURE;
 
-    const blob = await renderFigureToPngBlob(figure, new Map());
+    const blob = await renderFigureToPngBlob(SAMPLE_FIGURE, new Map());
     expect(blob.type).toBe("image/png");
     expect(blob.size).toBeGreaterThan(0);
   });
