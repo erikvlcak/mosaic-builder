@@ -553,6 +553,7 @@ body {
 }
 
 .thumb {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -563,6 +564,32 @@ body {
   transition:
     background var(--t-fast),
     border-color var(--t-fast);
+}
+.thumb-remove {
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  font-size: 14px;
+  color: var(--c-text-muted);
+  background: var(--c-surface-sunken);
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-sm);
+  cursor: pointer;
+}
+.thumb:hover .thumb-remove,
+.thumb-remove:focus-visible {
+  display: inline-flex;
+}
+.thumb-remove:hover {
+  color: var(--c-danger);
+  border-color: var(--c-danger);
 }
 .thumb--draggable {
   cursor: grab;

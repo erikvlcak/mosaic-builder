@@ -12,6 +12,8 @@ interface Props {
   placed: boolean;
   /** Reports tray drag start/end so the drop-ghost layer can preview. */
   onDragSourceChange?: (src: DragPayload | null) => void;
+  /** Remove this image from the pool. Shown as a hover × on unplaced thumbs. */
+  onRemove?: (imageId: string) => void;
 }
 
 const SIZE = 56;
@@ -25,6 +27,7 @@ export function Thumbnail({
   bitmap,
   placed,
   onDragSourceChange,
+  onRemove,
 }: Props): JSX.Element {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
@@ -79,6 +82,24 @@ export function Thumbnail({
         <div className="thumb-name">{item.filename}</div>
         <div className="thumb-sub">{formatSize(item)}</div>
       </div>
+      {onRemove !== undefined && (
+        <button
+          type="button"
+          className="thumb-remove"
+          aria-label={`Remove ${item.filename}`}
+          title="Remove from tray"
+          data-testid={`thumb-remove-${item.id}`}
+          // Don't let the click start a drag or bubble to the thumbnail.
+          draggable={false}
+          onDragStart={(e) => e.preventDefault()}
+          onClick={(e) => {
+            e.stopPropagation();
+            onRemove(item.id);
+          }}
+        >
+          ×
+        </button>
+      )}
     </div>
   );
 }

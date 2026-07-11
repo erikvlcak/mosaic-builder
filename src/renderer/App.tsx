@@ -62,6 +62,7 @@ import {
   resizePanelFreeformAction,
   resetToUniformGridAction,
   relinkPoolImage,
+  removeFromPool,
 } from "./model/figure-actions";
 import { useHistoryReducer } from "./state/use-history-reducer";
 import { isDirty } from "./state/dirty";
@@ -251,6 +252,24 @@ export function App(): JSX.Element {
       });
     }
   }, [dispatch, toasts]);
+
+  const onRemoveImage = useCallback(
+    (imageId: string): void => {
+      dispatch(removeFromPool(imageId));
+      // Prune the live bitmap cache alongside the pool entry (it's keyed by
+      // imageId and never otherwise pruned — a leak the moment removal exists)
+      // and release the decoded ImageBitmap's GPU/CPU memory.
+      setBitmaps((prev) => {
+        const bm = prev.get(imageId);
+        if (bm === undefined) return prev;
+        bm.close();
+        const next = new Map(prev);
+        next.delete(imageId);
+        return next;
+      });
+    },
+    [dispatch],
+  );
 
   const onDrop = useCallback(
     (ev: DropEvent): void => {
@@ -762,6 +781,7 @@ export function App(): JSX.Element {
           }}
           onUnplacePanel={(panelId) => dispatch(unplacePanel(panelId))}
           onDragSourceChange={setDragSource}
+          onRemoveImage={onRemoveImage}
         />
         <section
           onClick={(e) => {
