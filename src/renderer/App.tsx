@@ -62,7 +62,9 @@ import {
   resetToUniformGridAction,
   relinkPoolImage,
   removeFromPool,
+  addAnnotation,
 } from "./model/figure-actions";
+import type { ScaleBarAnnotation } from "./model/annotations";
 import { useHistoryReducer } from "./state/use-history-reducer";
 import { isDirty } from "./state/dirty";
 import { applyLoadedProject } from "./state/load-project";
@@ -77,6 +79,7 @@ import { useMergeSelection } from "./hooks/useMergeSelection";
 import { useFieldCommit } from "./hooks/useFieldCommit";
 import { useKeyboardShortcuts } from "./hooks/useKeyboardShortcuts";
 import { useMenuEvents } from "./hooks/useMenuEvents";
+import { useFigureExport } from "./hooks/useFigureExport";
 import { toMosaicFile } from "./model/serialize";
 import { APP_VERSION } from "./app-version";
 import { useToasts } from "./hooks/useToasts";
@@ -87,6 +90,9 @@ const CANVAS_CSS_W = 800;
 const CANVAS_CSS_H = 600;
 const FIGURE_PX_W = 800;
 const FIGURE_PX_H = 600;
+// Matches the interaction layer's Z_SCALEBAR — scale bars sit above other
+// annotations so they can't be hidden behind them.
+const Z_SCALEBAR = 10;
 
 function basename(p: string): string {
   const ix = Math.max(p.lastIndexOf("/"), p.lastIndexOf("\\"));
@@ -123,11 +129,19 @@ export function App(): JSX.Element {
   const [calibratingImageId, setCalibratingImageId] = useState<string | null>(
     null,
   );
+  // Guided scale-bar flow: the panel awaiting a scale bar once its image is
+  // calibrated (set when the scale tool clicks an uncalibrated panel).
+  const [pendingScalebarPanelId, setPendingScalebarPanelId] = useState<
+    string | null
+  >(null);
   const [croppingPanelId, setCroppingPanelId] = useState<string | null>(null);
   const [annotationEditing, setAnnotationEditing] = useState<boolean>(false);
   // Click-to-place: the unplaced tray image armed for placement. Session-only
   // UI state — never promoted into FigureState (mirrors PanelInteraction).
   const [selectedThumbId, setSelectedThumbId] = useState<string | null>(null);
+  // JPEG export quality — session-only; shared by the toolbar menu slider and
+  // the native-menu JPEG export (which uses the current stored value).
+  const [jpegQuality, setJpegQuality] = useState(0.92);
   const stateRef = useRef<FigureState>(state);
   stateRef.current = state;
 
@@ -551,6 +565,20 @@ export function App(): JSX.Element {
     return m;
   }, [state.pool]);
 
+  // One export hook shared by the toolbar menu AND the native menu-bar Export
+  // items, so both call the same code and both report via toasts.
+  const figureExport = useFigureExport({
+    figure,
+    images: bitmaps,
+    pool: imagesByIdMemo,
+    poolList: state.pool,
+    rows: state.rows,
+    cols: state.cols,
+    gutterPx: state.gutterPx,
+    jpegQuality,
+    pushToast: toasts.push,
+  });
+
   // Compute the focused panel's rect once for the interaction layer.
   const focusedPanelRect = useMemo(() => {
     if (selectedImagePanel === undefined) return null;
@@ -566,6 +594,40 @@ export function App(): JSX.Element {
     if (selectedImagePanel?.imageId === undefined) return;
     setCalibratingImageId(selectedImagePanel.imageId);
   }, [selectedImagePanel]);
+
+  // Scale tool clicked an uncalibrated panel: open the calibration modal for
+  // its image and remember the panel so we can place the bar on success.
+  const onRequestCalibration = useCallback(
+    (imageId: string, panelId: string) => {
+      setPendingScalebarPanelId(panelId);
+      setCalibratingImageId(imageId);
+    },
+    [],
+  );
+
+  // Calibration succeeded — if it was triggered by the scale tool, place the
+  // scale bar the user originally asked for into the stashed panel.
+  const onScalebarCalibrated = useCallback(() => {
+    if (pendingScalebarPanelId === null) return;
+    const panelId = pendingScalebarPanelId;
+    setPendingScalebarPanelId(null);
+    const panel = stateRef.current.panels.find((p) => p.id === panelId);
+    if (panel === undefined || panel.imageId === undefined) return;
+    const bar: ScaleBarAnnotation = {
+      id: crypto.randomUUID(),
+      kind: "scalebar",
+      z: Z_SCALEBAR,
+      panelId,
+      imageId: panel.imageId,
+      lengthValue: defaultScalebarStyle.lengthValue,
+      lengthUnit: defaultScalebarStyle.lengthUnit,
+      ...(defaultScalebarStyle.cornerOverride !== undefined
+        ? { cornerOverride: defaultScalebarStyle.cornerOverride }
+        : {}),
+    };
+    dispatch(addAnnotation(bar));
+    history.commit();
+  }, [pendingScalebarPanelId, defaultScalebarStyle, dispatch, history]);
 
   const onCrop = useCallback(() => {
     if (selectedImagePanel?.imageId === undefined) return;
@@ -666,20 +728,10 @@ export function App(): JSX.Element {
     onOpen: onOpenProject,
     onSave: onSaveProject,
     onSaveAs,
-    onExportPng: () =>
-      toasts.push({ kind: "info", message: "Use Export → PNG in the toolbar" }),
-    onExportJpeg: () =>
-      toasts.push({
-        kind: "info",
-        message: "Use Export → JPEG in the toolbar",
-      }),
-    onExportTiff: () =>
-      toasts.push({
-        kind: "info",
-        message: "Use Export → TIFF in the toolbar",
-      }),
-    onExportPdf: () =>
-      toasts.push({ kind: "info", message: "Use Export → PDF in the toolbar" }),
+    onExportPng: () => void figureExport.runPng(),
+    onExportJpeg: () => void figureExport.runJpeg(),
+    onExportTiff: () => void figureExport.runTiff(),
+    onExportPdf: () => void figureExport.runPdf(),
     onUndo: history.undo,
     onRedo: history.redo,
   });
@@ -738,12 +790,14 @@ export function App(): JSX.Element {
         <div className="app-bar-right">
           <ExportMenu
             figure={figure}
-            images={bitmaps}
-            pool={imagesByIdMemo}
-            poolList={state.pool}
-            rows={state.rows}
-            cols={state.cols}
-            gutterPx={state.gutterPx}
+            exportScale={figureExport.exportScale}
+            status={figureExport.status}
+            jpegQuality={jpegQuality}
+            onJpegQualityChange={setJpegQuality}
+            runPng={figureExport.runPng}
+            runJpeg={figureExport.runJpeg}
+            runTiff={figureExport.runTiff}
+            runPdf={figureExport.runPdf}
           />
         </div>
       </div>
@@ -917,6 +971,7 @@ export function App(): JSX.Element {
               onPanelDoubleClick={onPanelDoubleClick}
               onPanelClick={onPanelSingleClick}
               onHoleClick={onHoleClick}
+              onRequestCalibration={onRequestCalibration}
               {...(() => {
                 const sid = selectedIdOf(panelInteraction);
                 return sid !== null ? { selectedPanelId: sid } : {};
@@ -972,7 +1027,13 @@ export function App(): JSX.Element {
         <CalibrationModal
           bitmap={calibratingBitmap}
           imageId={calibratingImageId}
-          onClose={() => setCalibratingImageId(null)}
+          onClose={() => {
+            setCalibratingImageId(null);
+            // Cancelled (or after success) — drop any pending scale-bar
+            // placement so a later unrelated calibration won't place a bar.
+            setPendingScalebarPanelId(null);
+          }}
+          onCalibrated={onScalebarCalibrated}
           dispatch={dispatch}
         />
       )}

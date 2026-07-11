@@ -252,10 +252,21 @@ export function PropertiesPanel({
     // and is edited via the global-style form, so it is not duplicated here.
     title = "Scale bar";
     subtitle = "Set length — click a calibrated panel";
+    // Calibration status: how many placed images can take a scale bar today.
+    const calById = new Map(state.pool.map((p) => [p.id, p.calibration]));
+    const placedImageIds = state.panels
+      .map((p) => p.imageId)
+      .filter((id): id is string => id !== undefined);
+    const placedCount = placedImageIds.length;
+    const calibratedCount = placedImageIds.filter(
+      (id) => calById.get(id) !== undefined,
+    ).length;
     body = (
       <ScalebarPickerPanel
         value={defaultScalebarStyle}
         onChange={onDefaultScalebarStyleChange}
+        calibratedCount={calibratedCount}
+        placedCount={placedCount}
       />
     );
   } else if (state.pool.length === 0 && state.annotations.length === 0) {

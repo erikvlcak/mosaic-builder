@@ -632,6 +632,12 @@ body {
   border-radius: 3px;
   flex: 0 0 auto;
 }
+.export-meta {
+  display: block;
+  margin-top: 2px;
+  font-size: 11px;
+  color: var(--c-text-faint);
+}
 .thumb-meta {
   min-width: 0;
   flex: 1;
