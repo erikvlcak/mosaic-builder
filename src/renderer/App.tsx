@@ -3,7 +3,6 @@ import { EditorCanvas } from "./components/Canvas/EditorCanvas";
 import { ExportMenu } from "./components/Toolbar/ExportMenu";
 import { GridControls } from "./components/Toolbar/GridControls";
 import { MergeControls } from "./components/Toolbar/MergeControls";
-import { PanelControls } from "./components/Toolbar/PanelControls";
 import {
   AnnotationToolbar,
   type Tool,
@@ -48,7 +47,6 @@ import {
   setOuterGutter,
   mergeCells,
   unmergePanelAction,
-  setPanelFit,
   rotatePanel90,
   flipPanelH,
   flipPanelV,
@@ -410,14 +408,6 @@ export function App(): JSX.Element {
     [dispatch, selection],
   );
 
-  const onSetFit = useCallback(
-    (fit: "contain" | "cover" | "stretch") => {
-      if (selectedImagePanel === undefined) return;
-      dispatch(setPanelFit(selectedImagePanel.id, fit));
-    },
-    [selectedImagePanel, dispatch],
-  );
-
   const onEscape = useCallback(() => {
     selection.clear();
     setPanelInteraction(null);
@@ -737,38 +727,35 @@ export function App(): JSX.Element {
               history.commit();
             }}
           />
+          <label
+            className="checkbox-row"
+            title="Show or hide auto-generated per-panel letter labels (A, B, C…)"
+            style={{ whiteSpace: "nowrap" }}
+          >
+            <input
+              type="checkbox"
+              checked={state.globalStyle.letters.enabled}
+              onChange={() =>
+                dispatch(setLettersEnabled(!state.globalStyle.letters.enabled))
+              }
+              data-testid="anno-letters-toggle"
+            />
+            Panel letters
+          </label>
         </ToolGroup>
         <span className="toolbar-divider" aria-hidden="true" />
-        <ToolGroup label="Selection">
+        <ToolGroup label="Merge">
           <MergeControls
             canMerge={canMerge}
             canUnmerge={canUnmerge}
+            selectedCount={selection.selected.size}
             onMerge={onMerge}
             onUnmerge={onUnmerge}
           />
         </ToolGroup>
         <span className="toolbar-divider" aria-hidden="true" />
-        <ToolGroup label="Panel">
-          <PanelControls
-            transform={selectedImagePanel?.transform ?? null}
-            onSetFit={onSetFit}
-            onRotate90={onRotate90}
-            onFlipH={onFlipH}
-            onFlipV={onFlipV}
-            onReset={onResetTransform}
-            onCalibrate={onCalibrate}
-          />
-        </ToolGroup>
-        <span className="toolbar-divider" aria-hidden="true" />
         <ToolGroup label="Annotate">
-          <AnnotationToolbar
-            active={activeTool}
-            onChange={setActiveTool}
-            lettersEnabled={state.globalStyle.letters.enabled}
-            onToggleLetters={() =>
-              dispatch(setLettersEnabled(!state.globalStyle.letters.enabled))
-            }
-          />
+          <AnnotationToolbar active={activeTool} onChange={setActiveTool} />
         </ToolGroup>
       </div>
       <div style={{ display: "flex", flex: 1, minHeight: 0 }}>
