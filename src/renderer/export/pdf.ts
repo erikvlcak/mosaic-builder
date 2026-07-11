@@ -2,7 +2,7 @@ import { PDFDocument } from "pdf-lib";
 import type { Figure } from "../model/types";
 import type { ImagePoolItem } from "../model/pool";
 import type { ExportResult } from "../../preload/api";
-import { renderFigureToPngBlob } from "../render/export-renderer";
+import { renderFigureToOffscreen } from "../render/export-renderer";
 
 const DEFAULT_NAME = "mosaic-figure.pdf";
 // Sized so a typical editor canvas (~1200 px wide) prints around 7.5" —
@@ -44,7 +44,13 @@ export async function exportFigureAsPdf(
 ): Promise<ExportResult> {
   let bytes: Uint8Array;
   try {
-    const blob = await renderFigureToPngBlob(figure, images, pool, exportScale);
+    // Render through the white-flattening path (like JPEG/TIFF), not the
+    // alpha-preserving PNG path: PDF has no page alpha, and an alpha-bearing
+    // canvas.background (#RRGGBBAA is legal) otherwise composites against
+    // black in many PDF viewers. Encode the flattened canvas to PNG bytes for
+    // embedding.
+    const r = renderFigureToOffscreen(figure, images, PDF_DPI, pool, exportScale);
+    const blob = await r.canvas.convertToBlob({ type: "image/png" });
     const pngBytes = new Uint8Array(await blob.arrayBuffer());
     const pdf = await PDFDocument.create();
     const img = await pdf.embedPng(pngBytes);
