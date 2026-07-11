@@ -14,6 +14,12 @@ interface Props {
   onDragSourceChange?: (src: DragPayload | null) => void;
   /** Remove an unplaced image from the pool (hover × on its thumbnail). */
   onRemoveImage: (imageId: string) => void;
+  /** Currently armed click-to-place image id (accent ring), if any. */
+  selectedThumbId?: string | null;
+  /** Arm/disarm an unplaced image for click-to-place. */
+  onSelectThumb?: (imageId: string) => void;
+  /** Enter on a focused unplaced thumbnail → place into the first empty panel. */
+  onPlaceIntoFirstEmpty?: (imageId: string) => void;
 }
 
 export function Tray({
@@ -24,6 +30,9 @@ export function Tray({
   onUnplacePanel,
   onDragSourceChange,
   onRemoveImage,
+  selectedThumbId,
+  onSelectThumb,
+  onPlaceIntoFirstEmpty,
 }: Props): JSX.Element {
   const unplaced = pool.filter((p) => !placedIds.has(p.id));
   const placed = pool.filter((p) => placedIds.has(p.id));
@@ -119,6 +128,13 @@ export function Tray({
             bitmap={bitmaps.get(it.id)}
             placed={false}
             onRemove={onRemoveImage}
+            selectedForPlace={selectedThumbId === it.id}
+            {...(onSelectThumb !== undefined
+              ? { onSelectForPlace: onSelectThumb }
+              : {})}
+            {...(onPlaceIntoFirstEmpty !== undefined
+              ? { onPlaceIntoFirstEmpty }
+              : {})}
             {...(onDragSourceChange !== undefined
               ? { onDragSourceChange }
               : {})}

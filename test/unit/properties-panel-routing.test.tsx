@@ -15,8 +15,38 @@ const transform: PanelTransform = {
   flipV: false,
 };
 
+const POOLED_STATE = {
+  ...initialFigureState(),
+  pool: [
+    {
+      id: "img1",
+      filename: "a.png",
+      filePath: "/x/a.png",
+      mime: "image/png" as const,
+      width: 10,
+      height: 10,
+      bitDepth: 8 as const,
+    },
+  ],
+};
+
 describe("PropertiesPanel routes by selection", () => {
-  it("renders the global form when nothing is selected", () => {
+  it("renders the global form when nothing is selected and the pool is non-empty", () => {
+    render(
+      <PropertiesPanel
+        state={POOLED_STATE}
+        focusedPanel={undefined}
+        selectedAnno={undefined}
+        dispatch={vi.fn()}
+        commit={{ markDirty: vi.fn(), flush: vi.fn() }}
+        onCalibrate={() => {}}
+        onCrop={() => {}}
+      />,
+    );
+    expect(screen.getByText(/Subpanel letters/)).toBeTruthy();
+  });
+
+  it("shows the getting-started card on a fresh figure (empty pool + no annotations)", () => {
     render(
       <PropertiesPanel
         state={initialFigureState()}
@@ -28,7 +58,42 @@ describe("PropertiesPanel routes by selection", () => {
         onCrop={() => {}}
       />,
     );
-    expect(screen.getByText(/Subpanel letters/)).toBeTruthy();
+    expect(screen.getByTestId("getting-started")).toBeTruthy();
+    // No style inputs on a fresh figure.
+    expect(screen.queryByText(/Subpanel letters/)).toBeNull();
+  });
+
+  it("the getting-started 'Add images…' button calls onAddImages", () => {
+    const onAddImages = vi.fn();
+    render(
+      <PropertiesPanel
+        state={initialFigureState()}
+        focusedPanel={undefined}
+        selectedAnno={undefined}
+        dispatch={vi.fn()}
+        commit={{ markDirty: vi.fn(), flush: vi.fn() }}
+        onCalibrate={() => {}}
+        onCrop={() => {}}
+        onAddImages={onAddImages}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: /add images/i }));
+    expect(onAddImages).toHaveBeenCalled();
+  });
+
+  it("titles the no-selection style state 'Figure defaults'", () => {
+    render(
+      <PropertiesPanel
+        state={POOLED_STATE}
+        focusedPanel={undefined}
+        selectedAnno={undefined}
+        dispatch={vi.fn()}
+        commit={{ markDirty: vi.fn(), flush: vi.fn() }}
+        onCalibrate={() => {}}
+        onCrop={() => {}}
+      />,
+    );
+    expect(screen.getByText("Figure defaults")).toBeTruthy();
   });
 
   it("renders TextAnnoForm when a text annotation is selected", () => {

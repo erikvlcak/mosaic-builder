@@ -55,6 +55,7 @@ import {
   setLettersEnabled,
   resetFigureAction,
   unplacePanel,
+  placeIntoPanel,
   restorePanelAt,
   setTrackWeightAction,
   resizePanelFreeformAction,
@@ -124,6 +125,9 @@ export function App(): JSX.Element {
   );
   const [croppingPanelId, setCroppingPanelId] = useState<string | null>(null);
   const [annotationEditing, setAnnotationEditing] = useState<boolean>(false);
+  // Click-to-place: the unplaced tray image armed for placement. Session-only
+  // UI state — never promoted into FigureState (mirrors PanelInteraction).
+  const [selectedThumbId, setSelectedThumbId] = useState<string | null>(null);
   const stateRef = useRef<FigureState>(state);
   stateRef.current = state;
 
@@ -373,8 +377,42 @@ export function App(): JSX.Element {
     dispatch(resetPanelTransform(selectedImagePanel.id));
   }, [selectedImagePanel, dispatch]);
 
+  // Click-to-place: arm/toggle an unplaced tray image. Clicking the armed
+  // image again disarms it.
+  const onSelectThumb = useCallback((imageId: string) => {
+    setSelectedThumbId((prev) => (prev === imageId ? null : imageId));
+  }, []);
+
+  // Place `imageId` into the first empty (image-less, visible) panel. Used by
+  // Enter-on-thumbnail; no-op when the figure is full.
+  const onPlaceIntoFirstEmpty = useCallback(
+    (imageId: string) => {
+      const target = stateRef.current.panels.find(
+        (p) => p.imageId === undefined && p.hidden !== true,
+      );
+      if (target === undefined) return;
+      dispatch(placeIntoPanel(imageId, target.id));
+      setSelectedThumbId(null);
+    },
+    [dispatch],
+  );
+
   const onPanelSingleClick = useCallback(
     (panelId: string) => {
+      const panel = stateRef.current.panels.find((p) => p.id === panelId);
+      // Click-to-place: if an unplaced image is armed and this panel is empty,
+      // place it here (same action as a drop) and disarm.
+      if (
+        selectedThumbId !== null &&
+        panel !== undefined &&
+        panel.imageId === undefined &&
+        panel.hidden !== true
+      ) {
+        dispatch(placeIntoPanel(selectedThumbId, panelId));
+        setSelectedThumbId(null);
+        setPanelInteraction({ mode: "selected", panelId });
+        return;
+      }
       // Single-click while already editing this same panel: no-op (stay
       // in editing so the user doesn't lose pan/zoom state mid-drag).
       if (
@@ -389,7 +427,7 @@ export function App(): JSX.Element {
       // "selected" focus for the Unmerge action and properties panel.
       setPanelInteraction({ mode: "selected", panelId });
     },
-    [panelInteraction],
+    [panelInteraction, selectedThumbId, dispatch],
   );
 
   const onPanelDoubleClick = useCallback((panelId: string) => {
@@ -412,6 +450,7 @@ export function App(): JSX.Element {
     selection.clear();
     setPanelInteraction(null);
     setSelectedAnnotationIds(emptySelection());
+    setSelectedThumbId(null);
     setActiveTool("select");
   }, [selection]);
 
@@ -769,10 +808,16 @@ export function App(): JSX.Element {
           onUnplacePanel={(panelId) => dispatch(unplacePanel(panelId))}
           onDragSourceChange={setDragSource}
           onRemoveImage={onRemoveImage}
+          selectedThumbId={selectedThumbId}
+          onSelectThumb={onSelectThumb}
+          onPlaceIntoFirstEmpty={onPlaceIntoFirstEmpty}
         />
         <section
           onClick={(e) => {
-            if (e.target === e.currentTarget) setPanelInteraction(null);
+            if (e.target === e.currentTarget) {
+              setPanelInteraction(null);
+              setSelectedThumbId(null);
+            }
           }}
           style={{
             flex: 1,
@@ -918,6 +963,9 @@ export function App(): JSX.Element {
           commit={fieldCommit}
           onCalibrate={onCalibrate}
           onCrop={onCrop}
+          onAddImages={() => {
+            void onAddImagesClick();
+          }}
         />
       </div>
       {calibratingImageId !== null && calibratingBitmap !== undefined && (

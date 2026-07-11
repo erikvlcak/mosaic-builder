@@ -60,6 +60,8 @@ interface Props {
   commit: FieldCommit;
   onCalibrate: () => void;
   onCrop: () => void;
+  /** Opens the image-import dialog from the first-run getting-started card. */
+  onAddImages?: () => void;
 }
 
 const ANNO_TITLES: Record<Annotation["kind"], string> = {
@@ -88,6 +90,7 @@ export function PropertiesPanel({
   commit,
   onCalibrate,
   onCrop,
+  onAddImages,
 }: Props): JSX.Element {
   let title: string;
   let subtitle: string | null = null;
@@ -117,8 +120,8 @@ export function PropertiesPanel({
       // Stale selection (e.g. panel was deleted). Fall through to the
       // empty/global-state body so the panel doesn't render in a broken
       // state. The parent should be clearing the selection on its side too.
-      title = "Figure";
-      subtitle = "No selection — editing global style";
+      title = "Figure defaults";
+      subtitle = "Applies to letters and scale bars";
       body = (
         <CanvasAndGlobalStyleForm
           state={state}
@@ -255,9 +258,16 @@ export function PropertiesPanel({
         onChange={onDefaultScalebarStyleChange}
       />
     );
+  } else if (state.pool.length === 0 && state.annotations.length === 0) {
+    // First run: the pool is empty and nothing has been placed. Show a short
+    // getting-started card instead of ~15 style inputs the user can't act on
+    // yet. Style forms return as soon as an image exists.
+    title = "Get started";
+    subtitle = null;
+    body = <GettingStarted onAddImages={onAddImages} />;
   } else {
-    title = "Figure";
-    subtitle = "No selection — editing global style";
+    title = "Figure defaults";
+    subtitle = "Applies to letters and scale bars";
     // Render the annotation overview only when the selection-set props are
     // wired through. PropertiesPanel is also used in tests that don't pass
     // these — falling back to the global-style-only body keeps those tests
@@ -302,5 +312,55 @@ export function PropertiesPanel({
       </div>
       {body}
     </aside>
+  );
+}
+
+/**
+ * First-run card shown in the properties panel while the figure is empty.
+ * Three one-line steps plus an "Add images…" button that mirrors the tray CTA,
+ * so a first-time user has an obvious next action without hunting the sidebar.
+ */
+function GettingStarted({
+  onAddImages,
+}: {
+  onAddImages: (() => void) | undefined;
+}): JSX.Element {
+  const steps = [
+    "Add images to the tray.",
+    "Drag or click them into panels.",
+    "Export your figure.",
+  ];
+  return (
+    <div
+      data-testid="getting-started"
+      style={{ display: "flex", flexDirection: "column", gap: 14 }}
+    >
+      <ol
+        style={{
+          margin: 0,
+          paddingLeft: 20,
+          display: "flex",
+          flexDirection: "column",
+          gap: 8,
+          fontSize: 13,
+          color: "var(--c-text-muted)",
+          lineHeight: 1.4,
+        }}
+      >
+        {steps.map((s) => (
+          <li key={s}>{s}</li>
+        ))}
+      </ol>
+      {onAddImages !== undefined && (
+        <button
+          type="button"
+          className="btn btn-primary"
+          onClick={onAddImages}
+          style={{ width: "100%", padding: "7px 10px" }}
+        >
+          Add images…
+        </button>
+      )}
+    </div>
   );
 }

@@ -62,17 +62,35 @@ export interface DrawCtx {
 const PLACEHOLDER_FILL = "#EEEEEE";
 const PLACEHOLDER_STROKE = "#CCCCCC";
 const PLACEHOLDER_LABEL = "#666666";
+const PLACEHOLDER_CAPTION = "#9AA0A8";
+const DRAG_HINT_TEXT = "Drag an image here";
+
+/**
+ * Editor-only rendering hints. These affordances (e.g. the "Drag an image
+ * here" caption on empty panels) MUST NOT appear in exports — exports are
+ * figure content only. The editor renderer passes these; export renderers
+ * leave them off (the default), so the same `drawFigure` serves both.
+ */
+export interface DrawFigureOpts {
+  /** Render editor-only affordances such as empty-panel drag captions. */
+  editorHints?: boolean;
+  /** Whether the pool has any images — gates the "Drag an image here" caption
+   *  (no point inviting a drag when there's nothing to drag). */
+  poolHasImages?: boolean;
+}
 
 /**
  * @param pool Optional pool-item map for annotation calibration lookup
  *   (Task 6 scale bars). Default empty so Task 5 (letters/text/box) callers
  *   don't need to plumb it through.
+ * @param opts Editor-only rendering hints; omitted (all off) on the export path.
  */
 export function drawFigure(
   ctx: DrawCtx,
   figure: Figure,
   images: Map<string, ImageBitmap>,
   pool: Map<string, ImagePoolItem> = new Map(),
+  opts: DrawFigureOpts = {},
 ): void {
   // 1. Canvas background. Anything not covered by gutter or panels shows
   //    this through (currently nothing — the gutter fills the entire canvas
@@ -101,10 +119,14 @@ export function drawFigure(
       if (bitmap !== undefined) {
         drawPanelImage(ctx, bitmap, rect, panel.transform);
       } else {
-        drawPlaceholder(ctx, rect, "(missing)");
+        drawPlaceholder(ctx, rect, "(missing)", false);
       }
     } else {
-      drawPlaceholder(ctx, rect, panel.label);
+      // Empty panel: invite a drag, but only in the editor and only when the
+      // pool actually holds an image to drag in.
+      const showCaption =
+        opts.editorHints === true && opts.poolHasImages === true;
+      drawPlaceholder(ctx, rect, panel.label, showCaption);
     }
   }
 
@@ -183,15 +205,30 @@ function drawPanelImage(
   ctx.restore();
 }
 
-function drawPlaceholder(ctx: DrawCtx, rect: PanelRect, label: string): void {
+function drawPlaceholder(
+  ctx: DrawCtx,
+  rect: PanelRect,
+  label: string,
+  showCaption: boolean,
+): void {
   ctx.fillStyle = PLACEHOLDER_FILL;
   ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
   ctx.strokeStyle = PLACEHOLDER_STROKE;
   ctx.strokeRect(rect.x + 0.5, rect.y + 0.5, rect.w - 1, rect.h - 1);
 
+  const cx = rect.x + rect.w / 2;
+  const cy = rect.y + rect.h / 2;
   ctx.fillStyle = PLACEHOLDER_LABEL;
   ctx.font = "bold 24px system-ui, sans-serif";
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
-  ctx.fillText(label, rect.x + rect.w / 2, rect.y + rect.h / 2);
+  // Nudge the letter up a touch when a caption sits below it so the pair stays
+  // visually centered; keep it dead-center when there's no caption.
+  ctx.fillText(label, cx, showCaption ? cy - 14 : cy);
+
+  if (showCaption) {
+    ctx.fillStyle = PLACEHOLDER_CAPTION;
+    ctx.font = "13px system-ui, sans-serif";
+    ctx.fillText(DRAG_HINT_TEXT, cx, cy + 14);
+  }
 }

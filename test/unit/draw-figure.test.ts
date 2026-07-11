@@ -176,6 +176,42 @@ describe("drawFigure", () => {
     expect(labels.length).toBe(4);
   });
 
+  it("draws no 'Drag an image here' caption by default (export path)", () => {
+    const ctx = makeRecorder();
+    drawFigure(ctx, FIG, new Map());
+    const captions = ctx.calls.filter(
+      (c) => c.op === "fillText" && c.args[0] === "Drag an image here",
+    );
+    expect(captions).toHaveLength(0);
+  });
+
+  it("draws a 'Drag an image here' caption on empty panels only when editorHints + poolHasImages", () => {
+    const ctx = makeRecorder();
+    // FIG has one image panel (p1) + three placeholders. sample bitmap keeps
+    // p1 an image; the three placeholders should get the caption.
+    const bitmap = { width: 100, height: 100 } as unknown as ImageBitmap;
+    drawFigure(ctx, FIG, new Map([["sample", bitmap]]), new Map(), {
+      editorHints: true,
+      poolHasImages: true,
+    });
+    const captions = ctx.calls.filter(
+      (c) => c.op === "fillText" && c.args[0] === "Drag an image here",
+    );
+    expect(captions).toHaveLength(3);
+  });
+
+  it("omits the caption when the pool has no images even with editorHints on", () => {
+    const ctx = makeRecorder();
+    drawFigure(ctx, FIG, new Map(), new Map(), {
+      editorHints: true,
+      poolHasImages: false,
+    });
+    const captions = ctx.calls.filter(
+      (c) => c.op === "fillText" && c.args[0] === "Drag an image here",
+    );
+    expect(captions).toHaveLength(0);
+  });
+
   it("paints the gutter color over the full canvas before drawing panels", () => {
     // Snapshot fillStyle at each fillRect call so we can verify the color
     // used per call — the simple recorder above only tracks op + args.

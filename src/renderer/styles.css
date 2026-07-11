@@ -603,8 +603,29 @@ body {
   cursor: grabbing;
 }
 .thumb--placed {
-  opacity: 0.55;
+  /* "Placed" reads as done (check badge), not disabled — keep full contrast. */
   cursor: default;
+}
+.thumb--armed {
+  border-color: var(--c-accent);
+  box-shadow: 0 0 0 1px var(--c-accent);
+}
+.thumb-badge {
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  width: 18px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  background: var(--c-accent);
+  border-radius: 50%;
+}
+.thumb-badge svg {
+  width: 12px;
+  height: 12px;
 }
 .thumb-canvas {
   background: #1e232b;
