@@ -35,7 +35,7 @@ const BASIC_TRANSFORM: PanelTransform = {
 const BASIC_BITMAP = { width: 100, height: 100 } as unknown as ImageBitmap;
 
 describe("PanelInteractionLayer — editing-mode outline", () => {
-  it("renders a dashed warn-color outline (distinct from the selected focus-stroke)", () => {
+  it("renders a dashed accent outline (dashed = editing; solid accent = selected)", () => {
     const transform: PanelTransform = {
       fit: "contain",
       panX: 0,
@@ -64,7 +64,7 @@ describe("PanelInteractionLayer — editing-mode outline", () => {
     );
     const el = screen.getByTestId("panel-interaction-layer");
     expect(el.style.outline).toContain("dashed");
-    expect(el.style.outline).toContain("var(--c-warn)");
+    expect(el.style.outline).toContain("var(--c-accent)");
   });
 });
 

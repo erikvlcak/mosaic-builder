@@ -186,9 +186,9 @@ describe("GridCells — selected vs editing modes", () => {
     );
     const el = screen.getByTestId(`panel-${p.row}-${p.col}`);
     expect(el.style.cursor).toBe("grab");
-    // Outline uses the focus-stroke token.
+    // Selected outline is a solid accent stroke (unified selection chrome).
     expect(el.style.outline).toContain("solid");
-    expect(el.style.outline).toContain("var(--c-focus-stroke)");
+    expect(el.style.outline).toContain("var(--c-accent)");
   });
 
   it("editing image panel shows NO outline from GridCells (PanelInteractionLayer owns it)", () => {
@@ -281,9 +281,9 @@ describe("GridCells — selected vs editing modes", () => {
       />,
     );
     const el = screen.getByTestId(`panel-${emptyPanel.row}-${emptyPanel.col}`);
-    // Falls through to the transparent dashed default — no green focus stroke.
+    // Falls through to the transparent dashed default — no accent selection stroke.
     expect(el.style.outline).toContain("dashed transparent");
-    expect(el.style.outline).not.toContain("var(--c-focus-stroke)");
+    expect(el.style.outline).not.toContain("var(--c-accent)");
   });
 });
 

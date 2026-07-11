@@ -172,10 +172,13 @@ export function PropertiesPanel({
     title = "Selected panel";
     const letterOverride = state.letterOverrides[focusedPanel.id];
     const letterOverrideText = letterOverride?.text;
-    subtitle =
+    const where =
       letterOverrideText !== undefined
         ? `Subpanel ${letterOverrideText}`
         : `Row ${focusedPanel.row + 1}, col ${focusedPanel.col + 1}`;
+    // Double-click-to-edit is otherwise undiscoverable; teach it while a panel
+    // is merely selected.
+    subtitle = `${where} — double-click panel to pan & zoom`;
     body = (
       <PanelPropertiesForm
         panel={panelWithTransform}

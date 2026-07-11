@@ -233,9 +233,11 @@ export function PanelInteractionLayer({
         cursor: dragging ? "grabbing" : "grab",
         // Box-only chrome to indicate the active pan/zoom region.
         boxSizing: "border-box",
-        // Dashed warm orange distinguishes editing mode from the solid
-        // focus-stroke green that GridCells draws around a selected panel.
-        outline: "3px dashed var(--c-warn)",
+        // Unified selection chrome: both modes use the accent hue so a
+        // colorblind user tells them apart by pattern, not color — DASHED
+        // accent = editing (pan/zoom), vs the SOLID accent GridCells draws
+        // around a merely-selected panel.
+        outline: "3px dashed var(--c-accent)",
         outlineOffset: -3,
         // Don't draw anything — the canvas underneath shows the image.
         background: "transparent",
@@ -373,7 +375,7 @@ function CornerHandle({
         width: SIZE,
         height: SIZE,
         ...positions[corner],
-        background: "var(--c-focus-stroke)",
+        background: "var(--c-accent)",
         border: "1px solid #fff",
         borderRadius: 2,
         zIndex: 5,

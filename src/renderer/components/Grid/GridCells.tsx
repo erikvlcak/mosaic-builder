@@ -389,7 +389,7 @@ export function GridCells({
             : isEditing
               ? "1px dashed transparent"
               : isSelected && (occupied || isHidden)
-                ? "2px solid var(--c-focus-stroke)"
+                ? "2px solid var(--c-accent)"
                 : isHidden
                   ? "1px dashed var(--c-text-faint)"
                   : "1px dashed transparent";

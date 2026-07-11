@@ -147,6 +147,30 @@ describe("PropertiesPanel routes by selection", () => {
     expect(screen.getByLabelText("Subpanel letter")).toBeTruthy();
   });
 
+  it("teaches double-click in the selected image panel's subtitle", () => {
+    const focusedPanel: Panel = {
+      id: "p1",
+      row: 0,
+      col: 0,
+      rowSpan: 1,
+      colSpan: 1,
+      imageId: "img1",
+      transform,
+    };
+    render(
+      <PropertiesPanel
+        state={initialFigureState()}
+        focusedPanel={focusedPanel}
+        selectedAnno={undefined}
+        dispatch={vi.fn()}
+        commit={{ markDirty: vi.fn(), flush: vi.fn() }}
+        onCalibrate={() => {}}
+        onCrop={() => {}}
+      />,
+    );
+    expect(screen.getByText(/double-click .*pan/i)).toBeTruthy();
+  });
+
   it("renders EmptyPanelForm with Hide + Delete for an empty focused panel", () => {
     const focusedPanel: Panel = {
       id: "p1",

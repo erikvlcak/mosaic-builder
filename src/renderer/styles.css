@@ -308,6 +308,19 @@ body {
   gap: 8px;
   min-width: 0;
 }
+.app-doc-name {
+  margin-left: 4px;
+  font-size: 12px;
+  color: var(--c-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+.app-doc-dirty {
+  color: var(--c-accent);
+  font-weight: 700;
+}
 .app-bar-right {
   margin-left: auto;
   display: flex;

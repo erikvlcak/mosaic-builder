@@ -770,6 +770,17 @@ export function App(): JSX.Element {
             type="button"
             className="btn"
             onClick={() => {
+              void onNew();
+            }}
+            data-testid="new-project"
+            title="New figure (⌘N)"
+          >
+            New
+          </button>
+          <button
+            type="button"
+            className="btn"
+            onClick={() => {
               void onOpenProject();
             }}
             data-testid="open-project"
@@ -786,6 +797,47 @@ export function App(): JSX.Element {
           >
             Save
           </button>
+          <span className="toolbar-divider" aria-hidden="true" />
+          <button
+            type="button"
+            className="btn btn-icon"
+            onClick={history.undo}
+            disabled={!history.canUndo}
+            data-testid="undo-btn"
+            title="Undo (⌘Z)"
+            aria-label="Undo"
+          >
+            ↶ Undo
+          </button>
+          <button
+            type="button"
+            className="btn btn-icon"
+            onClick={history.redo}
+            disabled={!history.canRedo}
+            data-testid="redo-btn"
+            title="Redo (⇧⌘Z)"
+            aria-label="Redo"
+          >
+            ↷ Redo
+          </button>
+          <span
+            className="app-doc-name"
+            data-testid="doc-name"
+            title={projectPath ?? "Unsaved figure"}
+          >
+            {projectPath !== null ? basename(projectPath) : "untitled.mosaic"}
+            {dirty && (
+              <span
+                className="app-doc-dirty"
+                data-testid="doc-dirty"
+                aria-label="Unsaved changes"
+                title="Unsaved changes"
+              >
+                {" "}
+                •
+              </span>
+            )}
+          </span>
         </div>
         <div className="app-bar-right">
           <ExportMenu

@@ -2,12 +2,14 @@
  * Generic immutable history ring buffer for undo/redo. Stores up to
  * MAX_HISTORY prior snapshots in `past`; `future` holds states peeled off
  * by undo and re-applied by redo. Any non-undo/non-redo push clears
- * `future` (no branching timeline). Capped at 10 entries — the oldest
- * past snapshot is dropped on overflow. Snapshots are stored by reference;
- * the caller is responsible for snapshot immutability.
+ * `future` (no branching timeline). Capped at 50 entries — the oldest
+ * past snapshot is dropped on overflow. Snapshots share structure (the
+ * reducer allocates only changed fields), so the memory cost of a deeper
+ * stack is trivial next to the decoded bitmaps. Snapshots are stored by
+ * reference; the caller is responsible for snapshot immutability.
  */
 
-export const MAX_HISTORY = 10;
+export const MAX_HISTORY = 50;
 
 export interface History<T> {
   readonly past: readonly T[];
