@@ -90,7 +90,12 @@ describe("decodeImageBytes", () => {
   it("requests EXIF orientation via imageOrientation: from-image (3.3)", async () => {
     lastCreateOpts = undefined;
     await decodeImageBytes(PNG_SIG, "image/jpeg");
-    expect(lastCreateOpts?.imageOrientation).toBe("from-image");
+    // The mock reassigns `lastCreateOpts` inside the awaited call; annotate the
+    // read so control-flow narrowing from the `= undefined` reset above doesn't
+    // collapse the optional-chain branch to `never` under exactOptionalPropertyTypes.
+    expect(
+      (lastCreateOpts as ImageBitmapOptions | undefined)?.imageOrientation,
+    ).toBe("from-image");
   });
 
   it("rejects unsupported mimes", async () => {

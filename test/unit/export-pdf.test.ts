@@ -60,9 +60,9 @@ describe.skipIf(!HAS_OFFSCREEN)("exportFigureAsPdf", () => {
 
   it("flattens an alpha canvas background — embedded PNG has no transparency (3.4)", async () => {
     const { exportFigureAsPdf } = await import("../../src/renderer/export/pdf");
-    const {
-      renderFigureToOffscreen,
-    } = await import("../../src/renderer/render/export-renderer");
+    const { renderFigureToOffscreen } = await import(
+      "../../src/renderer/render/export-renderer"
+    );
     const { DEFAULT_GLOBAL_STYLE } = await import(
       "../../src/renderer/model/global-style"
     );

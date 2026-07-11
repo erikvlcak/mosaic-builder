@@ -1,6 +1,9 @@
 import { describe, it, expect } from "vitest";
 import { isDirty } from "../../src/renderer/state/dirty";
-import { figureReducer, setGutterPx } from "../../src/renderer/model/figure-actions";
+import {
+  figureReducer,
+  setGutterPx,
+} from "../../src/renderer/model/figure-actions";
 import { initialFigureState } from "../../src/renderer/model/figure-state";
 
 describe("isDirty (unsaved-changes derivation)", () => {

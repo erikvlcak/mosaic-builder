@@ -66,6 +66,7 @@ const IMG_A: ImagePoolItem = {
   mime: "image/png",
   width: 100,
   height: 100,
+  bitDepth: 8,
 };
 const IMG_B: ImagePoolItem = {
   id: "b",
@@ -74,6 +75,7 @@ const IMG_B: ImagePoolItem = {
   mime: "image/jpeg",
   width: 200,
   height: 100,
+  bitDepth: 8,
 };
 
 function withPool(...items: ImagePoolItem[]): FigureState {
@@ -781,7 +783,7 @@ function textAnno(id: string, panelId?: string): TextAnnotation {
     id,
     kind: "text",
     z: 0,
-    panelId,
+    ...(panelId !== undefined ? { panelId } : {}),
     x: 10,
     y: 10,
     text: "hello",
@@ -797,7 +799,7 @@ function symbolAnno(id: string, panelId?: string): SymbolAnnotation {
     id,
     kind: "symbol",
     z: 0,
-    panelId,
+    ...(panelId !== undefined ? { panelId } : {}),
     symbolId: "arrow-filled-right",
     x: 25,
     y: 25,
@@ -993,7 +995,9 @@ describe("figureReducer (M6 annotations)", () => {
     // scalebar (would violate its always-bound invariant). No-op expected.
     s = figureReducer(
       s,
-      updateAnnotation("sb1", { panelId: undefined } as Partial<Annotation>),
+      updateAnnotation("sb1", {
+        panelId: undefined,
+      } as unknown as Partial<Annotation>),
     );
     expect(s).toBe(before);
     expect(s.annotations.find((x) => x.id === "sb1")?.panelId).toBe(pid);
@@ -1006,7 +1010,9 @@ describe("figureReducer (M6 annotations)", () => {
     expect(s.annotations[0]?.panelId).toBe(pid);
     s = figureReducer(
       s,
-      updateAnnotation("t1", { panelId: undefined } as Partial<Annotation>),
+      updateAnnotation("t1", {
+        panelId: undefined,
+      } as unknown as Partial<Annotation>),
     );
     // Text may be figure-global, so unbinding is valid and applied.
     expect(s.annotations[0]?.panelId).toBeUndefined();
@@ -1287,14 +1293,26 @@ describe("figureReducer (M6 annotations)", () => {
     s = figureReducer(s, addAnnotation(textAnno("onA", a)));
     s = figureReducer(s, addAnnotation(symbolAnno("onB", b)));
     // Merge (0,0)+(0,1) — both sub-panels get replaced by one fresh id.
-    s = figureReducer(s, mergeCells([{ row: 0, col: 0 }, { row: 0, col: 1 }]));
+    s = figureReducer(
+      s,
+      mergeCells([
+        { row: 0, col: 0 },
+        { row: 0, col: 1 },
+      ]),
+    );
     // Both annotations were bound to ids that no longer exist → pruned.
     expect(s.annotations).toEqual([]);
   });
 
   it("UNMERGE_PANEL prunes annotations bound to the old merged panel (2.5)", () => {
     let s = initialFigureState();
-    s = figureReducer(s, mergeCells([{ row: 0, col: 0 }, { row: 0, col: 1 }]));
+    s = figureReducer(
+      s,
+      mergeCells([
+        { row: 0, col: 0 },
+        { row: 0, col: 1 },
+      ]),
+    );
     const merged = s.panels.find((p) => p.colSpan === 2)!;
     s = figureReducer(s, addAnnotation(textAnno("onMerged", merged.id)));
     expect(s.annotations).toHaveLength(1);

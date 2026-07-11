@@ -49,7 +49,13 @@ export async function exportFigureAsPdf(
     // canvas.background (#RRGGBBAA is legal) otherwise composites against
     // black in many PDF viewers. Encode the flattened canvas to PNG bytes for
     // embedding.
-    const r = renderFigureToOffscreen(figure, images, PDF_DPI, pool, exportScale);
+    const r = renderFigureToOffscreen(
+      figure,
+      images,
+      PDF_DPI,
+      pool,
+      exportScale,
+    );
     const blob = await r.canvas.convertToBlob({ type: "image/png" });
     const pngBytes = new Uint8Array(await blob.arrayBuffer());
     const pdf = await PDFDocument.create();

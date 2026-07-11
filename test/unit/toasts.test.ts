@@ -33,9 +33,7 @@ describe("useToasts", () => {
     expect(result.current.toasts.length).toBe(MAX_TOASTS);
     // The three oldest (m0, m1, m2) were evicted; the newest survive.
     expect(result.current.toasts[0]?.message).toBe("m3");
-    expect(result.current.toasts.at(-1)?.message).toBe(
-      `m${MAX_TOASTS + 2}`,
-    );
+    expect(result.current.toasts.at(-1)?.message).toBe(`m${MAX_TOASTS + 2}`);
     // Evicted toasts' timers were cleared: advancing past TTL doesn't throw
     // or double-dismiss, and the surviving count is stable until TTL.
     act(() => {

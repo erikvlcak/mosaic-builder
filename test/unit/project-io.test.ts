@@ -1,5 +1,12 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { mkdtemp, writeFile, rm, readFile, mkdir, stat } from "node:fs/promises";
+import {
+  mkdtemp,
+  writeFile,
+  rm,
+  readFile,
+  mkdir,
+  stat,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import {

@@ -24,6 +24,7 @@ const MIN_VALID: MosaicFileV5 = {
     cols: 2,
     gutterPx: 12,
     gutterColor: "#FFFFFF",
+    outerGutter: true,
     annotations: [],
     globalStyle: {
       letters: {

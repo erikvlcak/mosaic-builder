@@ -23,6 +23,7 @@ import {
 import { TRANSIENT_ACTIONS } from "../../src/renderer/state/use-history-reducer";
 import { DEFAULT_TRANSFORM } from "../../src/renderer/model/panels";
 import { DEFAULT_GLOBAL_STYLE } from "../../src/renderer/model/global-style";
+import type { TextAnnotation } from "../../src/renderer/model/annotations";
 
 function startCombined(): Combined {
   const s = initialFigureState();
@@ -184,11 +185,15 @@ describe("transient actions coalesce until commit", () => {
       result.current[1](updateAnnotation("t1", { text: "hi" }));
       result.current[1](updateAnnotation("t1", { text: "hii" }));
     });
-    expect(result.current[0].annotations[0]?.text).toBe("hii");
+    expect(
+      (result.current[0].annotations[0] as TextAnnotation | undefined)?.text,
+    ).toBe("hii");
     // One undo flushes the three transient updates into a single step and
     // restores the prior committed state (text "hi" from addAnnotation).
     act(() => result.current[2].undo());
-    expect(result.current[0].annotations[0]?.text).toBe("hi");
+    expect(
+      (result.current[0].annotations[0] as TextAnnotation | undefined)?.text,
+    ).toBe("hi");
     // A second undo backs out the addAnnotation itself.
     act(() => result.current[2].undo());
     expect(result.current[0].annotations).toEqual([]);

@@ -40,7 +40,8 @@ export function decodeTiffToRgba(
   utif: UtifLike,
 ): DecodedTiff {
   const ifds = utif.decode(buffer);
-  if (ifds.length === 0) throw new Error("Not a readable TIFF (no image data).");
+  if (ifds.length === 0)
+    throw new Error("Not a readable TIFF (no image data).");
   const ifd0 = ifds[0]!;
 
   const bps = ifd0.t258?.[0] ?? 8;
@@ -61,16 +62,12 @@ export function decodeTiffToRgba(
   const width = ifd0.width;
   const height = ifd0.height;
   if (width <= 0 || height <= 0) {
-    throw new Error(
-      `TIFF has invalid dimensions (${width}×${height}).`,
-    );
+    throw new Error(`TIFF has invalid dimensions (${width}×${height}).`);
   }
   // Backstop: a non-trivial image that came out fully transparent/black almost
   // certainly hit an unsupported path UTIF logged rather than threw.
   if (rgba.length > 0 && isAllZero(rgba)) {
-    throw new Error(
-      "Unsupported TIFF (unknown compression or color format).",
-    );
+    throw new Error("Unsupported TIFF (unknown compression or color format).");
   }
 
   const bitDepth: 8 | 16 = bps >= 16 ? 16 : 8;

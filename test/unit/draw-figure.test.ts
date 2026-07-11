@@ -56,9 +56,9 @@ function makeRecorder(): DrawCtx & { calls: Call[] } {
       const sizePx = fontSizePx(this.font);
       return { width: text.length * sizePx * 0.6 };
     },
-    drawImage(...args) {
+    drawImage: ((...args: unknown[]) => {
       calls.push(snapshot("drawImage", args));
-    },
+    }) as DrawCtx["drawImage"],
     save() {
       calls.push(snapshot("save", []));
     },

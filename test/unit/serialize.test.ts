@@ -10,6 +10,7 @@ import {
 } from "../../src/renderer/model/figure-actions";
 import type { ImagePoolItem } from "../../src/renderer/model/pool";
 import type {
+  MosaicFile,
   MosaicFileV1,
   V1ArrowAnnotation,
 } from "../../src/renderer/model/schema";
@@ -186,9 +187,11 @@ describe("fromMosaicFile", () => {
     expect(r.state.pool[0]!.id).toBe("img1");
     // runtime pool item has no relPath/sha256 — those are loader-side hints.
     expect(
-      (r.state.pool[0] as Record<string, unknown>).relPath,
+      (r.state.pool[0] as unknown as Record<string, unknown>).relPath,
     ).toBeUndefined();
-    expect((r.state.pool[0] as Record<string, unknown>).sha256).toBeUndefined();
+    expect(
+      (r.state.pool[0] as unknown as Record<string, unknown>).sha256,
+    ).toBeUndefined();
     expect(r.canvas.widthPx).toBe(800);
     // relink hints surfaced separately for the loader.
     expect(r.relinkHints[0]).toEqual({
@@ -288,6 +291,7 @@ describe("v1 → v2 migration on fromMosaicFile", () => {
             color: "#000000",
             paddingPx: 4,
             bold: true,
+            italic: false,
             corner: "tl",
           },
           scalebar: {
@@ -302,6 +306,13 @@ describe("v1 → v2 migration on fromMosaicFile", () => {
           },
         },
         letterOverrides: {},
+        // v1 predates letterPattern/layout; loader ignores these for v1 files.
+        letterPattern: "uppercase",
+        layout: {
+          kind: "uniform",
+          colWeights: [1],
+          rowWeights: [1],
+        },
       },
     };
     const { state } = fromMosaicFile(v1);
@@ -373,6 +384,15 @@ describe("v1 → v2 migration on fromMosaicFile", () => {
         letterOverrides: {
           p1: "A1",
         } as unknown as MosaicFileV1["state"]["letterOverrides"],
+        // v1 files predate letterPattern/layout; the loader ignores these for
+        // schemaVersion 1 (see fromMosaicFile), so they're present only to
+        // satisfy the FigureState-derived type.
+        letterPattern: "uppercase",
+        layout: {
+          kind: "uniform",
+          colWeights: [1],
+          rowWeights: [1],
+        },
       },
     };
     const { state } = fromMosaicFile(v1);
@@ -475,9 +495,11 @@ describe("serialize — layout v5 (spec 11 carried into v5)", () => {
         },
         letterOverrides: {},
         letterPattern: "uppercase" as const,
+        // Intentionally no `layout`: v3 files predate spec-11 layout, and this
+        // test verifies the loader seeds a uniform layout on read.
       },
     };
-    const r = fromMosaicFile(v3);
+    const r = fromMosaicFile(v3 as unknown as MosaicFile);
     expect(r.state.layout.kind).toBe("uniform");
     if (r.state.layout.kind !== "uniform") throw new Error("unreachable");
     expect(r.state.layout.colWeights.length).toBe(2);

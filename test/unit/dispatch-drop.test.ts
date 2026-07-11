@@ -20,6 +20,7 @@ const IMG_A: ImagePoolItem = {
   mime: "image/png",
   width: 1,
   height: 1,
+  bitDepth: 8,
 };
 const IMG_B: ImagePoolItem = {
   id: "b",
@@ -28,6 +29,7 @@ const IMG_B: ImagePoolItem = {
   mime: "image/png",
   width: 1,
   height: 1,
+  bitDepth: 8,
 };
 
 function panelIdAt(s: FigureState, row: number, col: number): string {

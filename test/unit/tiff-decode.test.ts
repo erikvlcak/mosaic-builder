@@ -76,8 +76,7 @@ function fakeUtif(opts: {
     decodeImage: () => {
       if (opts.complaint !== undefined) console.log(opts.complaint);
     },
-    toRGBA8: () =>
-      opts.rgba ?? new Uint8Array([1, 2, 3, 255, 4, 5, 6, 255]),
+    toRGBA8: () => opts.rgba ?? new Uint8Array([1, 2, 3, 255, 4, 5, 6, 255]),
   };
 }
 

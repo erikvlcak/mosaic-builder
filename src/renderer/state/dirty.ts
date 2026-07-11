@@ -17,9 +17,6 @@ import type { FigureState } from "../model/figure-state";
  * for an unsaved-changes guard that is the safe direction — one extra confirm,
  * never silent data loss.
  */
-export function isDirty(
-  current: FigureState,
-  savedRef: FigureState,
-): boolean {
+export function isDirty(current: FigureState, savedRef: FigureState): boolean {
   return current !== savedRef;
 }
