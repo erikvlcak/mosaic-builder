@@ -774,6 +774,7 @@ export function App(): JSX.Element {
               onTrayDragHoverChange={setHoverPanelId}
               onPanelDoubleClick={onPanelDoubleClick}
               onPanelClick={onPanelSingleClick}
+              onHoleClick={onHoleClick}
               {...(() => {
                 const sid = selectedIdOf(panelInteraction);
                 return sid !== null ? { selectedPanelId: sid } : {};
@@ -797,7 +798,10 @@ export function App(): JSX.Element {
         </section>
         <PropertiesPanel
           state={state}
-          focusedPanel={selectedImagePanel}
+          // Pass the raw focused panel, NOT selectedImagePanel: an empty
+          // (image-less) panel must reach PropertiesPanel so its Hide/Delete
+          // form renders. PropertiesPanel does its own image-vs-empty routing.
+          focusedPanel={focusedPanel}
           selectedAnno={selectedAnno}
           {...(selectedLetterPanelId !== undefined
             ? { selectedLetterPanelId }

@@ -46,7 +46,12 @@ import {
   updateAnnotation,
   removeAnnotation,
 } from "../../model/figure-actions";
-import { figureToSource, type PanelRect } from "../../render/coords";
+import {
+  figureToSource,
+  computeGridLayout,
+  computeCellRect,
+  type PanelRect,
+} from "../../render/coords";
 import { snapDelta, type Guideline, type SnapRect } from "../../render/snap";
 import { DRAG_MIME, parseDrag } from "../../dnd/drag-payload";
 import type { ImagePoolItem } from "../../model/pool";
@@ -159,6 +164,15 @@ interface Props {
    * onClick to select the panel.
    */
   onPanelClick?: (panelId: string) => void;
+  /**
+   * Forward a backdrop click (no movement past MARQUEE_MIN_PX) that lands
+   * on a grid *hole* (a cell no panel covers, from DELETE_PANEL) to
+   * onHoleClick(row, col) so the panel can be restored. Mirrors
+   * `onPanelClick` — the backdrop is the topmost hit-target, so GridCells's
+   * hole onClick never fires on its own. Uses the same equal-weight
+   * cell-grid math GridCells positions the hole "+" with.
+   */
+  onHoleClick?: (row: number, col: number) => void;
   /**
    * Id of the currently selected occupied panel, if any. The backdrop
    * carves a hole over its rect so HTML5 dragstart on GridCells's
@@ -368,6 +382,59 @@ function panelAt(
 }
 
 /**
+ * If `(fx, fy)` lands on a grid *hole* — a cell no panel covers — return its
+ * (row, col); otherwise null. Uses the same equal-weight cell-grid layout
+ * GridCells positions the hole "+" with (see GridCells: hole/selection math
+ * deliberately uses `computeCellRect`, not the track-weighted rects), so a
+ * click matches the visible affordance. `null` layout on a non-uniform figure
+ * only shifts alignment slightly — same v1 caveat as GridCells.
+ */
+function holeAt(
+  figure: Figure,
+  figurePxW: number,
+  figurePxH: number,
+  fx: number,
+  fy: number,
+): { row: number; col: number } | null {
+  const { rows, cols, gutterPx } = figure.grid;
+  const covered = new Array<boolean>(rows * cols).fill(false);
+  for (const p of figure.panels) {
+    const rowSpan = p.rowSpan ?? 1;
+    const colSpan = p.colSpan ?? 1;
+    for (let r = p.row; r < p.row + rowSpan; r++) {
+      for (let c = p.col; c < p.col + colSpan; c++) {
+        if (r >= 0 && r < rows && c >= 0 && c < cols) {
+          covered[r * cols + c] = true;
+        }
+      }
+    }
+  }
+  const layout = computeGridLayout(
+    figurePxW,
+    figurePxH,
+    rows,
+    cols,
+    gutterPx,
+    figure.grid.outerGutter ?? true,
+  );
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      if (covered[r * cols + c]) continue;
+      const rect = computeCellRect(layout, r, c);
+      if (
+        fx >= rect.x &&
+        fx <= rect.x + rect.w &&
+        fy >= rect.y &&
+        fy <= rect.y + rect.h
+      ) {
+        return { row: r, col: c };
+      }
+    }
+  }
+  return null;
+}
+
+/**
  * If `(fx, fy)` lands inside an image-bearing panel, return the image's
  * pool entry + the panel rect + the panel's transform — so creation
  * handlers can derive `imgU/imgV` anchors via `figureToSource`. Returns
@@ -505,6 +572,7 @@ export function AnnotationInteractionLayer({
   onTrayDragHoverChange,
   onPanelDoubleClick,
   onPanelClick,
+  onHoleClick,
   selectedPanelId,
   editingPanelRect,
 }: Props): JSX.Element {
@@ -816,9 +884,15 @@ export function AnnotationInteractionLayer({
       // user's mental model is "click a panel to select it", and the
       // backdrop covers unselected panels by design (so marquee works
       // there) — we have to bridge that gap explicitly.
-      if (onPanelClick !== undefined) {
-        const targetPanelId = panelAt(panelRectsById, endFx, endFy);
-        if (targetPanelId !== null) onPanelClick(targetPanelId);
+      const targetPanelId = panelAt(panelRectsById, endFx, endFy);
+      if (targetPanelId !== null) {
+        if (onPanelClick !== undefined) onPanelClick(targetPanelId);
+      } else if (onHoleClick !== undefined) {
+        // No panel under the cursor — the click may be on a grid hole
+        // (deleted-panel gap). Forward so the restore affordance works
+        // even though the backdrop eats the hole's own onClick.
+        const hole = holeAt(figure, figurePxW, figurePxH, endFx, endFy);
+        if (hole !== null) onHoleClick(hole.row, hole.col);
       }
       setDrag(null);
       return;
