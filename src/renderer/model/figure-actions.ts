@@ -532,6 +532,7 @@ export function figureReducer(s: FigureState, a: FigureAction): FigureState {
       // Released imageIds simply stay in the pool unplaced — no pool mutation.
       const keptPanelIds = new Set(r.panels.map((p) => p.id));
       const letterOverrides = filterOverrides(s.letterOverrides, keptPanelIds);
+      const annotations = pruneDanglingAnnotations(s.annotations, keptPanelIds);
       // Resizing the grid invalidates per-track weights (length changes) and
       // any free-form rects (some panels may not exist in the new dims).
       // Easiest correct behavior: revert to a uniform layout.
@@ -541,6 +542,7 @@ export function figureReducer(s: FigureState, a: FigureAction): FigureState {
         cols,
         panels: r.panels,
         letterOverrides,
+        annotations,
         layout: uniformLayoutFor(rows, cols),
       };
     }
@@ -589,12 +591,14 @@ export function figureReducer(s: FigureState, a: FigureAction): FigureState {
           letterOverrides = { ...letterOverrides, [merged.id]: tlOverride };
         }
       }
+      const annotations = pruneDanglingAnnotations(s.annotations, keptPanelIds);
       // Merge mints a fresh panel id; any free-form rects keyed by old ids
       // would dangle. Reverting to uniform is simpler than rect surgery.
       return {
         ...s,
         panels: nextPanels,
         letterOverrides,
+        annotations,
         layout: uniformLayoutFor(s.rows, s.cols),
       };
     }
@@ -603,12 +607,17 @@ export function figureReducer(s: FigureState, a: FigureAction): FigureState {
       const next = unmergePanel(s.panels, a.panelId);
       if (next === s.panels) return s;
       const letterOverrides = deleteOverride(s.letterOverrides, a.panelId);
+      // unmergePanel replaces the merged panel with fresh 1x1 cells, so any
+      // annotation bound to the old merged id now dangles.
+      const keptPanelIds = new Set(next.map((p) => p.id));
+      const annotations = pruneDanglingAnnotations(s.annotations, keptPanelIds);
       // Same rationale as MERGE_CELLS: unmerged panels have fresh ids; revert
       // to uniform.
       return {
         ...s,
         panels: next,
         letterOverrides,
+        annotations,
         layout: uniformLayoutFor(s.rows, s.cols),
       };
     }
@@ -972,8 +981,9 @@ export function figureReducer(s: FigureState, a: FigureAction): FigureState {
       // to this panel (text/symbol/box keyed by panelId, plus scale bars
       // — though scale bars require an image and so won't appear here).
       const letterOverrides = deleteOverride(s.letterOverrides, a.panelId);
-      const annotations = s.annotations.filter(
-        (an) => an.panelId !== a.panelId,
+      const annotations = pruneDanglingAnnotations(
+        s.annotations,
+        new Set(panels.map((p) => p.id)),
       );
       // Drop the deleted panel's rect entry from a free layout; uniform
       // layouts don't need touching.
@@ -1146,6 +1156,27 @@ function isHexColor(s: string): boolean {
  * Return a fresh letterOverrides object containing only entries whose key
  * is in `keepIds`. Always allocates a new object.
  */
+/**
+ * Drop annotations anchored to a panel that no longer exists. Annotations with
+ * no `panelId` (figure-global text/symbols) are always kept — only panel-bound
+ * ones are checked against the live panel set. Returns the same array
+ * reference when nothing is pruned, preserving the reducer's ===-on-no-op
+ * contract. `deriveFigure` already hides danglers at render time; pruning here
+ * keeps them out of the serialized .mosaic file, where they would otherwise
+ * accumulate across every grid edit.
+ */
+function pruneDanglingAnnotations(
+  annotations: readonly Annotation[],
+  keepPanelIds: Set<string>,
+): Annotation[] {
+  const kept = annotations.filter(
+    (an) => an.panelId === undefined || keepPanelIds.has(an.panelId),
+  );
+  return kept.length === annotations.length
+    ? (annotations as Annotation[])
+    : kept;
+}
+
 function filterOverrides(
   overrides: Record<string, LetterOverride>,
   keepIds: Set<string>,

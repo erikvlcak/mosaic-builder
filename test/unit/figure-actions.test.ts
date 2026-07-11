@@ -1237,6 +1237,43 @@ describe("figureReducer (M6 annotations)", () => {
     expect(s.letterOverrides[merged.id]).toBeUndefined();
   });
 
+  it("RESIZE_GRID prunes annotations bound to panels that no longer exist (2.5)", () => {
+    let s = initialFigureState(); // 2x2
+    const keepPid = panelIdAt(s, 0, 0);
+    const dropPid = panelIdAt(s, 1, 1);
+    s = figureReducer(s, addAnnotation(textAnno("keep", keepPid)));
+    s = figureReducer(s, addAnnotation(symbolAnno("drop", dropPid)));
+    s = figureReducer(s, addAnnotation(textAnno("global"))); // no panelId
+    // Shrink to 1x1: only the (0,0) panel survives.
+    s = figureReducer(s, resizeGrid(1, 1));
+    const ids = s.annotations.map((a) => a.id).sort();
+    // "keep" (on surviving panel) and "global" (unbound) stay; "drop" pruned.
+    expect(ids).toEqual(["global", "keep"]);
+  });
+
+  it("MERGE_CELLS prunes annotations bound to the now-merged sub-panels (2.5)", () => {
+    let s = initialFigureState(); // 2x2
+    const a = panelIdAt(s, 0, 0);
+    const b = panelIdAt(s, 0, 1);
+    s = figureReducer(s, addAnnotation(textAnno("onA", a)));
+    s = figureReducer(s, addAnnotation(symbolAnno("onB", b)));
+    // Merge (0,0)+(0,1) — both sub-panels get replaced by one fresh id.
+    s = figureReducer(s, mergeCells([{ row: 0, col: 0 }, { row: 0, col: 1 }]));
+    // Both annotations were bound to ids that no longer exist → pruned.
+    expect(s.annotations).toEqual([]);
+  });
+
+  it("UNMERGE_PANEL prunes annotations bound to the old merged panel (2.5)", () => {
+    let s = initialFigureState();
+    s = figureReducer(s, mergeCells([{ row: 0, col: 0 }, { row: 0, col: 1 }]));
+    const merged = s.panels.find((p) => p.colSpan === 2)!;
+    s = figureReducer(s, addAnnotation(textAnno("onMerged", merged.id)));
+    expect(s.annotations).toHaveLength(1);
+    s = figureReducer(s, unmergePanelAction(merged.id));
+    // The merged id is gone; its annotation is pruned rather than dangling.
+    expect(s.annotations).toEqual([]);
+  });
+
   it("REMOVE_FROM_POOL drops scale-bar annotations on affected panel; keeps text/symbol/box", () => {
     let s = withPool(IMG_CAL);
     const pid = panelIdAt(s, 0, 0);
