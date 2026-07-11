@@ -15,10 +15,12 @@ import { type FigureState } from "../model/figure-state";
  * `pointerup` on a pan/zoom drag emits a `commit()` afterwards. Keep this
  * list small; anything missing here records every interim state.
  */
-const TRANSIENT_ACTIONS: ReadonlySet<FigureAction["type"]> = new Set([
+export const TRANSIENT_ACTIONS: ReadonlySet<FigureAction["type"]> = new Set([
   "SET_PANEL_TRANSFORM",
   "UPDATE_ANNOTATION",
   "SET_GLOBAL_STYLE",
+  "SET_TRACK_WEIGHT",
+  "RESIZE_PANEL_FREEFORM",
 ]);
 
 interface HistoryControls {
