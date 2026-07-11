@@ -809,15 +809,24 @@ export function figureReducer(s: FigureState, a: FigureAction): FigureState {
         id?: string;
         kind?: AnnotationKind;
       };
-      // If the patch references a panelId, that panel must exist.
-      if (typeof rest.panelId === "string") {
-        const panel = findPanelById(s.panels, rest.panelId);
-        if (panel === undefined) return s;
-        // Scale bars require the new target panel to also have a calibrated image.
-        if (existing.kind === "scalebar") {
-          if (panel.imageId === undefined) return s;
-          const img = s.pool.find((p) => p.id === panel.imageId);
-          if (img === undefined || img.calibration === undefined) return s;
+      // Validate any panelId change. Use `in` (not `typeof === "string"`) so an
+      // explicit `panelId: undefined` in the patch is validated too — otherwise
+      // the spread below would silently unbind the annotation while skipping
+      // every check, which for a scalebar violates its "always bound" invariant.
+      if ("panelId" in rest) {
+        if (rest.panelId === undefined) {
+          // Unbinding: forbidden for scale bars (they require a calibrated
+          // panel). Harmless for text/symbol, which may be figure-global.
+          if (existing.kind === "scalebar") return s;
+        } else {
+          const panel = findPanelById(s.panels, rest.panelId);
+          if (panel === undefined) return s;
+          // Scale bars require the new target panel to also have a calibrated image.
+          if (existing.kind === "scalebar") {
+            if (panel.imageId === undefined) return s;
+            const img = s.pool.find((p) => p.id === panel.imageId);
+            if (img === undefined || img.calibration === undefined) return s;
+          }
         }
       }
       const merged = { ...existing, ...rest } as Annotation;

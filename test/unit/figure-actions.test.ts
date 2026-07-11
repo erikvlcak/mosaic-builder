@@ -983,6 +983,35 @@ describe("figureReducer (M6 annotations)", () => {
     expect(sb?.panelId).toBe(pid_cal);
   });
 
+  it("UPDATE_ANNOTATION rejects unbinding a scale bar (explicit panelId: undefined) (2.6)", () => {
+    let s = withPool(IMG_CAL);
+    const pid = panelIdAt(s, 0, 0);
+    s = figureReducer(s, placeIntoPanel("cal", pid));
+    s = figureReducer(s, addAnnotation(scalebarAnno("sb1", pid)));
+    const before = s;
+    // An explicit `panelId: undefined` patch must NOT silently unbind the
+    // scalebar (would violate its always-bound invariant). No-op expected.
+    s = figureReducer(
+      s,
+      updateAnnotation("sb1", { panelId: undefined } as Partial<Annotation>),
+    );
+    expect(s).toBe(before);
+    expect(s.annotations.find((x) => x.id === "sb1")?.panelId).toBe(pid);
+  });
+
+  it("UPDATE_ANNOTATION allows unbinding a text annotation (panelId: undefined) (2.6)", () => {
+    let s = initialFigureState();
+    const pid = panelIdAt(s, 0, 0);
+    s = figureReducer(s, addAnnotation(textAnno("t1", pid)));
+    expect(s.annotations[0]?.panelId).toBe(pid);
+    s = figureReducer(
+      s,
+      updateAnnotation("t1", { panelId: undefined } as Partial<Annotation>),
+    );
+    // Text may be figure-global, so unbinding is valid and applied.
+    expect(s.annotations[0]?.panelId).toBeUndefined();
+  });
+
   it("REMOVE_ANNOTATION filters out by id", () => {
     let s = initialFigureState();
     s = figureReducer(s, addAnnotation(textAnno("t1")));
