@@ -4,6 +4,10 @@ import {
   fromMosaicFile,
 } from "../../src/renderer/model/serialize";
 import { initialFigureState } from "../../src/renderer/model/figure-state";
+import {
+  figureReducer,
+  relinkPoolImage,
+} from "../../src/renderer/model/figure-actions";
 import type { ImagePoolItem } from "../../src/renderer/model/pool";
 import type {
   MosaicFileV1,
@@ -193,6 +197,44 @@ describe("fromMosaicFile", () => {
       relPath: "./images/sample.png",
       sha256: "deadbeef",
     });
+  });
+});
+
+describe("relink round-trip (2.2)", () => {
+  it("a relinked image's new path is what serialize writes on the next save", () => {
+    // Simulate loading a project whose image sits at a now-broken path.
+    const broken: ImagePoolItem = {
+      ...SAMPLE_IMG,
+      filePath: "/old/gone/sample.png",
+    };
+    let state = { ...initialFigureState(), pool: [broken] };
+
+    // User relinks it to a new location (RelinkModal → relinkPoolImage).
+    state = figureReducer(
+      state,
+      relinkPoolImage("img1", {
+        filePath: "/Users/erik/proj/images/sample.png",
+        filename: "sample.png",
+        mime: "image/png",
+        width: 100,
+        height: 100,
+        bitDepth: 8,
+      }),
+    );
+
+    // The next save must record the relinked location — path AND a fresh
+    // relPath relative to the .mosaic dir — not the stale broken path.
+    const f = toMosaicFile({
+      state,
+      canvas: { widthPx: 800, heightPx: 600, background: "#FFFFFF" },
+      mosaicPath: "/Users/erik/proj/figure.mosaic",
+      appVersion: "0.1.0",
+      now: () => "2026-05-02T10:00:00Z",
+    });
+    expect(f.state.pool[0]!.filePath).toBe(
+      "/Users/erik/proj/images/sample.png",
+    );
+    expect(f.state.pool[0]!.relPath).toBe("./images/sample.png");
   });
 });
 

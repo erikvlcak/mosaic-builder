@@ -32,6 +32,22 @@ import {
   type GridLayout,
 } from "./grid-layout";
 
+/**
+ * Fields refreshed when an image is relinked to a new file on disk. The new
+ * file may differ from the original (re-exported, different format), so path,
+ * dimensions, mime and bit depth are all replaced. Calibration is deliberately
+ * NOT part of the patch — a user's manual calibration or the original TIFF's
+ * embedded calibration should survive a relink, not be silently reset.
+ */
+export interface RelinkPatch {
+  filePath: string;
+  filename: string;
+  mime: ImagePoolItem["mime"];
+  width: number;
+  height: number;
+  bitDepth: ImagePoolItem["bitDepth"];
+}
+
 export type FigureAction =
   | { type: "ADD_TO_POOL"; item: ImagePoolItem }
   | { type: "PLACE_INTO_PANEL"; imageId: string; panelId: string }
@@ -39,6 +55,7 @@ export type FigureAction =
   | { type: "REPLACE_INTO_PANEL"; imageId: string; panelId: string }
   | { type: "UNPLACE_PANEL"; panelId: string }
   | { type: "REMOVE_FROM_POOL"; imageId: string }
+  | { type: "RELINK_POOL_IMAGE"; imageId: string; patch: RelinkPatch }
   | { type: "RESIZE_GRID"; rows: number; cols: number }
   | { type: "SET_GUTTER_PX"; gutterPx: number }
   | { type: "SET_GUTTER_COLOR"; gutterColor: string }
@@ -121,6 +138,10 @@ export const removeFromPool = (imageId: string): FigureAction => ({
   type: "REMOVE_FROM_POOL",
   imageId,
 });
+export const relinkPoolImage = (
+  imageId: string,
+  patch: RelinkPatch,
+): FigureAction => ({ type: "RELINK_POOL_IMAGE", imageId, patch });
 export const unplacePanel = (panelId: string): FigureAction => ({
   type: "UNPLACE_PANEL",
   panelId,
@@ -363,6 +384,15 @@ export function figureReducer(s: FigureState, a: FigureAction): FigureState {
     case "ADD_TO_POOL": {
       if (s.pool.some((p) => p.id === a.item.id)) return s;
       return { ...s, pool: [...s.pool, a.item] };
+    }
+
+    case "RELINK_POOL_IMAGE": {
+      const idx = s.pool.findIndex((p) => p.id === a.imageId);
+      if (idx < 0) return s;
+      const pool = s.pool.map((p) =>
+        p.id === a.imageId ? { ...p, ...a.patch } : p,
+      );
+      return { ...s, pool };
     }
 
     case "PLACE_INTO_PANEL": {

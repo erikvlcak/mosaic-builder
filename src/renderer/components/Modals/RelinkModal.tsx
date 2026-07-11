@@ -1,7 +1,11 @@
 import { useState } from "react";
-import type { Dispatch } from "react";
 import { decodeImageBytes } from "../../image/decode-bytes";
-import type { FigureAction } from "../../model/figure-actions";
+import type { RelinkPatch } from "../../model/figure-actions";
+
+function basename(p: string): string {
+  const ix = Math.max(p.lastIndexOf("/"), p.lastIndexOf("\\"));
+  return ix >= 0 ? p.slice(ix + 1) : p;
+}
 
 export interface MissingEntry {
   imageId: string;
@@ -9,15 +13,25 @@ export interface MissingEntry {
   attemptedPaths: string[];
 }
 
+/**
+ * A successfully relinked image: the decoded bitmap for the live cache plus
+ * the pool patch (new path, dims, mime, bit depth) that must be committed to
+ * FigureState so the next save records the new location instead of the stale
+ * broken path.
+ */
+export interface RelinkResolution {
+  imageId: string;
+  bitmap: ImageBitmap;
+  patch: RelinkPatch;
+}
+
 interface Props {
   missing: MissingEntry[];
   onRelinked: (
-    bitmaps: Map<string, ImageBitmap>,
+    resolutions: RelinkResolution[],
     stillMissing: MissingEntry[],
   ) => void;
   onClose: () => void;
-  /** Reserved for future actions (e.g. removing image-pool entries on Skip). */
-  dispatch: Dispatch<FigureAction>;
 }
 
 export function RelinkModal({
@@ -26,7 +40,9 @@ export function RelinkModal({
   onClose,
 }: Props): JSX.Element {
   const [pending, setPending] = useState<MissingEntry[]>(missing);
-  const [resolved, setResolved] = useState<Map<string, ImageBitmap>>(new Map());
+  const [resolved, setResolved] = useState<Map<string, RelinkResolution>>(
+    new Map(),
+  );
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -46,9 +62,21 @@ export function RelinkModal({
     const f = r.files[0]!;
     try {
       const decoded = await decodeImageBytes(f.bytes, f.mime);
+      const resolution: RelinkResolution = {
+        imageId: entry.imageId,
+        bitmap: decoded.bitmap,
+        patch: {
+          filePath: f.filePath,
+          filename: basename(f.filePath),
+          mime: f.mime,
+          width: decoded.bitmap.width,
+          height: decoded.bitmap.height,
+          bitDepth: decoded.bitDepth,
+        },
+      };
       setResolved((prev) => {
         const next = new Map(prev);
-        next.set(entry.imageId, decoded.bitmap);
+        next.set(entry.imageId, resolution);
         return next;
       });
       setPending((prev) => prev.filter((p) => p.imageId !== entry.imageId));
@@ -66,7 +94,7 @@ export function RelinkModal({
   }
 
   function onDone(): void {
-    onRelinked(resolved, pending);
+    onRelinked([...resolved.values()], pending);
     onClose();
   }
 

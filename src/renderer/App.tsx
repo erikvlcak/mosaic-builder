@@ -61,6 +61,7 @@ import {
   setTrackWeightAction,
   resizePanelFreeformAction,
   resetToUniformGridAction,
+  relinkPoolImage,
 } from "./model/figure-actions";
 import { useHistoryReducer } from "./state/use-history-reducer";
 import { applyLoadedProject } from "./state/load-project";
@@ -875,14 +876,18 @@ export function App(): JSX.Element {
       {missingImages.length > 0 && (
         <RelinkModal
           missing={missingImages}
-          dispatch={dispatch}
           onClose={() => setMissingImages([])}
-          onRelinked={(newBitmaps, stillMissing) => {
+          onRelinked={(resolutions, stillMissing) => {
             setBitmaps((prev) => {
               const next = new Map(prev);
-              for (const [k, v] of newBitmaps) next.set(k, v);
+              for (const r of resolutions) next.set(r.imageId, r.bitmap);
               return next;
             });
+            // Persist the new path/dims/mime into FigureState so the next save
+            // records the relinked location instead of the stale broken path.
+            for (const r of resolutions) {
+              dispatch(relinkPoolImage(r.imageId, r.patch));
+            }
             setMissingImages(stillMissing);
           }}
         />

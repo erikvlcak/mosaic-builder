@@ -52,6 +52,7 @@ import {
   resizeGrid,
   mergeCells,
   unmergePanelAction,
+  relinkPoolImage,
 } from "../../src/renderer/model/figure-actions";
 import {
   findPanelAt,
@@ -201,6 +202,71 @@ describe("figureReducer (panel-id actions)", () => {
     s = figureReducer(s, removeFromPool("a"));
     expect(s.pool.map((i) => i.id)).toEqual(["b"]);
     expect(s.panels.find((p) => p.id === p1)?.imageId).toBeUndefined();
+  });
+
+  it("RELINK_POOL_IMAGE patches path/dims/mime by imageId, preserving order", () => {
+    let s = withPool(IMG_A, IMG_B);
+    s = figureReducer(
+      s,
+      relinkPoolImage("a", {
+        filePath: "/new/loc/a2.tif",
+        filename: "a2.tif",
+        mime: "image/tiff",
+        width: 300,
+        height: 400,
+        bitDepth: 16,
+      }),
+    );
+    const a = s.pool.find((i) => i.id === "a")!;
+    expect(a.filePath).toBe("/new/loc/a2.tif");
+    expect(a.filename).toBe("a2.tif");
+    expect(a.mime).toBe("image/tiff");
+    expect(a.width).toBe(300);
+    expect(a.height).toBe(400);
+    expect(a.bitDepth).toBe(16);
+    // Insertion order and the other item are untouched.
+    expect(s.pool.map((i) => i.id)).toEqual(["a", "b"]);
+    expect(s.pool.find((i) => i.id === "b")!.filePath).toBe("/x/b.jpg");
+  });
+
+  it("RELINK_POOL_IMAGE preserves an existing calibration (relink != recalibrate)", () => {
+    const calibrated: ImagePoolItem = {
+      ...IMG_A,
+      calibration: { unit: "um", pixelsPerUnit: 6.45, source: "manual" },
+    };
+    let s = withPool(calibrated);
+    s = figureReducer(
+      s,
+      relinkPoolImage("a", {
+        filePath: "/new/a.png",
+        filename: "a.png",
+        mime: "image/png",
+        width: 100,
+        height: 100,
+        bitDepth: 8,
+      }),
+    );
+    expect(s.pool.find((i) => i.id === "a")!.calibration).toEqual({
+      unit: "um",
+      pixelsPerUnit: 6.45,
+      source: "manual",
+    });
+  });
+
+  it("RELINK_POOL_IMAGE on an unknown id is a no-op (=== same state)", () => {
+    const s = withPool(IMG_A);
+    const next = figureReducer(
+      s,
+      relinkPoolImage("nope", {
+        filePath: "/x",
+        filename: "x",
+        mime: "image/png",
+        width: 1,
+        height: 1,
+        bitDepth: 8,
+      }),
+    );
+    expect(next).toBe(s);
   });
 
   it("UNPLACE_PANEL clears imageId and transform, leaves the pool untouched", () => {

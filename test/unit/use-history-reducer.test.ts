@@ -293,6 +293,7 @@ describe("TRANSIENT_ACTIONS categorization is exhaustive", () => {
       REPLACE_INTO_PANEL: "history",
       UNPLACE_PANEL: "history",
       REMOVE_FROM_POOL: "history",
+      RELINK_POOL_IMAGE: "history",
       RESIZE_GRID: "history",
       SET_GUTTER_PX: "history",
       SET_GUTTER_COLOR: "history",
