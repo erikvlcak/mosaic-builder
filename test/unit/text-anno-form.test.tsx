@@ -64,6 +64,26 @@ describe("TextAnnoForm", () => {
     expect(flush).toHaveBeenCalled();
   });
 
+  it("toggles halo via its checkbox and emits one dispatch + flush", async () => {
+    const dispatch = vi.fn();
+    const markDirty = vi.fn();
+    const flush = vi.fn();
+    render(
+      <TextAnnoForm
+        anno={seed}
+        dispatch={dispatch}
+        commit={{ markDirty, flush }}
+      />,
+    );
+    await userEvent.click(screen.getByLabelText(/halo/i));
+    expect(dispatch).toHaveBeenCalledWith({
+      type: "UPDATE_ANNOTATION",
+      annotationId: "t1",
+      patch: { halo: true },
+    });
+    expect(flush).toHaveBeenCalled();
+  });
+
   it("clears bgColor when the user picks transparent on an already-set color", () => {
     const dispatch = vi.fn();
     const commit = { markDirty: vi.fn(), flush: vi.fn() };

@@ -117,6 +117,15 @@ export function TextAnnoForm({ anno, dispatch, commit }: Props): JSX.Element {
         onBlur={commit.flush}
         allowAlpha
       />
+      <label className="checkbox-row">
+        <input
+          type="checkbox"
+          aria-label="Halo"
+          checked={anno.halo === true}
+          onChange={(e) => patch({ halo: e.currentTarget.checked }, true)}
+        />
+        Halo (outline for contrast)
+      </label>
       <button
         type="button"
         className="btn btn-danger"

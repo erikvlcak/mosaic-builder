@@ -92,6 +92,15 @@ export function TextStylePickerPanel({ value, onChange }: Props): JSX.Element {
         }}
         allowAlpha
       />
+      <label className="checkbox-row">
+        <input
+          type="checkbox"
+          aria-label="Halo"
+          checked={value.halo === true}
+          onChange={(e) => patch({ halo: e.currentTarget.checked })}
+        />
+        Halo (outline for contrast)
+      </label>
     </div>
   );
 }

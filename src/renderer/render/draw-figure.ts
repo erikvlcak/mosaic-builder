@@ -21,6 +21,8 @@ export interface DrawCtx {
   fillRect(x: number, y: number, w: number, h: number): void;
   strokeRect(x: number, y: number, w: number, h: number): void;
   fillText(text: string, x: number, y: number): void;
+  /** Outline pass for text — used to paint a contrasting halo behind glyphs. */
+  strokeText(text: string, x: number, y: number): void;
   measureText(text: string): { width: number };
   drawImage(
     img: CanvasImageSource,

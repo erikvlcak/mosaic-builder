@@ -1423,6 +1423,7 @@ export function AnnotationInteractionLayer({
       ...(defaultTextStyle.bgColor !== undefined
         ? { bgColor: defaultTextStyle.bgColor }
         : {}),
+      ...(defaultTextStyle.halo === true ? { halo: true } : {}),
     };
     // If the click landed on an image-bearing panel, bind the annotation
     // to that image so it follows the image when swapped to another panel.

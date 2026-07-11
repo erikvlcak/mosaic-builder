@@ -143,6 +143,17 @@ export function CanvasAndGlobalStyleForm({
           value={globalStyle.letters.corner}
           onChange={(c) => patchLetters({ corner: c }, true)}
         />
+        <label className="checkbox-row">
+          <input
+            type="checkbox"
+            aria-label="Halo"
+            checked={globalStyle.letters.halo === true}
+            onChange={(e) =>
+              patchLetters({ halo: e.currentTarget.checked }, true)
+            }
+          />
+          Halo (outline for contrast)
+        </label>
       </fieldset>
 
       <fieldset

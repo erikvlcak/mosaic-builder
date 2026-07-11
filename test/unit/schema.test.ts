@@ -72,6 +72,65 @@ describe("validateMosaicFile", () => {
     }
   });
 
+  it("accepts globalStyle.letters.halo when it is a boolean", () => {
+    const r = validateMosaicFile({
+      ...MIN_VALID,
+      state: {
+        ...MIN_VALID.state,
+        globalStyle: {
+          ...MIN_VALID.state.globalStyle,
+          letters: { ...MIN_VALID.state.globalStyle.letters, halo: true },
+        },
+      },
+    });
+    expect(r.ok).toBe(true);
+  });
+
+  it("rejects globalStyle.letters.halo when present but not a boolean", () => {
+    const r = validateMosaicFile({
+      ...MIN_VALID,
+      state: {
+        ...MIN_VALID.state,
+        globalStyle: {
+          ...MIN_VALID.state.globalStyle,
+          letters: {
+            ...MIN_VALID.state.globalStyle.letters,
+            halo: "yes",
+          } as unknown as MosaicFileV5["state"]["globalStyle"]["letters"],
+        },
+      },
+    });
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error).toMatch(/halo/);
+  });
+
+  it("rejects a text annotation whose halo is not a boolean", () => {
+    const r = validateMosaicFile({
+      ...MIN_VALID,
+      state: {
+        ...MIN_VALID.state,
+        annotations: [
+          {
+            id: "t1",
+            kind: "text",
+            z: 0,
+            x: 10,
+            y: 10,
+            text: "hi",
+            font: "Arial",
+            sizePt: 12,
+            bold: false,
+            italic: false,
+            color: "#000000",
+            halo: 1,
+          },
+        ] as unknown as MosaicFileV5["state"]["annotations"],
+      },
+    });
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error).toMatch(/halo/);
+  });
+
   it("rejects schemaVersion 4 with a clear error", () => {
     const r = validateMosaicFile({ ...MIN_VALID, schemaVersion: 4 });
     expect(r.ok).toBe(false);

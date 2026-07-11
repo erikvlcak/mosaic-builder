@@ -146,6 +146,20 @@ describe("AnnotationInteractionLayer: text creation", () => {
     expect(adds[0]?.annotation?.text).toBe("hello");
   });
 
+  it("carries the default text style's halo flag onto the created annotation", () => {
+    const { dispatch } = setup();
+    const layer = screen.getByTestId("annotation-layer");
+    fireEvent.pointerDown(layer, { button: 0, clientX: 80, clientY: 60 });
+    const input = screen.getByTestId("anno-text-input");
+    fireEvent.change(input, { target: { value: "legend" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    const add = dispatch.mock.calls
+      .map(([a]) => a as { type: string; annotation?: { halo?: boolean } })
+      .find((a) => a.type === "ADD_ANNOTATION");
+    // DEFAULT_TEXT_PICKER = initialDefaultTextStyle() ships halo on.
+    expect(add?.annotation?.halo).toBe(true);
+  });
+
   it("switching tools mid-type commits the pending text instead of dropping it (4.1)", () => {
     const dispatch = vi.fn();
     const props = {

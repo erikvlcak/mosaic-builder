@@ -19,6 +19,12 @@ describe("initialFigureState — M6 shape", () => {
     expect(s.gutterPx).toBe(12);
     expect(s.gutterColor).toBe("#FFFFFF");
   });
+
+  it("defaults new-figure letters to white with the halo on (legible on dark images)", () => {
+    const s = initialFigureState();
+    expect(s.globalStyle.letters.color).toBe("#FFFFFF");
+    expect(s.globalStyle.letters.halo).toBe(true);
+  });
 });
 
 describe("initialFigureState — layout (spec 11)", () => {

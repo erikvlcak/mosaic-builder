@@ -304,6 +304,10 @@ function validateAnnotations(
       if (a.anchor !== undefined && !isImageAnchor(a.anchor)) {
         return err(`${path}[${i}].anchor`);
       }
+      // Halo is optional (UI/UX refresh); absent ⇒ off. Present-and-wrong is rejected.
+      if (a.halo !== undefined && typeof a.halo !== "boolean") {
+        return err(`${path}[${i}].halo`);
+      }
     } else if (k === "arrow") {
       // arrow annotations only exist in v1 files; v2 files use `symbol`.
       if (schemaVersion !== 1) {
@@ -413,6 +417,11 @@ function validateGlobalStyle(
   // defaults missing values to false. Reject only if it's present-and-wrong.
   if (l.italic !== undefined && typeof l.italic !== "boolean") {
     return err(`${path}.letters.italic`);
+  }
+  // Halo is added in the UI/UX refresh; pre-halo files lack it (absent ⇒ off).
+  // Reject only if it's present-and-wrong so old files stay pixel-identical.
+  if (l.halo !== undefined && typeof l.halo !== "boolean") {
+    return err(`${path}.letters.halo`);
   }
   if (l.bgColor !== undefined && !isHex(l.bgColor))
     return err(`${path}.letters.bgColor`);

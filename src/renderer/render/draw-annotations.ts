@@ -95,6 +95,54 @@ function fontString(opts: {
   return parts.join(" ");
 }
 
+/**
+ * Halo stroke width in figure-px. The editor and export contexts are already
+ * transformed (`ctx.scale(dpr)` / `ctx.scale(exportScale)`) before the draw
+ * pass, so a constant figure-px width scales to device-px for free — the
+ * outline stays ~1.5 px relative to the glyph at any output size.
+ */
+const HALO_WIDTH_PX = 1.5;
+
+/**
+ * Relative luminance of a "#RRGGBB(AA)" color in 0..1 (Rec. 601 weights,
+ * gamma ignored — we only need a light/dark split, not perceptual accuracy).
+ * Non-hex or malformed input is treated as mid-gray so a stray value still
+ * gets a usable halo rather than throwing in the render loop.
+ */
+function fillLuminance(color: string): number {
+  const m = /^#([0-9a-fA-F]{6})([0-9a-fA-F]{2})?$/.exec(color);
+  if (m === null || m[1] === undefined) return 0.5;
+  const hex = m[1];
+  const r = parseInt(hex.slice(0, 2), 16) / 255;
+  const g = parseInt(hex.slice(2, 4), 16) / 255;
+  const b = parseInt(hex.slice(4, 6), 16) / 255;
+  return 0.299 * r + 0.587 * g + 0.114 * b;
+}
+
+/**
+ * Paint a contrasting outline behind a glyph run so it reads on any
+ * background: black halo under light fills, white under dark fills. Must be
+ * called with the same `font`/baseline/align state and at the same (x, y) as
+ * the subsequent `fillText`. Restores the caller's `lineJoin` afterward so
+ * halo state never leaks into later draws (symbol dashes, etc.).
+ */
+function drawHalo(
+  ctx: DrawCtx,
+  text: string,
+  x: number,
+  y: number,
+  fill: string,
+): void {
+  const prevJoin = ctx.lineJoin;
+  const prevWidth = ctx.lineWidth;
+  ctx.strokeStyle = fillLuminance(fill) >= 0.5 ? "#000000" : "#FFFFFF";
+  ctx.lineWidth = HALO_WIDTH_PX;
+  ctx.lineJoin = "round";
+  ctx.strokeText(text, x, y);
+  ctx.lineJoin = prevJoin;
+  ctx.lineWidth = prevWidth;
+}
+
 function drawLetter(
   ctx: DrawCtx,
   letter: LetterAnnotation,
@@ -176,6 +224,9 @@ function drawLetter(
     );
   }
 
+  if (style.halo === true) {
+    drawHalo(ctx, letter.text, x, y, style.color);
+  }
   ctx.fillStyle = style.color;
   ctx.fillText(letter.text, x, y);
 }
@@ -215,6 +266,9 @@ function drawText(
     );
   }
 
+  if (t.halo === true) {
+    drawHalo(ctx, t.text, t.x, t.y, t.color);
+  }
   ctx.fillStyle = t.color;
   ctx.fillText(t.text, t.x, t.y);
 }

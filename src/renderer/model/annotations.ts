@@ -75,6 +75,12 @@ export interface TextAnnotation extends BaseAnnotation {
   color: string;
   /** Optional pad-rect fill. */
   bgColor?: string;
+  /**
+   * When true, paint a contrasting outline (halo) behind the glyphs so the
+   * text stays legible on any background. Optional so pre-halo `.mosaic`
+   * files (absent ⇒ false) render pixel-identically.
+   */
+  halo?: boolean;
 }
 
 export interface SymbolAnnotation extends BaseAnnotation {

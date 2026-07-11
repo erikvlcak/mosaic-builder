@@ -97,6 +97,31 @@ describe("CanvasAndGlobalStyleForm", () => {
     });
   });
 
+  it("toggles the letters halo via its checkbox and dispatches SET_GLOBAL_STYLE", async () => {
+    const dispatch = vi.fn<(a: FigureAction) => void>();
+    const commit = { markDirty: vi.fn(), flush: vi.fn() };
+    // Start with halo off so clicking turns it on.
+    const style = {
+      ...DEFAULT_GLOBAL_STYLE,
+      letters: { ...DEFAULT_GLOBAL_STYLE.letters, halo: false },
+    };
+    render(
+      <CanvasAndGlobalStyleForm
+        state={initialFigureState()}
+        globalStyle={style}
+        dispatch={dispatch}
+        commit={commit}
+      />,
+    );
+    await userEvent.click(screen.getByLabelText(/halo/i));
+    const last = dispatch.mock.calls.at(-1)?.[0] as
+      | SetGlobalStyleAction
+      | undefined;
+    expect(last?.type).toBe("SET_GLOBAL_STYLE");
+    expect(last?.style.letters.halo).toBe(true);
+    expect(commit.flush).toHaveBeenCalled();
+  });
+
   it("disables the reset button when no overrides exist", () => {
     render(
       <CanvasAndGlobalStyleForm

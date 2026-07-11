@@ -52,6 +52,9 @@ function makeRecorder(): DrawCtx & { calls: Call[] } {
     fillText(...args) {
       calls.push(snapshot("fillText", args));
     },
+    strokeText(...args) {
+      calls.push(snapshot("strokeText", args));
+    },
     measureText(text: string) {
       const sizePx = fontSizePx(this.font);
       return { width: text.length * sizePx * 0.6 };
@@ -191,6 +194,7 @@ describe("drawFigure", () => {
       },
       strokeRect() {},
       fillText() {},
+      strokeText() {},
       measureText(text: string) {
         return { width: text.length * 8 };
       },
