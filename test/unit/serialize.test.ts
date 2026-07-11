@@ -69,6 +69,91 @@ describe("toMosaicFile", () => {
     expect(f.state.pool[0]!.relPath).toBeUndefined();
   });
 
+  // 2.1: relPath was silently never produced on Windows because the old
+  // isPosixAbsolute check only matched "/"-rooted paths. These use a genuinely
+  // Windows-native mosaicPath (drive letter + backslashes), which the previous
+  // "different volume" test never did.
+  it("computes forward-slash relPath for a same-drive Windows path", () => {
+    const winImg: ImagePoolItem = {
+      ...SAMPLE_IMG,
+      filePath: "C:\\Users\\erik\\proj\\images\\sample.png",
+    };
+    const state = { ...initialFigureState(), pool: [winImg] };
+    const f = toMosaicFile({
+      state,
+      canvas: { widthPx: 800, heightPx: 600, background: "#FFFFFF" },
+      mosaicPath: "C:\\Users\\erik\\proj\\figure.mosaic",
+      appVersion: "0.1.0",
+      now: () => "2026-05-02T10:00:00Z",
+    });
+    // Stored relPath is always forward-slash so it round-trips on both OSes.
+    expect(f.state.pool[0]!.relPath).toBe("./images/sample.png");
+  });
+
+  it("compares Windows drive letters case-insensitively", () => {
+    const winImg: ImagePoolItem = {
+      ...SAMPLE_IMG,
+      filePath: "c:\\Users\\erik\\proj\\images\\sample.png",
+    };
+    const state = { ...initialFigureState(), pool: [winImg] };
+    const f = toMosaicFile({
+      state,
+      canvas: { widthPx: 800, heightPx: 600, background: "#FFFFFF" },
+      mosaicPath: "C:\\Users\\erik\\proj\\figure.mosaic",
+      appVersion: "0.1.0",
+      now: () => "2026-05-02T10:00:00Z",
+    });
+    expect(f.state.pool[0]!.relPath).toBe("./images/sample.png");
+  });
+
+  it("omits relPath when the image is on a different Windows drive", () => {
+    const winImg: ImagePoolItem = {
+      ...SAMPLE_IMG,
+      filePath: "D:\\media\\sample.png",
+    };
+    const state = { ...initialFigureState(), pool: [winImg] };
+    const f = toMosaicFile({
+      state,
+      canvas: { widthPx: 800, heightPx: 600, background: "#FFFFFF" },
+      mosaicPath: "C:\\Users\\erik\\proj\\figure.mosaic",
+      appVersion: "0.1.0",
+      now: () => "2026-05-02T10:00:00Z",
+    });
+    expect(f.state.pool[0]!.relPath).toBeUndefined();
+  });
+
+  it("computes relPath for UNC paths on the same share", () => {
+    const uncImg: ImagePoolItem = {
+      ...SAMPLE_IMG,
+      filePath: "\\\\nas\\lab\\proj\\images\\sample.png",
+    };
+    const state = { ...initialFigureState(), pool: [uncImg] };
+    const f = toMosaicFile({
+      state,
+      canvas: { widthPx: 800, heightPx: 600, background: "#FFFFFF" },
+      mosaicPath: "\\\\nas\\lab\\proj\\figure.mosaic",
+      appVersion: "0.1.0",
+      now: () => "2026-05-02T10:00:00Z",
+    });
+    expect(f.state.pool[0]!.relPath).toBe("./images/sample.png");
+  });
+
+  it("omits relPath across different UNC shares", () => {
+    const uncImg: ImagePoolItem = {
+      ...SAMPLE_IMG,
+      filePath: "\\\\nas\\other\\sample.png",
+    };
+    const state = { ...initialFigureState(), pool: [uncImg] };
+    const f = toMosaicFile({
+      state,
+      canvas: { widthPx: 800, heightPx: 600, background: "#FFFFFF" },
+      mosaicPath: "\\\\nas\\lab\\proj\\figure.mosaic",
+      appVersion: "0.1.0",
+      now: () => "2026-05-02T10:00:00Z",
+    });
+    expect(f.state.pool[0]!.relPath).toBeUndefined();
+  });
+
   it("attaches sha256 if provided in shaByImageId", () => {
     const state = { ...initialFigureState(), pool: [SAMPLE_IMG] };
     const f = toMosaicFile({
