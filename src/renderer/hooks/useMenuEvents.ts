@@ -1,11 +1,16 @@
 import { useEffect, useRef } from "react";
 
 export interface MenuEventHandlers {
-  onNew: () => void;
+  /** May be async — fire-and-forget; errors should be surfaced via toasts. */
+  onNew: () => void | Promise<void>;
   /** May be async — fire-and-forget; errors should be surfaced via toasts. */
   onOpen: () => void | Promise<void>;
-  /** May be async — fire-and-forget; errors should be surfaced via toasts. */
-  onSave: () => void | Promise<void>;
+  /**
+   * May be async and resolve to a saved-success boolean — fire-and-forget
+   * here; the return is used elsewhere (close-then-save flow). Errors should
+   * be surfaced via toasts.
+   */
+  onSave: () => void | Promise<unknown>;
   /** May be async — fire-and-forget; errors should be surfaced via toasts. */
   onSaveAs: () => void | Promise<void>;
   onExportPng: () => void;
@@ -24,7 +29,7 @@ export function useMenuEvents(handlers: MenuEventHandlers): void {
       const h = ref.current;
       switch (ev) {
         case "menu:new":
-          h.onNew();
+          void h.onNew();
           break;
         case "menu:open":
           void h.onOpen();

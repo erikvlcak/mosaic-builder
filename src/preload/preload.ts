@@ -1,6 +1,9 @@
 import { contextBridge, ipcRenderer } from "electron";
 import {
   API_CHANNELS,
+  APP_EVENTS,
+  type AppEvent,
+  type DiscardChoice,
   type ExportResult,
   type LoadProjectResult,
   type MenuEvent,
@@ -51,6 +54,22 @@ const api: MosaicApi = {
     ipcRenderer.on("menu:event", listener);
     return () => {
       ipcRenderer.off("menu:event", listener);
+    };
+  },
+  confirmDiscard: () =>
+    ipcRenderer.invoke(API_CHANNELS.confirmDiscard) as Promise<DiscardChoice>,
+  setDirty: (dirty: boolean) => {
+    ipcRenderer.send(API_CHANNELS.setDirty, dirty);
+  },
+  requestClose: () => {
+    ipcRenderer.send(API_CHANNELS.requestClose);
+  },
+  onAppEvent(handler) {
+    const listener = (_e: Electron.IpcRendererEvent, ev: AppEvent): void =>
+      handler(ev);
+    ipcRenderer.on(APP_EVENTS.beforeClose, listener);
+    return () => {
+      ipcRenderer.off(APP_EVENTS.beforeClose, listener);
     };
   },
 };

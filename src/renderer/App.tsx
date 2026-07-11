@@ -64,6 +64,7 @@ import {
   relinkPoolImage,
 } from "./model/figure-actions";
 import { useHistoryReducer } from "./state/use-history-reducer";
+import { isDirty } from "./state/dirty";
 import { applyLoadedProject } from "./state/load-project";
 import { emptySelection, singleSelectedId } from "./state/anno-selection";
 import { newImageId, type ImagePoolItem } from "./model/pool";
@@ -126,6 +127,34 @@ export function App(): JSX.Element {
   const [annotationEditing, setAnnotationEditing] = useState<boolean>(false);
   const stateRef = useRef<FigureState>(state);
   stateRef.current = state;
+
+  // Unsaved-changes tracking. `savedStateRef` marks the last clean point (app
+  // start / save / load / New); the document is dirty when the live state is a
+  // different reference. See state/dirty.ts for why reference identity is the
+  // right signal.
+  const savedStateRef = useRef<FigureState>(state);
+  // Load/New dispatch a reducer action, so the clean state lands on the *next*
+  // render — `state` in this closure is still stale. This flag defers the
+  // clean-marking to the effect below, which runs after that render settles.
+  const markCleanNextRef = useRef(false);
+  const dirty = isDirty(state, savedStateRef.current);
+  // Save happens synchronously against the current `state`, so it can mark
+  // clean immediately.
+  const markCleanNow = useCallback(() => {
+    savedStateRef.current = stateRef.current;
+    window.api.setDirty(false);
+  }, []);
+  // Keep main's cached dirty flag in sync so its window-close guard is correct,
+  // and consume a deferred clean request once the post-dispatch state is live.
+  useEffect(() => {
+    if (markCleanNextRef.current) {
+      markCleanNextRef.current = false;
+      savedStateRef.current = state;
+      window.api.setDirty(false);
+      return;
+    }
+    window.api.setDirty(dirty);
+  }, [state, dirty]);
 
   const selection = useMergeSelection();
 
@@ -483,7 +512,7 @@ export function App(): JSX.Element {
     setCroppingPanelId(selectedImagePanel.id);
   }, [selectedImagePanel]);
 
-  const onSaveProject = useCallback(async () => {
+  const onSaveProject = useCallback(async (): Promise<boolean> => {
     const file = toMosaicFile({
       state,
       canvas: {
@@ -506,13 +535,26 @@ export function App(): JSX.Element {
           message: `Save failed: ${r.message ?? r.reason}`,
         });
       }
-      return;
+      return false;
     }
     setProjectPath(r.filePath);
+    markCleanNow();
     toasts.push({ kind: "success", message: "Project saved" });
-  }, [state, projectPath, toasts]);
+    return true;
+  }, [state, projectPath, toasts, markCleanNow]);
+
+  // Gate a destructive action (New / Open) behind a native confirm when the
+  // document is dirty. Returns true if the caller should proceed.
+  const confirmDiscardIfDirty = useCallback(async (): Promise<boolean> => {
+    if (!isDirty(stateRef.current, savedStateRef.current)) return true;
+    const choice = await window.api.confirmDiscard();
+    if (choice === "cancel") return false;
+    if (choice === "save") return onSaveProject();
+    return true; // discard
+  }, [onSaveProject]);
 
   const onOpenProject = useCallback(async () => {
+    if (!(await confirmDiscardIfDirty())) return;
     const r = await window.api.loadProject();
     if (!r.ok) {
       if (r.reason !== "canceled") {
@@ -528,6 +570,9 @@ export function App(): JSX.Element {
     setPanelInteraction(null);
     setProjectPath(r.filePath);
     setMissingImages(r.missing);
+    // The loaded project is the new clean baseline (RESET_TO_STATE lands next
+    // render, so defer the clean-mark).
+    markCleanNextRef.current = true;
     if (outcome.decodeFailures.length > 0) {
       toasts.push({
         kind: "error",
@@ -537,16 +582,19 @@ export function App(): JSX.Element {
       });
     }
     toasts.push({ kind: "success", message: "Project loaded" });
-  }, [dispatch, toasts]);
+  }, [dispatch, toasts, confirmDiscardIfDirty]);
 
-  const onNew = useCallback(() => {
+  const onNew = useCallback(async () => {
+    if (!(await confirmDiscardIfDirty())) return;
     dispatch(resetFigureAction());
     setBitmaps(new Map());
     setProjectPath(null);
     setPanelInteraction(null);
     setSelectedAnnotationIds(emptySelection());
+    // The reset figure is clean (lands next render, so defer the clean-mark).
+    markCleanNextRef.current = true;
     toasts.push({ kind: "info", message: "New figure" });
-  }, [dispatch, toasts]);
+  }, [dispatch, toasts, confirmDiscardIfDirty]);
 
   const onSaveAs = useCallback(async () => {
     setProjectPath(null);
@@ -575,6 +623,20 @@ export function App(): JSX.Element {
     onUndo: history.undo,
     onRedo: history.redo,
   });
+
+  // Window-close save flow: main shows the unsaved-changes dialog and, on
+  // "Save", pushes this event. Save, then ask main to close the now-clean
+  // window. If the save is canceled or fails, we simply don't call
+  // requestClose — the window stays open.
+  useEffect(() => {
+    return window.api.onAppEvent((ev) => {
+      if (ev === "app:before-close") {
+        void onSaveProject().then((saved) => {
+          if (saved) window.api.requestClose();
+        });
+      }
+    });
+  }, [onSaveProject]);
 
   const calibratingBitmap =
     calibratingImageId !== null ? bitmaps.get(calibratingImageId) : undefined;

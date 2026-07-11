@@ -14,6 +14,9 @@ export const API_CHANNELS = {
   openImages: "mosaic:open-images",
   projectSave: "mosaic:project-save",
   projectLoad: "mosaic:project-load",
+  confirmDiscard: "mosaic:confirm-discard",
+  setDirty: "mosaic:set-dirty",
+  requestClose: "mosaic:request-close",
 } as const;
 
 export type ApiChannel = (typeof API_CHANNELS)[keyof typeof API_CHANNELS];
@@ -32,6 +35,21 @@ export const MENU_EVENTS = {
 } as const;
 
 export type MenuEvent = (typeof MENU_EVENTS)[keyof typeof MENU_EVENTS];
+
+/**
+ * Main→renderer push events not tied to a menu item. `beforeClose` fires when
+ * the user tries to close the window with unsaved changes and chose "Save" in
+ * the native dialog: the renderer saves, then calls `requestClose()` to let
+ * the (now-clean) window close.
+ */
+export const APP_EVENTS = {
+  beforeClose: "app:before-close",
+} as const;
+
+export type AppEvent = (typeof APP_EVENTS)[keyof typeof APP_EVENTS];
+
+/** User's choice in the unsaved-changes confirmation dialog. */
+export type DiscardChoice = "save" | "discard" | "cancel";
 
 export type ExportResult =
   | { ok: true; filePath: string; bytesWritten: number }
@@ -111,4 +129,12 @@ export interface MosaicApi {
   saveProject(input: SaveProjectInput): Promise<SaveProjectResult>;
   loadProject(): Promise<LoadProjectResult>;
   onMenuEvent(handler: (event: MenuEvent) => void): () => void;
+  /** Native "you have unsaved changes" prompt for New/Open when dirty. */
+  confirmDiscard(): Promise<DiscardChoice>;
+  /** Push the renderer's dirty state to main so it can guard window close. */
+  setDirty(dirty: boolean): void;
+  /** Ask main to close the window (used after a save triggered by close). */
+  requestClose(): void;
+  /** Subscribe to main→renderer app events (e.g. save-then-close). */
+  onAppEvent(handler: (event: AppEvent) => void): () => void;
 }
