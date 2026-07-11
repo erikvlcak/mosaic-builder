@@ -209,15 +209,15 @@ export function App(): JSX.Element {
       return;
     }
     if (result.canceled) return;
+    const failures: string[] = [];
     for (const f of result.files) {
       let decoded;
       try {
         decoded = await decodeImageBytes(f.bytes, f.mime);
-      } catch (err) {
-        toasts.push({
-          kind: "error",
-          message: `decode failed for ${f.filePath}: ${err instanceof Error ? err.message : String(err)}`,
-        });
+      } catch {
+        // Collect failures and surface them as ONE toast after the loop, so a
+        // batch of 20 corrupt files doesn't push 20 toasts past the viewport.
+        failures.push(basename(f.filePath));
         continue;
       }
       const { bitmap, bitDepth, calibration } = decoded;
@@ -237,6 +237,18 @@ export function App(): JSX.Element {
         return next;
       });
       dispatch(addToPool(item));
+    }
+    if (failures.length > 0) {
+      const total = result.files.length;
+      const list = failures.slice(0, 3).join(", ");
+      const more = failures.length > 3 ? ` +${failures.length - 3} more` : "";
+      toasts.push({
+        kind: "error",
+        message:
+          failures.length === 1
+            ? `Failed to decode ${failures[0]!}`
+            : `${failures.length} of ${total} images failed to decode: ${list}${more}`,
+      });
     }
   }, [dispatch, toasts]);
 

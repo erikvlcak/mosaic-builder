@@ -14,6 +14,10 @@ export interface UseToasts {
   dismiss: (this: void, id: string) => void;
 }
 
+/** Cap the visible tray so a burst (e.g. 20 failed imports) can't grow past
+ *  the viewport with no scroll. The oldest toasts are evicted first. */
+export const MAX_TOASTS = 5;
+
 let counter = 0;
 function newId(): string {
   counter += 1;
@@ -37,7 +41,20 @@ export function useToasts(ttlMs = 5000): UseToasts {
     (t: Omit<Toast, "id">): string => {
       const id = newId();
       const toast: Toast = { id, ...t };
-      setToasts((prev) => [...prev, toast]);
+      setToasts((prev) => {
+        const next = [...prev, toast];
+        // Evict oldest beyond the cap, clearing their timers so they don't
+        // fire a stale dismiss for an id no longer in the list.
+        while (next.length > MAX_TOASTS) {
+          const evicted = next.shift();
+          if (evicted !== undefined) {
+            const timer = timersRef.current.get(evicted.id);
+            if (timer !== undefined) clearTimeout(timer);
+            timersRef.current.delete(evicted.id);
+          }
+        }
+        return next;
+      });
       const timer = setTimeout(() => dismiss(id), ttlMs);
       timersRef.current.set(id, timer);
       return id;
