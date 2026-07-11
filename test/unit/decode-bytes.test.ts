@@ -28,6 +28,9 @@ const PNG_SIG = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]);
 
 let originalCreate: unknown;
 let originalImageData: unknown;
+// Records the options arg of the most recent createImageBitmap call so tests
+// can assert EXIF orientation is requested.
+let lastCreateOpts: ImageBitmapOptions | undefined;
 
 beforeAll(() => {
   originalCreate = (globalThis as unknown as { createImageBitmap?: unknown })
@@ -36,9 +39,13 @@ beforeAll(() => {
     .ImageData;
   (
     globalThis as unknown as {
-      createImageBitmap: (b: Blob | ImageData) => Promise<ImageBitmap>;
+      createImageBitmap: (
+        b: Blob | ImageData,
+        opts?: ImageBitmapOptions,
+      ) => Promise<ImageBitmap>;
     }
-  ).createImageBitmap = (src: Blob | ImageData) => {
+  ).createImageBitmap = (src: Blob | ImageData, opts?: ImageBitmapOptions) => {
+    lastCreateOpts = opts;
     const tag =
       src instanceof Blob ? src.type : `imagedata:${src.width}x${src.height}`;
     return Promise.resolve({
@@ -78,6 +85,12 @@ describe("decodeImageBytes", () => {
     expect(r.bitDepth).toBe(8);
     expect(r.calibration).toBeUndefined();
     expect((r.bitmap as unknown as { _src: string })._src).toBe("image/jpeg");
+  });
+
+  it("requests EXIF orientation via imageOrientation: from-image (3.3)", async () => {
+    lastCreateOpts = undefined;
+    await decodeImageBytes(PNG_SIG, "image/jpeg");
+    expect(lastCreateOpts?.imageOrientation).toBe("from-image");
   });
 
   it("rejects unsupported mimes", async () => {
