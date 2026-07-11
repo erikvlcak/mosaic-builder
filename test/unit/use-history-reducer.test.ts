@@ -58,6 +58,45 @@ describe("combinedReducer — undo/redo", () => {
     expect(c.history.future).toHaveLength(0);
   });
 
+  it("redo flushes an uncommitted transient instead of baking it into past", () => {
+    // Reproduces the 1.2 defect: commit B → undo → A → start a transient drag
+    // (uncommitted) → redo. Without the flush guard, `redo` would push the
+    // mid-drag transient onto `past` as if committed, so a following undo would
+    // restore that mid-drag state.
+    let c = startCombined();
+    // Commit a real change (state "B"): gutter 20.
+    c = combinedReducer(c, { kind: "dispatch", action: setGutterPx(20) });
+    // Undo back to "A" (initial gutter 12); "B" now sits in future (redoable).
+    c = combinedReducer(c, { kind: "undo" });
+    expect(c.state.gutterPx).toBe(12);
+    expect(c.history.future).toHaveLength(1);
+
+    // Begin a transient drag: scrub the global style with no commit().
+    const variant = {
+      ...DEFAULT_GLOBAL_STYLE,
+      letters: { ...DEFAULT_GLOBAL_STYLE.letters, sizePt: 99 },
+    };
+    c = combinedReducer(c, {
+      kind: "dispatch",
+      action: setGlobalStyle(variant),
+    });
+    expect(c.state !== c.lastCommitted).toBe(true);
+
+    // Redo now. The uncommitted transient is flushed (sealing the scrub as its
+    // own step) and future is cleared, so redo is a no-op on the timeline.
+    c = combinedReducer(c, { kind: "redo" });
+    expect(c.state.globalStyle.letters.sizePt).toBe(99);
+    expect(c.history.future).toHaveLength(0);
+
+    // The next undo backs out the flushed transient scrub, landing on the
+    // committed pre-drag state (gutter 12) — NOT a mid-drag artifact.
+    c = combinedReducer(c, { kind: "undo" });
+    expect(c.state.globalStyle.letters.sizePt).toBe(
+      initialFigureState().globalStyle.letters.sizePt,
+    );
+    expect(c.state.gutterPx).toBe(12);
+  });
+
   it("transient SET_PANEL_TRANSFORM does not push a history entry", () => {
     // Place an image first so the panel has a transform to update.
     let c = startCombined();
