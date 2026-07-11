@@ -11,6 +11,11 @@ files:
   - package.json
   - "!**/{.DS_Store,Thumbs.db}"
   - "!**/*.{ts,tsx,map}"
+  # vite's publicDir ("resources") copies test fixtures and a duplicate icon
+  # set into dist/renderer; keep both out of the asar. Icons ship via
+  # extraResources / the platform icon: fields, not from inside the app bundle.
+  - "!dist/renderer/fixtures/**"
+  - "!dist/renderer/icons/**"
 extraResources:
   - from: resources/icons
     to: icons
