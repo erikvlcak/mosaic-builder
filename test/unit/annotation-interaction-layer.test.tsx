@@ -145,6 +145,43 @@ describe("AnnotationInteractionLayer: text creation", () => {
     expect(adds[0]?.annotation?.kind).toBe("text");
     expect(adds[0]?.annotation?.text).toBe("hello");
   });
+
+  it("switching tools mid-type commits the pending text instead of dropping it (4.1)", () => {
+    const dispatch = vi.fn();
+    const props = {
+      defaultSymbolStyle: DEFAULT_PICKER,
+      defaultTextStyle: DEFAULT_TEXT_PICKER,
+      defaultScalebarStyle: DEFAULT_SCALEBAR_PICKER,
+      onDefaultScalebarStyleChange: () => {},
+      figure: FIG,
+      panelRectsById: new Map(),
+      imagesById: new Map(),
+      cssW: 200,
+      cssH: 200,
+      figurePxW: 200,
+      figurePxH: 200,
+      selectedAnnotationIds: new Set<string>(),
+      onSelectionChange: () => {},
+      onEditingChange: () => {},
+      dispatch,
+    };
+    const { rerender } = render(
+      <AnnotationInteractionLayer activeTool="text" {...props} />,
+    );
+    const layer = screen.getByTestId("annotation-layer");
+    fireEvent.pointerDown(layer, { button: 0, clientX: 80, clientY: 60 });
+    fireEvent.change(screen.getByTestId("anno-text-input"), {
+      target: { value: "caption" },
+    });
+    // User clicks another tool button WITHOUT pressing Enter/blur.
+    rerender(<AnnotationInteractionLayer activeTool="select" {...props} />);
+
+    const adds = dispatch.mock.calls
+      .map(([a]) => a as { type: string; annotation?: { text?: string } })
+      .filter((a) => a.type === "ADD_ANNOTATION");
+    expect(adds).toHaveLength(1);
+    expect(adds[0]?.annotation?.text).toBe("caption");
+  });
 });
 
 describe("AnnotationInteractionLayer: symbol creation + handles", () => {

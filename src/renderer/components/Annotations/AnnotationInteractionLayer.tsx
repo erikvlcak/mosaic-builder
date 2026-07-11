@@ -661,11 +661,16 @@ export function AnnotationInteractionLayer({
     onEditingChange?.(pendingText !== null);
   }, [pendingText, onEditingChange]);
 
-  // Reset transient state on tool change.
+  // Reset transient state on tool change. Commit any typed-but-uncommitted
+  // caption first (mirroring the Enter/blur paths) so switching tools mid-type
+  // doesn't silently lose the text. commitPendingText no-ops on empty/null, so
+  // this is safe when there's nothing pending. A half-configured scalebar
+  // popover is deliberately discarded (not committed): committing a
+  // half-entered length would create a wrong scale bar; closing it is correct.
   useEffect(() => {
+    commitPendingTextRef.current();
     setDrag(null);
     setPendingScalebar(null);
-    setPendingText(null);
     setGuidelines([]);
     lastSnapBucketRef.current = null;
   }, [activeTool]);
@@ -1440,6 +1445,12 @@ export function AnnotationInteractionLayer({
     onSelectionChange(replaceSelection(ann.id));
     setPendingText(null);
   }
+
+  // Keep the latest commit closure + typed value in a ref so the tool-change
+  // effect can flush pending text WITHOUT depending on pendingText/-Value
+  // (which would re-run the reset on every keystroke and wipe the text).
+  const commitPendingTextRef = useRef<() => void>(() => undefined);
+  commitPendingTextRef.current = () => commitPendingText(pendingTextValue);
 
   // -------------------------------------------------------------------
   // RENDER
