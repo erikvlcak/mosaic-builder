@@ -199,9 +199,7 @@ describe("transient actions coalesce until commit", () => {
     // Undo #1 backs out the whole drag in a single step, landing on the
     // pre-drag (but post-gutter) state.
     act(() => result.current[2].undo());
-    expect(result.current[0].layout).toEqual(
-      initialFigureState().layout,
-    );
+    expect(result.current[0].layout).toEqual(initialFigureState().layout);
     expect(result.current[0].gutterPx).toBe(20);
 
     // Undo #2 backs out the pre-existing gutter change — it was never
@@ -233,9 +231,7 @@ describe("transient actions coalesce until commit", () => {
     act(() => result.current[2].commit());
 
     act(() => result.current[2].undo());
-    expect(result.current[0].layout).toEqual(
-      initialFigureState().layout,
-    );
+    expect(result.current[0].layout).toEqual(initialFigureState().layout);
     expect(result.current[0].gutterPx).toBe(20);
 
     act(() => result.current[2].undo());
@@ -250,63 +246,61 @@ describe("TRANSIENT_ACTIONS categorization is exhaustive", () => {
   // error, which pnpm typecheck/lint catches. That forces a conscious
   // transient/history decision for every new action instead of silently
   // defaulting to "pushes history on every dispatch".
-  const CATEGORIZATION: Record<
-    FigureAction["type"],
-    "transient" | "history"
-  > = {
-    ADD_TO_POOL: "history",
-    PLACE_INTO_PANEL: "history",
-    SWAP_PANELS: "history",
-    REPLACE_INTO_PANEL: "history",
-    UNPLACE_PANEL: "history",
-    REMOVE_FROM_POOL: "history",
-    RESIZE_GRID: "history",
-    SET_GUTTER_PX: "history",
-    SET_GUTTER_COLOR: "history",
-    SET_OUTER_GUTTER: "history",
-    MERGE_CELLS: "history",
-    UNMERGE_PANEL: "history",
-    // Drag-driven: dispatched on every pointermove of a pan/zoom drag,
-    // coalesced into one undo step by commit() on pointerup.
-    SET_PANEL_TRANSFORM: "transient",
-    SET_PANEL_FIT: "history",
-    ROTATE_PANEL_90: "history",
-    FLIP_PANEL_H: "history",
-    FLIP_PANEL_V: "history",
-    RESET_PANEL_TRANSFORM: "history",
-    SET_PANEL_CROP: "history",
-    RESET_PANEL_CROP: "history",
-    ADD_ANNOTATION: "history",
-    // Drag-driven: dispatched on every pointermove while dragging/resizing
-    // an annotation or typing in its inline editor; coalesced on commit().
-    UPDATE_ANNOTATION: "transient",
-    REMOVE_ANNOTATION: "history",
-    BULK_UPDATE_ANNOS: "history",
-    BULK_REMOVE_ANNOS: "history",
-    SET_LETTER_OVERRIDE: "history",
-    SET_LETTER_PATTERN: "history",
-    CLEAR_ALL_LETTER_OVERRIDES: "history",
-    // Drag-driven: dispatched continuously while scrubbing a style control
-    // (e.g. a color/size slider with live preview); coalesced on commit().
-    SET_GLOBAL_STYLE: "transient",
-    SET_LETTERS_ENABLED: "history",
-    SET_IMAGE_CALIBRATION: "history",
-    SET_PANEL_HIDDEN: "history",
-    DELETE_PANEL: "history",
-    RESTORE_PANEL_AT: "history",
-    // Not routed through TRANSIENT_ACTIONS at all — handled specially in
-    // combinedReducer, which clears history wholesale on project load.
-    RESET_TO_STATE: "history",
-    RESET_FIGURE: "history",
-    // Drag-driven: dispatched on every pointermove of a track-handle drag,
-    // coalesced into one undo step by commit() on pointerup.
-    SET_TRACK_WEIGHT: "transient",
-    // Drag-driven: dispatched on every pointermove of a corner-handle
-    // free-form resize, coalesced into one undo step by commit() on
-    // pointerup.
-    RESIZE_PANEL_FREEFORM: "transient",
-    RESET_TO_UNIFORM_GRID: "history",
-  };
+  const CATEGORIZATION: Record<FigureAction["type"], "transient" | "history"> =
+    {
+      ADD_TO_POOL: "history",
+      PLACE_INTO_PANEL: "history",
+      SWAP_PANELS: "history",
+      REPLACE_INTO_PANEL: "history",
+      UNPLACE_PANEL: "history",
+      REMOVE_FROM_POOL: "history",
+      RESIZE_GRID: "history",
+      SET_GUTTER_PX: "history",
+      SET_GUTTER_COLOR: "history",
+      SET_OUTER_GUTTER: "history",
+      MERGE_CELLS: "history",
+      UNMERGE_PANEL: "history",
+      // Drag-driven: dispatched on every pointermove of a pan/zoom drag,
+      // coalesced into one undo step by commit() on pointerup.
+      SET_PANEL_TRANSFORM: "transient",
+      SET_PANEL_FIT: "history",
+      ROTATE_PANEL_90: "history",
+      FLIP_PANEL_H: "history",
+      FLIP_PANEL_V: "history",
+      RESET_PANEL_TRANSFORM: "history",
+      SET_PANEL_CROP: "history",
+      RESET_PANEL_CROP: "history",
+      ADD_ANNOTATION: "history",
+      // Drag-driven: dispatched on every pointermove while dragging/resizing
+      // an annotation or typing in its inline editor; coalesced on commit().
+      UPDATE_ANNOTATION: "transient",
+      REMOVE_ANNOTATION: "history",
+      BULK_UPDATE_ANNOS: "history",
+      BULK_REMOVE_ANNOS: "history",
+      SET_LETTER_OVERRIDE: "history",
+      SET_LETTER_PATTERN: "history",
+      CLEAR_ALL_LETTER_OVERRIDES: "history",
+      // Drag-driven: dispatched continuously while scrubbing a style control
+      // (e.g. a color/size slider with live preview); coalesced on commit().
+      SET_GLOBAL_STYLE: "transient",
+      SET_LETTERS_ENABLED: "history",
+      SET_IMAGE_CALIBRATION: "history",
+      SET_PANEL_HIDDEN: "history",
+      DELETE_PANEL: "history",
+      RESTORE_PANEL_AT: "history",
+      // Not routed through TRANSIENT_ACTIONS at all — handled specially in
+      // combinedReducer, which clears history wholesale on project load.
+      RESET_TO_STATE: "history",
+      RESET_FIGURE: "history",
+      // Drag-driven: dispatched on every pointermove of a track-handle drag,
+      // coalesced into one undo step by commit() on pointerup.
+      SET_TRACK_WEIGHT: "transient",
+      // Drag-driven: dispatched on every pointermove of a corner-handle
+      // free-form resize, coalesced into one undo step by commit() on
+      // pointerup.
+      RESIZE_PANEL_FREEFORM: "transient",
+      RESET_TO_UNIFORM_GRID: "history",
+    };
 
   it("agrees with TRANSIENT_ACTIONS for every action type", () => {
     for (const [type, expected] of Object.entries(CATEGORIZATION)) {
