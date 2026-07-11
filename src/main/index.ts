@@ -258,14 +258,25 @@ function registerIpc(): void {
   });
 }
 
-void app.whenReady().then(() => {
-  registerIpc();
-  createWindow();
+app
+  .whenReady()
+  .then(() => {
+    registerIpc();
+    createWindow();
 
-  app.on("activate", () => {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow();
+    app.on("activate", () => {
+      if (BrowserWindow.getAllWindows().length === 0) createWindow();
+    });
+  })
+  .catch((err: unknown) => {
+    // A synchronous throw during setup would otherwise fail silently. Surface
+    // it (log + native dialog) so the user isn't left with a dead app, then
+    // quit — there's no recoverable state at this point.
+    const message = err instanceof Error ? err.message : String(err);
+    console.error("Fatal error during startup:", err);
+    dialog.showErrorBox("Mosaic Builder failed to start", message);
+    app.quit();
   });
-});
 
 app.on("window-all-closed", () => {
   if (process.platform !== "darwin") app.quit();
