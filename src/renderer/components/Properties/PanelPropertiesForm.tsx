@@ -53,9 +53,21 @@ export function PanelPropertiesForm({
         value={t.fit}
         options={
           [
-            { value: "contain", label: "Contain" },
-            { value: "cover", label: "Cover" },
-            { value: "stretch", label: "Stretch" },
+            {
+              value: "contain",
+              label: "Fit",
+              title: "Fit — whole image visible",
+            },
+            {
+              value: "cover",
+              label: "Fill",
+              title: "Fill — panel fully covered, image may be cropped",
+            },
+            {
+              value: "stretch",
+              label: "Stretch",
+              title: "Stretch — ignore aspect ratio",
+            },
           ] as const
         }
         onChange={(fit) => {

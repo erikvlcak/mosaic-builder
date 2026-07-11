@@ -122,7 +122,7 @@ describe("CanvasAndGlobalStyleForm", () => {
     expect(commit.flush).toHaveBeenCalled();
   });
 
-  it("disables the reset button when no overrides exist", () => {
+  it("hides the reset button + its explanatory paragraph when no overrides exist", () => {
     render(
       <CanvasAndGlobalStyleForm
         state={initialFigureState()}
@@ -131,9 +131,31 @@ describe("CanvasAndGlobalStyleForm", () => {
         commit={{ markDirty: vi.fn(), flush: vi.fn() }}
       />,
     );
+    // The button and the always-on three-line paragraph are gone until an
+    // override exists (the paragraph collapses into the button's tooltip).
+    expect(
+      screen.queryByRole("button", { name: /reset all letter overrides/i }),
+    ).toBeNull();
+    expect(screen.queryByText(/Pattern controls auto-generated/i)).toBeNull();
+  });
+
+  it("shows the reset button (with an explanatory tooltip) once an override exists", () => {
+    const stateWithOverrides = {
+      ...initialFigureState(),
+      letterOverrides: { p1: { text: "Z" } },
+    };
+    render(
+      <CanvasAndGlobalStyleForm
+        state={stateWithOverrides}
+        globalStyle={DEFAULT_GLOBAL_STYLE}
+        dispatch={vi.fn()}
+        commit={{ markDirty: vi.fn(), flush: vi.fn() }}
+      />,
+    );
     const btn = screen.getByRole("button", {
       name: /reset all letter overrides/i,
     });
-    expect((btn as HTMLButtonElement).disabled).toBe(true);
+    expect((btn as HTMLButtonElement).disabled).toBe(false);
+    expect(btn.getAttribute("title")).toMatch(/pattern|override/i);
   });
 });

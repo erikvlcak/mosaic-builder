@@ -99,6 +99,26 @@ describe("PanelPropertiesForm", () => {
     });
   });
 
+  it("labels the fit options Fit / Fill / Stretch (values unchanged)", () => {
+    render(
+      <PanelPropertiesForm
+        panel={panel}
+        letterOverrideText={undefined}
+        letterOverride={undefined}
+        dispatch={vi.fn()}
+        onCalibrate={() => {}}
+        onCrop={() => {}}
+        commit={{ markDirty: vi.fn(), flush: vi.fn() }}
+      />,
+    );
+    const select = screen.getByLabelText<HTMLSelectElement>("Fit");
+    const labels = Array.from(select.options).map((o) => o.textContent);
+    expect(labels).toEqual(["Fit", "Fill", "Stretch"]);
+    // Underlying values (state) are unchanged.
+    const values = Array.from(select.options).map((o) => o.value);
+    expect(values).toEqual(["contain", "cover", "stretch"]);
+  });
+
   it("calls onCalibrate when the Calibrate button is clicked", async () => {
     const onCalibrate = vi.fn();
     render(

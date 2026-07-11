@@ -703,7 +703,10 @@ export function App(): JSX.Element {
           .join(", ")}`,
       });
     }
-    toasts.push({ kind: "success", message: "Project loaded" });
+    toasts.push({
+      kind: "success",
+      message: `Loaded ${basename(r.filePath)}`,
+    });
   }, [dispatch, toasts, confirmDiscardIfDirty]);
 
   const onNew = useCallback(async () => {

@@ -111,7 +111,7 @@ export function Tray({
       </button>
 
       <Section
-        label="Unplaced"
+        label="In tray"
         count={unplaced.length}
         hint="Drag onto a panel to place."
       />
@@ -142,7 +142,7 @@ export function Tray({
         ))
       )}
 
-      <Section label="Placed" count={placed.length} />
+      <Section label="In figure" count={placed.length} />
       {placed.length === 0 ? (
         <Empty primary="—" />
       ) : (

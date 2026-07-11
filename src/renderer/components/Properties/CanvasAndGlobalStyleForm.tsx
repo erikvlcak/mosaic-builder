@@ -101,29 +101,19 @@ export function CanvasAndGlobalStyleForm({
             ))}
           </select>
         </label>
-        <p
-          style={{
-            margin: 0,
-            fontSize: 11,
-            color: "var(--c-text-muted)",
-            lineHeight: 1.35,
-          }}
-        >
-          Pattern controls auto-generated labels. Letters with manual overrides
-          are unaffected. To re-apply the pattern everywhere, click “Reset all
-          letter overrides” first.
-        </p>
-        <button
-          type="button"
-          className="btn"
-          disabled={Object.keys(state.letterOverrides).length === 0}
-          onClick={() => {
-            dispatch(clearAllLetterOverrides());
-            commit.flush();
-          }}
-        >
-          Reset all letter overrides
-        </button>
+        {Object.keys(state.letterOverrides).length > 0 && (
+          <button
+            type="button"
+            className="btn"
+            title="Pattern controls auto-generated labels; letters with manual overrides are unaffected. Reset to re-apply the pattern everywhere."
+            onClick={() => {
+              dispatch(clearAllLetterOverrides());
+              commit.flush();
+            }}
+          >
+            Reset all letter overrides
+          </button>
+        )}
         <NumberField
           label="Size (pt)"
           value={globalStyle.letters.sizePt}
