@@ -84,10 +84,11 @@ import { toMosaicFile } from "./model/serialize";
 import { APP_VERSION } from "./app-version";
 import { useToasts } from "./hooks/useToasts";
 import { ToastTray } from "./components/Toasts/ToastTray";
+import { useCanvasZoom } from "./hooks/useCanvasZoom";
+import { ZoomControls } from "./components/Toolbar/ZoomControls";
+import { computeCanvasDims } from "./model/canvas-dims";
 
 const CANVAS_BG = "#FFFFFF";
-const CANVAS_CSS_W = 800;
-const CANVAS_CSS_H = 600;
 const FIGURE_PX_W = 800;
 const FIGURE_PX_H = 600;
 // Matches the interaction layer's Z_SCALEBAR — scale bars sit above other
@@ -119,6 +120,7 @@ export function App(): JSX.Element {
   const [defaultScalebarStyle, setDefaultScalebarStyle] =
     useState<DefaultScalebarStyle>(initialDefaultScalebarStyle);
   const [spacebarHeld, setSpacebarHeld] = useState<boolean>(false);
+  const [cmdHeld, setCmdHeld] = useState<boolean>(false);
   const [projectPath, setProjectPath] = useState<string | null>(null);
   const [missingImages, setMissingImages] = useState<
     { imageId: string; filename: string; attemptedPaths: string[] }[]
@@ -144,6 +146,29 @@ export function App(): JSX.Element {
   const [jpegQuality, setJpegQuality] = useState(0.92);
   const stateRef = useRef<FigureState>(state);
   stateRef.current = state;
+  const scrollRef = useRef<HTMLElement | null>(null);
+
+  // sourceScale drives BOTH the editor backing store and the zoom % mapping.
+  // Match computeExportScale: the larger per-axis ratio, floored at 1. The
+  // model stays a fixed FIGURE_PX_W × FIGURE_PX_H — only the backing store and
+  // the on-screen CSS box scale, so exports stay byte-identical.
+  const sourceScale = useMemo(() => {
+    const dims = computeCanvasDims(
+      state.pool,
+      state.rows,
+      state.cols,
+      state.gutterPx,
+    );
+    return Math.max(1, dims.widthPx / FIGURE_PX_W, dims.heightPx / FIGURE_PX_H);
+  }, [state.pool, state.rows, state.cols, state.gutterPx]);
+
+  const zoom = useCanvasZoom({
+    scrollRef: scrollRef as React.RefObject<HTMLElement>,
+    sourceScale,
+    spacebarHeld,
+    modelW: FIGURE_PX_W,
+    modelH: FIGURE_PX_H,
+  });
 
   // Unsaved-changes tracking. `savedStateRef` marks the last clean point (app
   // start / save / load / New); the document is dirty when the live state is a
@@ -533,7 +558,29 @@ export function App(): JSX.Element {
     };
   }, []);
 
-  const effectiveTool: Tool = spacebarHeld ? "select" : activeTool;
+  // Hold Cmd/Ctrl = temporary Select mode (Space is now reserved for panel
+  // image-pan). Release returns to the prior tool; a blur clears it defensively.
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent): void {
+      if (e.key === "Meta" || e.key === "Control") setCmdHeld(true);
+    }
+    function onKeyUp(e: KeyboardEvent): void {
+      if (e.key === "Meta" || e.key === "Control") setCmdHeld(false);
+    }
+    function onBlur(): void {
+      setCmdHeld(false);
+    }
+    window.addEventListener("keydown", onKeyDown);
+    window.addEventListener("keyup", onKeyUp);
+    window.addEventListener("blur", onBlur);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("keyup", onKeyUp);
+      window.removeEventListener("blur", onBlur);
+    };
+  }, []);
+
+  const effectiveTool: Tool = cmdHeld ? "select" : activeTool;
 
   const canMerge = useMemo(() => {
     const check = canMergeSelection(state.panels, selection.asCoords());
@@ -690,6 +737,7 @@ export function App(): JSX.Element {
     const outcome = await applyLoadedProject(r, dispatch);
     setBitmaps(outcome.bitmaps);
     setPanelInteraction(null);
+    zoom.setView({ zoom: 1, mode: "fit" });
     setProjectPath(r.filePath);
     setMissingImages(r.missing);
     // The loaded project is the new clean baseline (RESET_TO_STATE lands next
@@ -707,7 +755,7 @@ export function App(): JSX.Element {
       kind: "success",
       message: `Loaded ${basename(r.filePath)}`,
     });
-  }, [dispatch, toasts, confirmDiscardIfDirty]);
+  }, [dispatch, toasts, confirmDiscardIfDirty, zoom]);
 
   const onNew = useCallback(async () => {
     if (!(await confirmDiscardIfDirty())) return;
@@ -716,10 +764,11 @@ export function App(): JSX.Element {
     setProjectPath(null);
     setPanelInteraction(null);
     setSelectedAnnotationIds(emptySelection());
+    zoom.setView({ zoom: 1, mode: "fit" });
     // The reset figure is clean (lands next render, so defer the clean-mark).
     markCleanNextRef.current = true;
     toasts.push({ kind: "info", message: "New figure" });
-  }, [dispatch, toasts, confirmDiscardIfDirty]);
+  }, [dispatch, toasts, confirmDiscardIfDirty, zoom]);
 
   const onSaveAs = useCallback(async () => {
     setProjectPath(null);
@@ -905,6 +954,18 @@ export function App(): JSX.Element {
         <ToolGroup label="Annotate">
           <AnnotationToolbar active={activeTool} onChange={setActiveTool} />
         </ToolGroup>
+        <span className="toolbar-divider" aria-hidden="true" />
+        <ToolGroup label="Zoom">
+          <ZoomControls
+            displayPct={zoom.displayPct}
+            isFit={zoom.isFit}
+            onFit={zoom.fit}
+            onActualSize={zoom.actualSize}
+            onZoomIn={zoom.zoomIn}
+            onZoomOut={zoom.zoomOut}
+            onSetPercent={zoom.setPercent}
+          />
+        </ToolGroup>
       </div>
       <div style={{ display: "flex", flex: 1, minHeight: 0 }}>
         <Tray
@@ -922,6 +983,7 @@ export function App(): JSX.Element {
           onPlaceIntoFirstEmpty={onPlaceIntoFirstEmpty}
         />
         <section
+          ref={scrollRef as React.RefObject<HTMLElement>}
           onClick={(e) => {
             if (e.target === e.currentTarget) {
               setPanelInteraction(null);
@@ -941,8 +1003,8 @@ export function App(): JSX.Element {
           <div
             style={{
               position: "relative",
-              width: CANVAS_CSS_W,
-              height: CANVAS_CSS_H,
+              width: zoom.cssW,
+              height: zoom.cssH,
               boxShadow: "var(--sh-md)",
             }}
           >
@@ -950,14 +1012,14 @@ export function App(): JSX.Element {
               figure={figure}
               images={bitmaps}
               pool={imagesByIdMemo}
-              editorScale={1}
+              editorScale={sourceScale}
             />
             <GridCells
               state={state}
               figurePxW={FIGURE_PX_W}
               figurePxH={FIGURE_PX_H}
-              cssW={CANVAS_CSS_W}
-              cssH={CANVAS_CSS_H}
+              cssW={zoom.cssW}
+              cssH={zoom.cssH}
               onDrop={onDrop}
               hoverPanelId={hoverPanelId}
               onHoverPanelChange={setHoverPanelId}
@@ -987,8 +1049,8 @@ export function App(): JSX.Element {
                   bitmap={focusedBitmap}
                   figurePxW={FIGURE_PX_W}
                   figurePxH={FIGURE_PX_H}
-                  cssW={CANVAS_CSS_W}
-                  cssH={CANVAS_CSS_H}
+                  cssW={zoom.cssW}
+                  cssH={zoom.cssH}
                   spacebarHeld={spacebarHeld}
                   dispatch={dispatch}
                   onCommit={history.commit}
@@ -1015,8 +1077,8 @@ export function App(): JSX.Element {
               figure={figure}
               panelRectsById={panelRectsByIdMemo}
               imagesById={imagesByIdMemo}
-              cssW={CANVAS_CSS_W}
-              cssH={CANVAS_CSS_H}
+              cssW={zoom.cssW}
+              cssH={zoom.cssH}
               figurePxW={FIGURE_PX_W}
               figurePxH={FIGURE_PX_H}
               selectedAnnotationIds={selectedAnnotationIds}
@@ -1038,14 +1100,14 @@ export function App(): JSX.Element {
                 ? { editingPanelRect: focusedPanelRect }
                 : {})}
             />
-            {spacebarHeld && activeTool !== "select" && (
+            {cmdHeld && activeTool !== "select" && (
               <div
                 data-testid="select-mode-chip"
                 className="select-mode-chip"
                 role="status"
                 aria-live="polite"
               >
-                SELECT MODE (release ␣)
+                SELECT MODE (release ⌘)
               </div>
             )}
           </div>
