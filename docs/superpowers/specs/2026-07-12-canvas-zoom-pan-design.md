@@ -110,8 +110,8 @@ const [view, setView] = useState<ViewTransform>({ zoom: 1, mode: "fit" });
 - `mode: "fit"` — default; `zoom` is **derived** to fit the canvas in its
   container (re-derived on container resize via `ResizeObserver`). Preserves
   today's behavior exactly.
-- `mode: "free"` — an explicit level the user set (buttons, Cmd-wheel, %
-  entry); `zoom` is authoritative.
+- `mode: "free"` — an explicit level the user set (buttons, wheel, % entry);
+  `zoom` is authoritative.
 - `zoom` is the **model→CSS** multiple: `zoom = 1` ⇒ 1 model-px = 1 CSS-px.
   Define `sourceScale = editorBackingDims.widthPx / 800` (identical to the
   export scale; `= 1` when the pool holds no image larger than the 800×600
@@ -172,10 +172,18 @@ Owns the imperative browser wiring:
 
 - A `ResizeObserver` on the scroll container that re-derives `fitZoom` while
   `mode === "fit"`.
-- A `wheel` listener bound `{ passive: false }` on the scroll container,
-  **gated on `e.metaKey || e.ctrlKey`**. Cmd/Ctrl-wheel → cursor-anchored
-  canvas zoom (`e.preventDefault()`); plain wheel is **not** touched, so it
-  passes through to `PanelInteractionLayer`'s panel-zoom and to native scroll.
+- A `wheel` listener bound `{ passive: false }` on the scroll container.
+  **Plain wheel → cursor-anchored canvas zoom** (`e.preventDefault()`) — no
+  modifier, matching the "scroll to zoom the whole canvas" mental model
+  (Google-Maps/Miro idiom). The hand-off to panel-zoom is **automatic via
+  `defaultPrevented`**: `PanelInteractionLayer` is a child DOM node inside the
+  scroll container and its own wheel listener already calls `preventDefault()`
+  (but not `stopPropagation`), so it fires **first** in bubble order. The
+  container listener therefore begins with `if (e.defaultPrevented) return;` —
+  when the cursor is over an editing panel, that panel has already consumed
+  the wheel, and the canvas-zoom listener is a no-op. Everywhere else, nothing
+  consumed it, so the canvas zooms. No cursor hit-testing, no modifier — the
+  DOM bubble order does the routing.
 - The cursor-anchored scroll adjustment (via `scrollForCursorZoom`).
 
 Returns `{ view, cssW, cssH, sourceScale, setPercent, zoomIn, zoomOut, fit,
@@ -217,31 +225,41 @@ every interaction layer is already correct.
 
 ## Interaction design (conflicts resolved deliberately)
 
-### Wheel — Cmd/Ctrl-wheel = canvas zoom; plain wheel unchanged
+### Wheel — plain wheel = canvas zoom; double-click a panel for panel zoom
 
-`PanelInteractionLayer` already binds `wheel` (with `e.preventDefault()`) to
-**per-panel** pan/zoom on a focused (double-clicked) panel. To avoid stealing
-that gesture:
+`PanelInteractionLayer` (the layer that owns per-panel wheel pan/zoom) only
+mounts when a panel is in **editing** mode — i.e. after a **double-click**
+(`editingIdOf(panelInteraction) !== null`, App.tsx). When an image is merely
+present, single-clicked (`selected`), or unfocused, **no** panel wheel handler
+exists. So the wheel is free everywhere except over a double-click-activated
+panel — the two gestures are separated by **interaction state**, not a
+keyboard modifier:
 
-- **Cmd/Ctrl + wheel** anywhere on the canvas → **canvas zoom**
-  (cursor-anchored). Standard figure-editor idiom (Figma/Photoshop/
-  Illustrator).
-- **Plain wheel** over a focused panel → **panel zoom** (unchanged).
-- **Plain wheel** elsewhere → native scroll / pan of the viewport (unchanged).
+- **Plain wheel** anywhere on the canvas → **canvas zoom** (cursor-anchored).
+- **Double-click a panel**, then **plain wheel** over it → **panel zoom**
+  (unchanged from today).
 
-The canvas-zoom wheel listener is gated on `e.metaKey || e.ctrlKey`, so it
-never competes with the panel-zoom listener.
+The routing is automatic via `defaultPrevented` (see `useCanvasZoom` above):
+the editing panel's inner wheel listener consumes the event first, so the
+container's canvas-zoom listener no-ops over it and zooms everywhere else. No
+modifier key, no manual hit-testing.
 
-### Pan — native scrollbars + trackpad/wheel scroll
+### Pan — native scrollbars + two-finger trackpad drag
 
 The canvas `<section>` already has `overflow: auto` (App.tsx ~line 937). When
-the CSS box exceeds the viewport, scrollbars appear and two-finger / wheel
-scroll pans. **Zero conflict** with the existing **space-hold =
-temporary-select** binding, which stays 100% as-is. Cursor-anchored zoom
-sets `scrollLeft/scrollTop` so the point under the cursor stays fixed.
+the CSS box exceeds the viewport, scrollbars appear and pan the view; a
+**two-finger trackpad drag** also scrolls it natively. Note that plain
+scroll-**wheel** now **zooms** (see Wheel above), so it does not double as a
+pan gesture — panning is scrollbars + trackpad. This is the Google-Maps/Miro
+idiom (wheel zooms, drag pans) and matches the user's mental model.
+
+**Zero conflict** with the existing **space-hold = temporary-select** binding,
+which stays 100% as-is. Cursor-anchored zoom sets `scrollLeft/scrollTop` so the
+point under the cursor stays fixed.
 
 (Space-drag-to-pan is intentionally **not** added, to avoid rebinding
-space-hold. It's a documented future enhancement.)
+space-hold. A mouse-only user pans via scrollbars; if wheel-pan is later
+wanted, a modifier-wheel pan is the documented future enhancement.)
 
 ### Controls & keyboard shortcuts
 
@@ -287,7 +305,7 @@ drop land on the same model-px at `viewZoom ≠ 1` as at `viewZoom = 1`
 
 ### Cursor-anchored zoom + native scroll
 
-On Cmd-wheel zoom: compute the model-px under the cursor **before** resizing
+On wheel zoom: compute the model-px under the cursor **before** resizing
 the CSS box, then set `scrollLeft/scrollTop` on the `overflow: auto` container
 so that same model-px stays under the cursor after. Implemented in
 `scrollForCursorZoom` (pure, unit-tested).
@@ -340,7 +358,10 @@ Written test-first; each increment lands green
    for annotation placement **and** a marquee drag.
 5. **No-dirty test (acceptance #3)** — zoom/pan produces no `FigureState`
    reference change, no dirty flag; the `.mosaic` round-trips identical bytes.
-6. **Visual check in the running Electron app** — `playwright-core`
+6. **Wheel hand-off test** — a plain wheel over empty canvas zooms the canvas;
+   a plain wheel over a panel in **editing** mode zooms the panel and does
+   **not** change `view.zoom` (asserts the `defaultPrevented` routing).
+7. **Visual check in the running Electron app** — `playwright-core`
    `_electron.launch`, stub `dialog.showOpenDialog` →
    `resources/fixtures/sample.png`, screenshot **fit / 100% / panned** states.
 
@@ -362,8 +383,9 @@ Written test-first; each increment lands green
 **New**
 
 1. `src/renderer/render/view-transform.ts` — pure zoom/fit/scroll math.
-2. `src/renderer/hooks/useCanvasZoom.ts` — `ResizeObserver`, Cmd-wheel
-   listener, cursor-anchored scroll.
+2. `src/renderer/hooks/useCanvasZoom.ts` — `ResizeObserver`, plain-wheel
+   listener (with `defaultPrevented` hand-off to panel-zoom), cursor-anchored
+   scroll.
 3. `src/renderer/components/Toolbar/ZoomControls.tsx` — presentational
    controls.
 4. `test/unit/view-transform.test.ts` and additions to renderer / app tests
