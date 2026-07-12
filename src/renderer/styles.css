@@ -716,8 +716,12 @@ body {
   cursor: grabbing;
 }
 .thumb--placed {
-  /* "Placed" reads as done (check badge), not disabled — keep full contrast. */
-  cursor: default;
+  /* "Placed" reads as done (check badge), not disabled — keep full contrast.
+     Still draggable: drag onto a panel to move/swap the placed image. */
+  cursor: grab;
+}
+.thumb--placed:active {
+  cursor: grabbing;
 }
 .thumb--armed {
   border-color: var(--c-accent);

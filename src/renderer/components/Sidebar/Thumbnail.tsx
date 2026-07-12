@@ -63,11 +63,11 @@ export function Thumbnail({
     ctx.drawImage(bitmap, (SIZE - w) / 2, (SIZE - h) / 2, w, h);
   }, [bitmap]);
 
+  // Both unplaced and placed thumbnails drag the SAME tray payload. dispatchDrop
+  // routes by whether the image is already placed: unplaced → place/replace,
+  // placed → move/swap (SWAP_PANELS). This is the only way to move a placed
+  // image now that panels aren't draggable.
   function onDragStart(e: React.DragEvent<HTMLDivElement>): void {
-    if (placed) {
-      e.preventDefault();
-      return;
-    }
     e.dataTransfer.setData(
       DRAG_MIME,
       serializeDrag({ kind: "tray", imageId: item.id }),
@@ -81,12 +81,13 @@ export function Thumbnail({
 
   // Unplaced thumbnails double as click-to-place candidates AND keyboard
   // entry points: click arms placement, Enter places into the first empty
-  // panel. Placed thumbnails are inert (they can't be re-dragged or placed).
+  // panel. Placed thumbnails are NOT click-to-place, but they ARE draggable
+  // (drag onto a panel to move/swap the placed image).
   const clickable = !placed && onSelectForPlace !== undefined;
 
   return (
     <div
-      draggable={!placed}
+      draggable
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
       data-testid={`thumb-${item.id}`}

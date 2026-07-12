@@ -89,3 +89,36 @@ describe("Thumbnail click-to-place", () => {
     expect(onSelectForPlace).not.toHaveBeenCalled();
   });
 });
+
+describe("Thumbnail placed-image dragging", () => {
+  it("placed thumbnails are draggable", () => {
+    render(<Thumbnail item={img("a")} bitmap={undefined} placed />);
+    const el = screen.getByTestId("thumb-a");
+    expect(el.getAttribute("draggable")).toBe("true");
+  });
+
+  it("dragging a placed thumbnail emits a tray payload and reports the source", () => {
+    const onDragSourceChange = vi.fn();
+    render(
+      <Thumbnail
+        item={img("a")}
+        bitmap={undefined}
+        placed
+        onDragSourceChange={onDragSourceChange}
+      />,
+    );
+    const el = screen.getByTestId("thumb-a");
+    const setData = vi.fn();
+    fireEvent.dragStart(el, {
+      dataTransfer: { setData, effectAllowed: "" },
+    });
+    expect(setData).toHaveBeenCalledWith(
+      "application/x-mosaic-drag",
+      JSON.stringify({ kind: "tray", imageId: "a" }),
+    );
+    expect(onDragSourceChange).toHaveBeenCalledWith({
+      kind: "tray",
+      imageId: "a",
+    });
+  });
+});
