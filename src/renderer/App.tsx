@@ -989,6 +989,7 @@ export function App(): JSX.Element {
                   figurePxH={FIGURE_PX_H}
                   cssW={CANVAS_CSS_W}
                   cssH={CANVAS_CSS_H}
+                  spacebarHeld={spacebarHeld}
                   dispatch={dispatch}
                   onCommit={history.commit}
                   onResizeFreeform={(corner, dx, dy) => {
