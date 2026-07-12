@@ -157,6 +157,7 @@ describe("PropertiesPanel routes to MultiAnnoForm when selectedAnnos.length > 1"
         dispatch={vi.fn()}
         commit={{ markDirty: vi.fn(), flush: vi.fn() }}
         onCalibrate={() => {}}
+        onCrop={() => {}}
       />,
     );
     expect(screen.getByTestId("multi-anno-summary")).toBeTruthy();
@@ -172,6 +173,7 @@ describe("PropertiesPanel routes to MultiAnnoForm when selectedAnnos.length > 1"
         dispatch={vi.fn()}
         commit={{ markDirty: vi.fn(), flush: vi.fn() }}
         onCalibrate={() => {}}
+        onCrop={() => {}}
       />,
     );
     expect(screen.queryByTestId("multi-anno-summary")).toBeNull();

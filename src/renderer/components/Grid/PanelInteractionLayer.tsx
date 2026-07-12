@@ -21,6 +21,10 @@ interface Props {
   figurePxH: number;
   cssW: number;
   cssH: number;
+  /** When false, this layer yields wheel + drag to the canvas-level handlers
+   *  so default gestures operate on the whole canvas. Space redirects them
+   *  back to this panel's image. */
+  spacebarHeld: boolean;
   dispatch: Dispatch<FigureAction>;
   /**
    * Called once on `pointerup` and on a debounced wheel-end so a drag or
@@ -53,6 +57,7 @@ export function PanelInteractionLayer({
   figurePxH,
   cssW,
   cssH,
+  spacebarHeld,
   dispatch,
   onCommit,
   onResizeFreeform,
@@ -70,6 +75,7 @@ export function PanelInteractionLayer({
     figurePxH,
     cssW,
     cssH,
+    spacebarHeld,
     dispatch,
     onCommit,
   });
@@ -82,6 +88,7 @@ export function PanelInteractionLayer({
     figurePxH,
     cssW,
     cssH,
+    spacebarHeld,
     dispatch,
     onCommit,
   };
@@ -104,6 +111,7 @@ export function PanelInteractionLayer({
 
     function onWheel(e: WheelEvent): void {
       const s = stateRef.current;
+      if (!s.spacebarHeld) return; // yield canvas zoom to the container handler
       if (s.transform.fit === "stretch") return;
       e.preventDefault();
       // Cursor in panel-local figure-px (origin at panel center).
@@ -170,6 +178,7 @@ export function PanelInteractionLayer({
   function onPointerDown(e: React.PointerEvent<HTMLDivElement>): void {
     if (ref.current === null) return;
     if (e.button !== 0) return;
+    if (!spacebarHeld) return; // yield view-pan to the canvas container
     ref.current.setPointerCapture(e.pointerId);
     dragRef.current = {
       pointerId: e.pointerId,
