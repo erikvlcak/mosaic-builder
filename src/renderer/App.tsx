@@ -87,7 +87,7 @@ import { ToastTray } from "./components/Toasts/ToastTray";
 import { useCanvasZoom } from "./hooks/useCanvasZoom";
 import { nextCmdHeld } from "./hooks/useTemporarySelect";
 import { ZoomControls } from "./components/Toolbar/ZoomControls";
-import { computeCanvasDims } from "./model/canvas-dims";
+import { computeCanvasDims, placedPoolImages } from "./model/canvas-dims";
 import { ThemeToggle } from "./components/Toolbar/ThemeToggle";
 import { useTheme } from "./theme/useTheme";
 
@@ -155,15 +155,23 @@ export function App(): JSX.Element {
   // Match computeExportScale: the larger per-axis ratio, floored at 1. The
   // model stays a fixed FIGURE_PX_W × FIGURE_PX_H — only the backing store and
   // the on-screen CSS box scale, so exports stay byte-identical.
+  //
+  // Sized from PLACED images only — an image sitting in the tray must not
+  // grow the canvas (the user reads that as it "expanding for no reason").
   const sourceScale = useMemo(() => {
+    const placed = new Set(
+      state.panels
+        .map((p) => p.imageId)
+        .filter((x): x is string => x !== undefined),
+    );
     const dims = computeCanvasDims(
-      state.pool,
+      placedPoolImages(state.pool, placed),
       state.rows,
       state.cols,
       state.gutterPx,
     );
     return Math.max(1, dims.widthPx / FIGURE_PX_W, dims.heightPx / FIGURE_PX_H);
-  }, [state.pool, state.rows, state.cols, state.gutterPx]);
+  }, [state.pool, state.panels, state.rows, state.cols, state.gutterPx]);
 
   const zoom = useCanvasZoom({
     scrollRef: scrollRef as React.RefObject<HTMLElement>,

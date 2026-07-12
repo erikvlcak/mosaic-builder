@@ -9,19 +9,23 @@ import { computeCanvasDims } from "../model/canvas-dims";
  * `computeCanvasDims`, so source pixels are at least 1:1 on the dominant
  * axis and over-provisioned on the other.
  *
- * Returns 1 (no-op) when no image in the pool exceeds what the editor
- * canvas already provides — exporting a figure with only small images
- * stays at editor resolution.
+ * Returns 1 (no-op) when no placed image exceeds what the editor canvas
+ * already provides — exporting a figure with only small images stays at
+ * editor resolution.
+ *
+ * `images` must be the PLACED subset of the pool (see placedPoolImages) —
+ * an unplaced tray image contributes no pixels to the export and must not
+ * inflate its resolution.
  */
 export function computeExportScale(
-  pool: readonly ImagePoolItem[],
+  images: readonly ImagePoolItem[],
   rows: number,
   cols: number,
   gutterPx: number,
   editorW: number,
   editorH: number,
 ): number {
-  const dims = computeCanvasDims(pool, rows, cols, gutterPx);
+  const dims = computeCanvasDims(images, rows, cols, gutterPx);
   const sx = dims.widthPx / editorW;
   const sy = dims.heightPx / editorH;
   return Math.max(1, sx, sy);

@@ -7,6 +7,7 @@ import { exportFigureAsJpeg } from "../export/jpeg";
 import { exportFigureAsTiff } from "../export/tiff";
 import { exportFigureAsPdf } from "../export/pdf";
 import { computeExportScale } from "../render/export-scale";
+import { placedPoolImages } from "../model/canvas-dims";
 
 export const TIFF_DPI = 300;
 
@@ -68,7 +69,16 @@ export function useFigureExport({
   const exportScale = useMemo(
     () =>
       computeExportScale(
-        poolList,
+        // Placed images only — an unplaced tray image adds no pixels to the
+        // export and must not inflate its resolution.
+        placedPoolImages(
+          poolList,
+          new Set(
+            figure.panels.flatMap((p) =>
+              p.kind === "image" ? [p.imageId] : [],
+            ),
+          ),
+        ),
         rows,
         cols,
         gutterPx,
@@ -77,6 +87,7 @@ export function useFigureExport({
       ),
     [
       poolList,
+      figure.panels,
       rows,
       cols,
       gutterPx,

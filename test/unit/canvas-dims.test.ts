@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import type { ImagePoolItem } from "../../src/renderer/model/pool";
 import {
   computeCanvasDims,
+  placedPoolImages,
   scaleAnnotations,
 } from "../../src/renderer/model/canvas-dims";
 import type {
@@ -25,6 +26,32 @@ function img(width: number, height: number): ImagePoolItem {
     bitDepth: 8,
   };
 }
+
+describe("placedPoolImages", () => {
+  it("keeps only pool items whose id is in the placed set", () => {
+    const a = img(4000, 100);
+    const b = img(100, 3000);
+    const placed = placedPoolImages([a, b], new Set([a.id]));
+    expect(placed).toEqual([a]);
+  });
+
+  it("returns empty when nothing is placed (unplaced tray images don't size)", () => {
+    expect(placedPoolImages([img(4000, 3000)], new Set())).toEqual([]);
+  });
+
+  it("feeding placed-only into computeCanvasDims ignores tray images", () => {
+    const placedImg = img(100, 100); // small, fits min canvas
+    const trayImg = img(4000, 3000); // huge, but unplaced
+    const dims = computeCanvasDims(
+      placedPoolImages([placedImg, trayImg], new Set([placedImg.id])),
+      1,
+      1,
+      12,
+    );
+    // Only the small placed image counts → canvas stays at the minimum.
+    expect(dims).toEqual({ widthPx: MIN_W, heightPx: MIN_H });
+  });
+});
 
 describe("computeCanvasDims", () => {
   it("returns the minimum 800x600 for an empty pool", () => {
