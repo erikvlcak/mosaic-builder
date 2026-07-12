@@ -32,34 +32,16 @@ const BASIC_TRANSFORM: PanelTransform = {
   flipH: false,
   flipV: false,
 };
-const BASIC_BITMAP = { width: 100, height: 100 } as unknown as ImageBitmap;
-
 describe("PanelInteractionLayer — editing-mode outline", () => {
   it("renders a dashed accent outline (dashed = editing; solid accent = selected)", () => {
-    const transform: PanelTransform = {
-      fit: "contain",
-      panX: 0,
-      panY: 0,
-      zoom: 1,
-      rotation: 0,
-      flipH: false,
-      flipV: false,
-    };
-    // Minimal ImageBitmap stub — the layer reads .width and .height only
-    // for pan-clamping math. The cast is safe in this jsdom-only test.
-    const bitmap = { width: 100, height: 100 } as unknown as ImageBitmap;
     render(
       <PanelInteractionLayer
-        panelId="p1"
         panelRect={{ x: 0, y: 0, w: 200, h: 200 }}
-        transform={transform}
-        bitmap={bitmap}
+        transform={BASIC_TRANSFORM}
         figurePxW={800}
         figurePxH={600}
         cssW={800}
         cssH={600}
-        spacebarHeld={false}
-        dispatch={vi.fn()}
         onCommit={vi.fn()}
       />,
     );
@@ -67,22 +49,41 @@ describe("PanelInteractionLayer — editing-mode outline", () => {
     expect(el.style.outline).toContain("dashed");
     expect(el.style.outline).toContain("var(--c-accent)");
   });
+
+  it("is chrome-only: no pointer/wheel ownership (gestures belong to the viewport/frame owners)", () => {
+    render(
+      <PanelInteractionLayer
+        panelRect={{ x: 0, y: 0, w: 200, h: 200 }}
+        transform={BASIC_TRANSFORM}
+        figurePxW={800}
+        figurePxH={600}
+        cssW={800}
+        cssH={600}
+        onCommit={vi.fn()}
+      />,
+    );
+    const el = screen.getByTestId("panel-interaction-layer");
+    expect(el.style.pointerEvents).toBe("none");
+    const ev = new WheelEvent("wheel", {
+      deltaY: 100,
+      cancelable: true,
+      bubbles: true,
+    });
+    el.dispatchEvent(ev);
+    expect(ev.defaultPrevented).toBe(false);
+  });
 });
 
 describe("PanelInteractionLayer — corner-resize handles (spec 11)", () => {
   it("renders four corner handles when onResizeFreeform is supplied", () => {
     render(
       <PanelInteractionLayer
-        panelId="p1"
         panelRect={{ x: 0, y: 0, w: 200, h: 200 }}
         transform={BASIC_TRANSFORM}
-        bitmap={BASIC_BITMAP}
         figurePxW={800}
         figurePxH={600}
         cssW={800}
         cssH={600}
-        spacebarHeld={false}
-        dispatch={vi.fn()}
         onCommit={vi.fn()}
         onResizeFreeform={vi.fn()}
       />,
@@ -96,16 +97,12 @@ describe("PanelInteractionLayer — corner-resize handles (spec 11)", () => {
   it("does not render corner handles when onResizeFreeform is omitted", () => {
     render(
       <PanelInteractionLayer
-        panelId="p1"
         panelRect={{ x: 0, y: 0, w: 200, h: 200 }}
         transform={BASIC_TRANSFORM}
-        bitmap={BASIC_BITMAP}
         figurePxW={800}
         figurePxH={600}
         cssW={800}
         cssH={600}
-        spacebarHeld={false}
-        dispatch={vi.fn()}
         onCommit={vi.fn()}
       />,
     );
@@ -116,16 +113,12 @@ describe("PanelInteractionLayer — corner-resize handles (spec 11)", () => {
     const onResizeFreeform = vi.fn();
     render(
       <PanelInteractionLayer
-        panelId="p1"
         panelRect={{ x: 0, y: 0, w: 200, h: 200 }}
         transform={BASIC_TRANSFORM}
-        bitmap={BASIC_BITMAP}
         figurePxW={800}
         figurePxH={600}
         cssW={800}
         cssH={600}
-        spacebarHeld={false}
-        dispatch={vi.fn()}
         onCommit={vi.fn()}
         onResizeFreeform={onResizeFreeform}
       />,

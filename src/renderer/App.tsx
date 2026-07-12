@@ -84,6 +84,11 @@ import { APP_VERSION } from "./app-version";
 import { useToasts } from "./hooks/useToasts";
 import { ToastTray } from "./components/Toasts/ToastTray";
 import { useCanvasZoom } from "./hooks/useCanvasZoom";
+import {
+  InteractionProvider,
+  useSpaceHeldState,
+} from "./interaction/InteractionContext";
+import { useViewportGestures } from "./interaction/useViewportGestures";
 import { nextCmdHeld } from "./hooks/useTemporarySelect";
 import { ZoomControls } from "./components/Toolbar/ZoomControls";
 import { computeCanvasDims, placedPoolImages } from "./model/canvas-dims";
@@ -121,7 +126,9 @@ export function App(): JSX.Element {
   );
   const [defaultScalebarStyle, setDefaultScalebarStyle] =
     useState<DefaultScalebarStyle>(initialDefaultScalebarStyle);
-  const [spacebarHeld, setSpacebarHeld] = useState<boolean>(false);
+  // Space = hand tool (viewport pan override). Owned here, provided to
+  // deep handlers via InteractionProvider.
+  const spaceHeld = useSpaceHeldState();
   const [cmdHeld, setCmdHeld] = useState<boolean>(false);
   const [projectPath, setProjectPath] = useState<string | null>(null);
   const [missingImages, setMissingImages] = useState<
@@ -175,9 +182,18 @@ export function App(): JSX.Element {
   const zoom = useCanvasZoom({
     scrollRef: scrollRef as React.RefObject<HTMLElement>,
     sourceScale,
-    spacebarHeld,
     modelW: FIGURE_PX_W,
     modelH: FIGURE_PX_H,
+  });
+
+  // The single owner of canvas-pane wheel + background-pan gestures.
+  // Frame mode retargeting arrives in Phase 3; until then wheel/drag are
+  // always viewport verbs.
+  useViewportGestures({
+    scrollRef: scrollRef as React.RefObject<HTMLElement>,
+    spaceHeld,
+    frameMode: false,
+    onZoomWheel: zoom.wheelZoom,
   });
 
   const {
@@ -535,51 +551,10 @@ export function App(): JSX.Element {
     onDeleteAnnotation,
     onUndo: history.undo,
     onRedo: history.redo,
-    onZoomIn: zoom.zoomIn,
-    onZoomOut: zoom.zoomOut,
-    onZoomFit: zoom.fit,
-    onZoomActual: zoom.actualSize,
   });
 
-  // Hold-spacebar = temporary Select mode. Release returns to the prior tool.
-  // We don't steal Space from form fields (text input, scalebar number, etc.);
-  // a window blur clears the held state defensively in case keyup is missed.
-  useEffect(() => {
-    function isFormElementFocused(): boolean {
-      const el = document.activeElement;
-      if (el === null) return false;
-      if (el instanceof HTMLInputElement) return true;
-      if (el instanceof HTMLTextAreaElement) return true;
-      if (el instanceof HTMLSelectElement) return true;
-      if (el instanceof HTMLElement && el.isContentEditable) return true;
-      return false;
-    }
-    function onKeyDown(e: KeyboardEvent): void {
-      if (e.code !== "Space") return;
-      if (isFormElementFocused()) return;
-      if (e.repeat) return;
-      e.preventDefault();
-      setSpacebarHeld(true);
-    }
-    function onKeyUp(e: KeyboardEvent): void {
-      if (e.code !== "Space") return;
-      setSpacebarHeld(false);
-    }
-    function onBlur(): void {
-      setSpacebarHeld(false);
-    }
-    window.addEventListener("keydown", onKeyDown);
-    window.addEventListener("keyup", onKeyUp);
-    window.addEventListener("blur", onBlur);
-    return () => {
-      window.removeEventListener("keydown", onKeyDown);
-      window.removeEventListener("keyup", onKeyUp);
-      window.removeEventListener("blur", onBlur);
-    };
-  }, []);
-
-  // Hold Cmd/Ctrl = temporary Select mode (Space is now reserved for panel
-  // image-pan). Release returns to the prior tool; a blur clears it defensively.
+  // Hold Cmd/Ctrl = temporary Select mode. Release returns to the prior
+  // tool; a blur clears it defensively.
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent): void {
       setCmdHeld((prev) => nextCmdHeld(prev, e));
@@ -806,6 +781,12 @@ export function App(): JSX.Element {
     onExportPdf: () => void figureExport.runPdf(),
     onUndo: history.undo,
     onRedo: history.redo,
+    // ⌘+/⌘−/⌘0/⌘1 live ONLY on the View menu (single-bound; the menu
+    // accelerator consumes the keystroke and arrives here as an event).
+    onZoomIn: zoom.zoomIn,
+    onZoomOut: zoom.zoomOut,
+    onZoomFit: zoom.fit,
+    onZoomActual: zoom.actualSize,
   });
 
   // Window-close save flow: main shows the unsaved-changes dialog and, on
@@ -826,419 +807,419 @@ export function App(): JSX.Element {
     calibratingImageId !== null ? bitmaps.get(calibratingImageId) : undefined;
 
   return (
-    <main
-      style={{
-        height: "100vh",
-        margin: 0,
-        display: "flex",
-        flexDirection: "column",
-      }}
-    >
-      <div className="app-bar">
-        <div className="app-bar-left">
-          <h1 className="app-title">Mosaic Builder</h1>
-          <span className="toolbar-divider" aria-hidden="true" />
-          <button
-            type="button"
-            className="btn"
-            onClick={() => {
-              void onNew();
-            }}
-            data-testid="new-project"
-            title="New figure (⌘N)"
-          >
-            New
-          </button>
-          <button
-            type="button"
-            className="btn"
-            onClick={() => {
-              void onOpenProject();
-            }}
-            data-testid="open-project"
-          >
-            Open…
-          </button>
-          <button
-            type="button"
-            className="btn"
-            onClick={() => {
-              void onSaveProject();
-            }}
-            data-testid="save-project"
-          >
-            Save
-          </button>
-          <span className="toolbar-divider" aria-hidden="true" />
-          <button
-            type="button"
-            className="btn btn-icon"
-            onClick={history.undo}
-            disabled={!history.canUndo}
-            data-testid="undo-btn"
-            title="Undo (⌘Z)"
-            aria-label="Undo"
-          >
-            ↶ Undo
-          </button>
-          <button
-            type="button"
-            className="btn btn-icon"
-            onClick={history.redo}
-            disabled={!history.canRedo}
-            data-testid="redo-btn"
-            title="Redo (⇧⌘Z)"
-            aria-label="Redo"
-          >
-            ↷ Redo
-          </button>
-          <span
-            className="app-doc-name"
-            data-testid="doc-name"
-            title={projectPath ?? "Unsaved figure"}
-          >
-            {projectPath !== null ? basename(projectPath) : "untitled.mosaic"}
-            {dirty && (
-              <span
-                className="app-doc-dirty"
-                data-testid="doc-dirty"
-                aria-label="Unsaved changes"
-                title="Unsaved changes"
-              >
-                {" "}
-                •
-              </span>
-            )}
-          </span>
-        </div>
-        <div className="app-bar-right">
-          <ThemeToggle choice={themeChoice} onChoice={setThemeChoice} />
-          <ExportMenu
-            figure={figure}
-            exportScale={figureExport.exportScale}
-            status={figureExport.status}
-            jpegQuality={jpegQuality}
-            onJpegQualityChange={setJpegQuality}
-            runPng={figureExport.runPng}
-            runJpeg={figureExport.runJpeg}
-            runTiff={figureExport.runTiff}
-            runPdf={figureExport.runPdf}
-          />
-        </div>
-      </div>
-      <div className="tool-ribbon">
-        <ToolGroup label="Grid">
-          <GridControls
-            rows={state.rows}
-            cols={state.cols}
-            gutterPx={state.gutterPx}
-            gutterColor={state.gutterColor}
-            outerGutter={state.outerGutter}
-            onChangeRows={(rows) => dispatch(resizeGrid(rows, state.cols))}
-            onChangeCols={(cols) => dispatch(resizeGrid(state.rows, cols))}
-            onChangeGutterPx={(px) => dispatch(setGutterPx(px))}
-            onChangeGutterColor={(c) => dispatch(setGutterColor(c))}
-            onChangeOuterGutter={(v) => dispatch(setOuterGutter(v))}
-            layoutKind={state.layout.kind}
-            onResetUniform={() => {
-              dispatch(resetToUniformGridAction());
-              history.commit();
-            }}
-          />
-          <label
-            className="checkbox-row"
-            title="Show or hide auto-generated per-panel letter labels (A, B, C…)"
-            style={{ whiteSpace: "nowrap" }}
-          >
-            <input
-              type="checkbox"
-              checked={state.globalStyle.letters.enabled}
-              onChange={() =>
-                dispatch(setLettersEnabled(!state.globalStyle.letters.enabled))
-              }
-              data-testid="anno-letters-toggle"
-            />
-            Panel letters
-          </label>
-        </ToolGroup>
-        <span className="toolbar-divider" aria-hidden="true" />
-        <ToolGroup label="Merge">
-          <MergeControls
-            canMerge={canMerge}
-            canUnmerge={canUnmerge}
-            selectedCount={selection.selected.size}
-            onMerge={onMerge}
-            onUnmerge={onUnmerge}
-          />
-        </ToolGroup>
-        <span className="toolbar-divider" aria-hidden="true" />
-        <ToolGroup label="Annotate">
-          <AnnotationToolbar active={activeTool} onChange={setActiveTool} />
-        </ToolGroup>
-        <span className="toolbar-divider" aria-hidden="true" />
-        <ToolGroup label="Zoom">
-          <ZoomControls
-            displayPct={zoom.displayPct}
-            isFit={zoom.isFit}
-            onFit={zoom.fit}
-            onActualSize={zoom.actualSize}
-            onZoomIn={zoom.zoomIn}
-            onZoomOut={zoom.zoomOut}
-            onSetPercent={zoom.setPercent}
-          />
-        </ToolGroup>
-      </div>
-      <div style={{ display: "flex", flex: 1, minHeight: 0 }}>
-        <Tray
-          pool={state.pool}
-          bitmaps={bitmaps}
-          placedIds={placedIds}
-          onAddImagesClick={() => {
-            void onAddImagesClick();
-          }}
-          onDragSourceChange={setDragSource}
-          onRemoveImage={onRemoveImage}
-          selectedThumbId={selectedThumbId}
-          onSelectThumb={onSelectThumb}
-          onPlaceIntoFirstEmpty={onPlaceIntoFirstEmpty}
-        />
-        <section
-          ref={scrollRef as React.RefObject<HTMLElement>}
-          onClick={(e) => {
-            if (e.target === e.currentTarget) {
-              setPanelInteraction(null);
-              setSelectedThumbId(null);
-            }
-          }}
-          style={{
-            flex: 1,
-            display: "flex",
-            padding: 24,
-            overflow: "auto",
-            background: "var(--c-surface-sunken)",
-          }}
-        >
-          <div
-            style={{
-              position: "relative",
-              width: zoom.cssW,
-              height: zoom.cssH,
-              // Center the canvas with AUTO MARGINS, not flex justify/align.
-              // Two reasons: (1) flex would shrink this item's width to fit the
-              // pane when the zoomed canvas is wider than it — deforming the
-              // aspect ratio (height is explicit, width isn't). flexShrink:0
-              // stops that. (2) `justify-content:center` pushes an overflowing
-              // item's left/top edge OUTSIDE the scroll container where
-              // overflow:auto can't scroll to it; auto margins center when the
-              // content fits yet stay fully scroll-reachable when it overflows.
-              flexShrink: 0,
-              margin: "auto",
-              boxShadow: "var(--sh-md)",
-              // Frame the canvas with an OUTLINE (not border) so it doesn't
-              // consume layout space: the wrapper stays exactly cssW × cssH,
-              // keeping the canvas and the GridCells / annotation overlays
-              // (sized off the same cssW/cssH) pixel-aligned. A border here
-              // would shrink the content box and drift the overlay by 1px.
-              outline: "1px solid var(--c-border)",
-              outlineOffset: "-1px",
-            }}
-          >
-            <EditorCanvas
+    <InteractionProvider spaceHeld={spaceHeld}>
+      <main
+        style={{
+          height: "100vh",
+          margin: 0,
+          display: "flex",
+          flexDirection: "column",
+        }}
+      >
+        <div className="app-bar">
+          <div className="app-bar-left">
+            <h1 className="app-title">Mosaic Builder</h1>
+            <span className="toolbar-divider" aria-hidden="true" />
+            <button
+              type="button"
+              className="btn"
+              onClick={() => {
+                void onNew();
+              }}
+              data-testid="new-project"
+              title="New figure (⌘N)"
+            >
+              New
+            </button>
+            <button
+              type="button"
+              className="btn"
+              onClick={() => {
+                void onOpenProject();
+              }}
+              data-testid="open-project"
+            >
+              Open…
+            </button>
+            <button
+              type="button"
+              className="btn"
+              onClick={() => {
+                void onSaveProject();
+              }}
+              data-testid="save-project"
+            >
+              Save
+            </button>
+            <span className="toolbar-divider" aria-hidden="true" />
+            <button
+              type="button"
+              className="btn btn-icon"
+              onClick={history.undo}
+              disabled={!history.canUndo}
+              data-testid="undo-btn"
+              title="Undo (⌘Z)"
+              aria-label="Undo"
+            >
+              ↶ Undo
+            </button>
+            <button
+              type="button"
+              className="btn btn-icon"
+              onClick={history.redo}
+              disabled={!history.canRedo}
+              data-testid="redo-btn"
+              title="Redo (⇧⌘Z)"
+              aria-label="Redo"
+            >
+              ↷ Redo
+            </button>
+            <span
+              className="app-doc-name"
+              data-testid="doc-name"
+              title={projectPath ?? "Unsaved figure"}
+            >
+              {projectPath !== null ? basename(projectPath) : "untitled.mosaic"}
+              {dirty && (
+                <span
+                  className="app-doc-dirty"
+                  data-testid="doc-dirty"
+                  aria-label="Unsaved changes"
+                  title="Unsaved changes"
+                >
+                  {" "}
+                  •
+                </span>
+              )}
+            </span>
+          </div>
+          <div className="app-bar-right">
+            <ThemeToggle choice={themeChoice} onChoice={setThemeChoice} />
+            <ExportMenu
               figure={figure}
-              images={bitmaps}
-              pool={imagesByIdMemo}
-              editorScale={sourceScale}
-              theme={effectiveTheme}
+              exportScale={figureExport.exportScale}
+              status={figureExport.status}
+              jpegQuality={jpegQuality}
+              onJpegQualityChange={setJpegQuality}
+              runPng={figureExport.runPng}
+              runJpeg={figureExport.runJpeg}
+              runTiff={figureExport.runTiff}
+              runPdf={figureExport.runPdf}
             />
-            <GridCells
-              state={state}
-              figurePxW={FIGURE_PX_W}
-              figurePxH={FIGURE_PX_H}
-              cssW={zoom.cssW}
-              cssH={zoom.cssH}
-              onDrop={onDrop}
-              hoverPanelId={hoverPanelId}
-              onHoverPanelChange={setHoverPanelId}
-              dragSource={dragSource}
-              onDragSourceChange={setDragSource}
-              selection={selection.selected}
-              onCellShiftClick={selection.toggle}
-              panelInteraction={panelInteraction}
-              onPanelClick={onPanelSingleClick}
-              onPanelDoubleClick={onPanelDoubleClick}
-              onHoleClick={onHoleClick}
-              onPanelCropBadgeClick={setCroppingPanelId}
-              onTrackWeightChange={(axis, index, weight) => {
-                dispatch(setTrackWeightAction(axis, index, weight));
+          </div>
+        </div>
+        <div className="tool-ribbon">
+          <ToolGroup label="Grid">
+            <GridControls
+              rows={state.rows}
+              cols={state.cols}
+              gutterPx={state.gutterPx}
+              gutterColor={state.gutterColor}
+              outerGutter={state.outerGutter}
+              onChangeRows={(rows) => dispatch(resizeGrid(rows, state.cols))}
+              onChangeCols={(cols) => dispatch(resizeGrid(state.rows, cols))}
+              onChangeGutterPx={(px) => dispatch(setGutterPx(px))}
+              onChangeGutterColor={(c) => dispatch(setGutterColor(c))}
+              onChangeOuterGutter={(v) => dispatch(setOuterGutter(v))}
+              layoutKind={state.layout.kind}
+              onResetUniform={() => {
+                dispatch(resetToUniformGridAction());
                 history.commit();
               }}
             />
-            {editingIdOf(panelInteraction) !== null &&
-              selectedImagePanel !== undefined &&
-              focusedPanelRect !== null &&
-              focusedBitmap !== undefined &&
-              selectedImagePanel.transform !== undefined && (
-                <PanelInteractionLayer
-                  panelId={selectedImagePanel.id}
-                  panelRect={focusedPanelRect}
-                  transform={selectedImagePanel.transform}
-                  bitmap={focusedBitmap}
-                  figurePxW={FIGURE_PX_W}
-                  figurePxH={FIGURE_PX_H}
-                  cssW={zoom.cssW}
-                  cssH={zoom.cssH}
-                  spacebarHeld={spacebarHeld}
-                  dispatch={dispatch}
-                  onCommit={history.commit}
-                  onResizeFreeform={(corner, dx, dy) => {
-                    dispatch(
-                      resizePanelFreeformAction(
-                        selectedImagePanel.id,
-                        corner,
-                        dx,
-                        dy,
-                        { widthPx: FIGURE_PX_W, heightPx: FIGURE_PX_H },
-                      ),
-                    );
-                    // history.commit() runs on pointer-up via onCommit.
-                  }}
-                />
-              )}
-            <AnnotationInteractionLayer
-              activeTool={effectiveTool}
-              defaultSymbolStyle={defaultSymbolStyle}
-              defaultTextStyle={defaultTextStyle}
-              defaultScalebarStyle={defaultScalebarStyle}
-              onDefaultScalebarStyleChange={setDefaultScalebarStyle}
-              figure={figure}
-              panelRectsById={panelRectsByIdMemo}
-              imagesById={imagesByIdMemo}
-              cssW={zoom.cssW}
-              cssH={zoom.cssH}
-              figurePxW={FIGURE_PX_W}
-              figurePxH={FIGURE_PX_H}
-              selectedAnnotationIds={selectedAnnotationIds}
-              onSelectionChange={setSelectedAnnotationIds}
-              onEditingChange={setAnnotationEditing}
-              dispatch={dispatch}
-              onTrayDrop={onDrop}
-              onTrayDragHoverChange={setHoverPanelId}
-              onPanelDoubleClick={onPanelDoubleClick}
-              onPanelClick={onPanelSingleClick}
-              onHoleClick={onHoleClick}
-              onRequestCalibration={onRequestCalibration}
-              {...(() => {
-                const sid = selectedIdOf(panelInteraction);
-                return sid !== null ? { selectedPanelId: sid } : {};
-              })()}
-              {...(editingIdOf(panelInteraction) !== null &&
-              focusedPanelRect !== null
-                ? { editingPanelRect: focusedPanelRect }
-                : {})}
+            <label
+              className="checkbox-row"
+              title="Show or hide auto-generated per-panel letter labels (A, B, C…)"
+              style={{ whiteSpace: "nowrap" }}
+            >
+              <input
+                type="checkbox"
+                checked={state.globalStyle.letters.enabled}
+                onChange={() =>
+                  dispatch(
+                    setLettersEnabled(!state.globalStyle.letters.enabled),
+                  )
+                }
+                data-testid="anno-letters-toggle"
+              />
+              Panel letters
+            </label>
+          </ToolGroup>
+          <span className="toolbar-divider" aria-hidden="true" />
+          <ToolGroup label="Merge">
+            <MergeControls
+              canMerge={canMerge}
+              canUnmerge={canUnmerge}
+              selectedCount={selection.selected.size}
+              onMerge={onMerge}
+              onUnmerge={onUnmerge}
             />
-            {cmdHeld && activeTool !== "select" && (
-              <div
-                data-testid="select-mode-chip"
-                className="select-mode-chip"
-                role="status"
-                aria-live="polite"
-              >
-                SELECT MODE (release ⌘)
-              </div>
-            )}
-          </div>
-        </section>
-        <PropertiesPanel
-          state={state}
-          // Pass the raw focused panel, NOT selectedImagePanel: an empty
-          // (image-less) panel must reach PropertiesPanel so its Hide/Delete
-          // form renders. PropertiesPanel does its own image-vs-empty routing.
-          focusedPanel={focusedPanel}
-          selectedAnno={selectedAnno}
-          {...(selectedLetterPanelId !== undefined
-            ? { selectedLetterPanelId }
-            : {})}
-          {...(selectedAnnos !== undefined ? { selectedAnnos } : {})}
-          onMultiBulkRemove={() => setSelectedAnnotationIds(emptySelection())}
-          selectedAnnotationIds={selectedAnnotationIds}
-          onSelectionChange={setSelectedAnnotationIds}
-          activeTool={activeTool}
-          defaultSymbolStyle={defaultSymbolStyle}
-          onDefaultSymbolStyleChange={setDefaultSymbolStyle}
-          defaultTextStyle={defaultTextStyle}
-          onDefaultTextStyleChange={setDefaultTextStyle}
-          defaultScalebarStyle={defaultScalebarStyle}
-          onDefaultScalebarStyleChange={setDefaultScalebarStyle}
-          dispatch={dispatch}
-          commit={fieldCommit}
-          onCalibrate={onCalibrate}
-          onCrop={onCrop}
-          onAddImages={() => {
-            void onAddImagesClick();
-          }}
-        />
-      </div>
-      {calibratingImageId !== null && calibratingBitmap !== undefined && (
-        <CalibrationModal
-          bitmap={calibratingBitmap}
-          imageId={calibratingImageId}
-          onClose={() => {
-            setCalibratingImageId(null);
-            // Cancelled (or after success) — drop any pending scale-bar
-            // placement so a later unrelated calibration won't place a bar.
-            setPendingScalebarPanelId(null);
-          }}
-          onCalibrated={onScalebarCalibrated}
-          dispatch={dispatch}
-        />
-      )}
-      {(() => {
-        if (croppingPanelId === null) return null;
-        const cp = state.panels.find((p) => p.id === croppingPanelId);
-        if (
-          cp === undefined ||
-          cp.imageId === undefined ||
-          cp.transform === undefined
-        ) {
-          return null;
-        }
-        const bm = bitmaps.get(cp.imageId);
-        if (bm === undefined) return null;
-        const rect = panelRectsByIdMemo.get(cp.id);
-        const aspect = rect !== undefined && rect.h > 0 ? rect.w / rect.h : 1;
-        return (
-          <CropImageModal
-            panelId={cp.id}
-            bitmap={bm}
-            initialCrop={cp.transform.crop}
-            transform={cp.transform}
-            panelAspect={aspect}
-            onClose={() => setCroppingPanelId(null)}
+          </ToolGroup>
+          <span className="toolbar-divider" aria-hidden="true" />
+          <ToolGroup label="Annotate">
+            <AnnotationToolbar active={activeTool} onChange={setActiveTool} />
+          </ToolGroup>
+          <span className="toolbar-divider" aria-hidden="true" />
+          <ToolGroup label="Zoom">
+            <ZoomControls
+              displayPct={zoom.displayPct}
+              isFit={zoom.isFit}
+              onFit={zoom.fit}
+              onActualSize={zoom.actualSize}
+              onZoomIn={zoom.zoomIn}
+              onZoomOut={zoom.zoomOut}
+              onSetPercent={zoom.setPercent}
+            />
+          </ToolGroup>
+        </div>
+        <div style={{ display: "flex", flex: 1, minHeight: 0 }}>
+          <Tray
+            pool={state.pool}
+            bitmaps={bitmaps}
+            placedIds={placedIds}
+            onAddImagesClick={() => {
+              void onAddImagesClick();
+            }}
+            onDragSourceChange={setDragSource}
+            onRemoveImage={onRemoveImage}
+            selectedThumbId={selectedThumbId}
+            onSelectThumb={onSelectThumb}
+            onPlaceIntoFirstEmpty={onPlaceIntoFirstEmpty}
+          />
+          <section
+            ref={scrollRef as React.RefObject<HTMLElement>}
+            onClick={(e) => {
+              if (e.target === e.currentTarget) {
+                setPanelInteraction(null);
+                setSelectedThumbId(null);
+              }
+            }}
+            style={{
+              flex: 1,
+              display: "flex",
+              padding: 24,
+              overflow: "auto",
+              background: "var(--c-surface-sunken)",
+            }}
+          >
+            <div
+              style={{
+                position: "relative",
+                width: zoom.cssW,
+                height: zoom.cssH,
+                // Center the canvas with AUTO MARGINS, not flex justify/align.
+                // Two reasons: (1) flex would shrink this item's width to fit the
+                // pane when the zoomed canvas is wider than it — deforming the
+                // aspect ratio (height is explicit, width isn't). flexShrink:0
+                // stops that. (2) `justify-content:center` pushes an overflowing
+                // item's left/top edge OUTSIDE the scroll container where
+                // overflow:auto can't scroll to it; auto margins center when the
+                // content fits yet stay fully scroll-reachable when it overflows.
+                flexShrink: 0,
+                margin: "auto",
+                boxShadow: "var(--sh-md)",
+                // Frame the canvas with an OUTLINE (not border) so it doesn't
+                // consume layout space: the wrapper stays exactly cssW × cssH,
+                // keeping the canvas and the GridCells / annotation overlays
+                // (sized off the same cssW/cssH) pixel-aligned. A border here
+                // would shrink the content box and drift the overlay by 1px.
+                outline: "1px solid var(--c-border)",
+                outlineOffset: "-1px",
+              }}
+            >
+              <EditorCanvas
+                figure={figure}
+                images={bitmaps}
+                pool={imagesByIdMemo}
+                editorScale={sourceScale}
+                theme={effectiveTheme}
+              />
+              <GridCells
+                state={state}
+                figurePxW={FIGURE_PX_W}
+                figurePxH={FIGURE_PX_H}
+                cssW={zoom.cssW}
+                cssH={zoom.cssH}
+                onDrop={onDrop}
+                hoverPanelId={hoverPanelId}
+                onHoverPanelChange={setHoverPanelId}
+                dragSource={dragSource}
+                onDragSourceChange={setDragSource}
+                selection={selection.selected}
+                onCellShiftClick={selection.toggle}
+                panelInteraction={panelInteraction}
+                onPanelClick={onPanelSingleClick}
+                onPanelDoubleClick={onPanelDoubleClick}
+                onHoleClick={onHoleClick}
+                onPanelCropBadgeClick={setCroppingPanelId}
+                onTrackWeightChange={(axis, index, weight) => {
+                  dispatch(setTrackWeightAction(axis, index, weight));
+                  history.commit();
+                }}
+              />
+              {editingIdOf(panelInteraction) !== null &&
+                selectedImagePanel !== undefined &&
+                focusedPanelRect !== null &&
+                focusedBitmap !== undefined &&
+                selectedImagePanel.transform !== undefined && (
+                  <PanelInteractionLayer
+                    panelRect={focusedPanelRect}
+                    transform={selectedImagePanel.transform}
+                    figurePxW={FIGURE_PX_W}
+                    figurePxH={FIGURE_PX_H}
+                    cssW={zoom.cssW}
+                    cssH={zoom.cssH}
+                    onCommit={history.commit}
+                    onResizeFreeform={(corner, dx, dy) => {
+                      dispatch(
+                        resizePanelFreeformAction(
+                          selectedImagePanel.id,
+                          corner,
+                          dx,
+                          dy,
+                          { widthPx: FIGURE_PX_W, heightPx: FIGURE_PX_H },
+                        ),
+                      );
+                      // history.commit() runs on pointer-up via onCommit.
+                    }}
+                  />
+                )}
+              <AnnotationInteractionLayer
+                activeTool={effectiveTool}
+                defaultSymbolStyle={defaultSymbolStyle}
+                defaultTextStyle={defaultTextStyle}
+                defaultScalebarStyle={defaultScalebarStyle}
+                onDefaultScalebarStyleChange={setDefaultScalebarStyle}
+                figure={figure}
+                panelRectsById={panelRectsByIdMemo}
+                imagesById={imagesByIdMemo}
+                cssW={zoom.cssW}
+                cssH={zoom.cssH}
+                figurePxW={FIGURE_PX_W}
+                figurePxH={FIGURE_PX_H}
+                selectedAnnotationIds={selectedAnnotationIds}
+                onSelectionChange={setSelectedAnnotationIds}
+                onEditingChange={setAnnotationEditing}
+                dispatch={dispatch}
+                onTrayDrop={onDrop}
+                onTrayDragHoverChange={setHoverPanelId}
+                onPanelDoubleClick={onPanelDoubleClick}
+                onPanelClick={onPanelSingleClick}
+                onHoleClick={onHoleClick}
+                onRequestCalibration={onRequestCalibration}
+                {...(() => {
+                  const sid = selectedIdOf(panelInteraction);
+                  return sid !== null ? { selectedPanelId: sid } : {};
+                })()}
+                {...(editingIdOf(panelInteraction) !== null &&
+                focusedPanelRect !== null
+                  ? { editingPanelRect: focusedPanelRect }
+                  : {})}
+              />
+              {cmdHeld && activeTool !== "select" && (
+                <div
+                  data-testid="select-mode-chip"
+                  className="select-mode-chip"
+                  role="status"
+                  aria-live="polite"
+                >
+                  SELECT MODE (release ⌘)
+                </div>
+              )}
+            </div>
+          </section>
+          <PropertiesPanel
+            state={state}
+            // Pass the raw focused panel, NOT selectedImagePanel: an empty
+            // (image-less) panel must reach PropertiesPanel so its Hide/Delete
+            // form renders. PropertiesPanel does its own image-vs-empty routing.
+            focusedPanel={focusedPanel}
+            selectedAnno={selectedAnno}
+            {...(selectedLetterPanelId !== undefined
+              ? { selectedLetterPanelId }
+              : {})}
+            {...(selectedAnnos !== undefined ? { selectedAnnos } : {})}
+            onMultiBulkRemove={() => setSelectedAnnotationIds(emptySelection())}
+            selectedAnnotationIds={selectedAnnotationIds}
+            onSelectionChange={setSelectedAnnotationIds}
+            activeTool={activeTool}
+            defaultSymbolStyle={defaultSymbolStyle}
+            onDefaultSymbolStyleChange={setDefaultSymbolStyle}
+            defaultTextStyle={defaultTextStyle}
+            onDefaultTextStyleChange={setDefaultTextStyle}
+            defaultScalebarStyle={defaultScalebarStyle}
+            onDefaultScalebarStyleChange={setDefaultScalebarStyle}
+            dispatch={dispatch}
+            commit={fieldCommit}
+            onCalibrate={onCalibrate}
+            onCrop={onCrop}
+            onAddImages={() => {
+              void onAddImagesClick();
+            }}
+          />
+        </div>
+        {calibratingImageId !== null && calibratingBitmap !== undefined && (
+          <CalibrationModal
+            bitmap={calibratingBitmap}
+            imageId={calibratingImageId}
+            onClose={() => {
+              setCalibratingImageId(null);
+              // Cancelled (or after success) — drop any pending scale-bar
+              // placement so a later unrelated calibration won't place a bar.
+              setPendingScalebarPanelId(null);
+            }}
+            onCalibrated={onScalebarCalibrated}
             dispatch={dispatch}
           />
-        );
-      })()}
-      {missingImages.length > 0 && (
-        <RelinkModal
-          missing={missingImages}
-          onClose={() => setMissingImages([])}
-          onRelinked={(resolutions, stillMissing) => {
-            setBitmaps((prev) => {
-              const next = new Map(prev);
-              for (const r of resolutions) next.set(r.imageId, r.bitmap);
-              return next;
-            });
-            // Persist the new path/dims/mime into FigureState so the next save
-            // records the relinked location instead of the stale broken path.
-            for (const r of resolutions) {
-              dispatch(relinkPoolImage(r.imageId, r.patch));
-            }
-            setMissingImages(stillMissing);
-          }}
-        />
-      )}
-      <ToastTray toasts={toasts.toasts} onDismiss={toasts.dismiss} />
-    </main>
+        )}
+        {(() => {
+          if (croppingPanelId === null) return null;
+          const cp = state.panels.find((p) => p.id === croppingPanelId);
+          if (
+            cp === undefined ||
+            cp.imageId === undefined ||
+            cp.transform === undefined
+          ) {
+            return null;
+          }
+          const bm = bitmaps.get(cp.imageId);
+          if (bm === undefined) return null;
+          const rect = panelRectsByIdMemo.get(cp.id);
+          const aspect = rect !== undefined && rect.h > 0 ? rect.w / rect.h : 1;
+          return (
+            <CropImageModal
+              panelId={cp.id}
+              bitmap={bm}
+              initialCrop={cp.transform.crop}
+              transform={cp.transform}
+              panelAspect={aspect}
+              onClose={() => setCroppingPanelId(null)}
+              dispatch={dispatch}
+            />
+          );
+        })()}
+        {missingImages.length > 0 && (
+          <RelinkModal
+            missing={missingImages}
+            onClose={() => setMissingImages([])}
+            onRelinked={(resolutions, stillMissing) => {
+              setBitmaps((prev) => {
+                const next = new Map(prev);
+                for (const r of resolutions) next.set(r.imageId, r.bitmap);
+                return next;
+              });
+              // Persist the new path/dims/mime into FigureState so the next save
+              // records the relinked location instead of the stale broken path.
+              for (const r of resolutions) {
+                dispatch(relinkPoolImage(r.imageId, r.patch));
+              }
+              setMissingImages(stillMissing);
+            }}
+          />
+        )}
+        <ToastTray toasts={toasts.toasts} onDismiss={toasts.dismiss} />
+      </main>
+    </InteractionProvider>
   );
 }
 

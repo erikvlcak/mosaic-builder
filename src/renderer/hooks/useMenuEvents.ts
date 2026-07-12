@@ -19,6 +19,10 @@ export interface MenuEventHandlers {
   onExportPdf: () => void;
   onUndo: () => void;
   onRedo: () => void;
+  onZoomIn: () => void;
+  onZoomOut: () => void;
+  onZoomFit: () => void;
+  onZoomActual: () => void;
 }
 
 export function useMenuEvents(handlers: MenuEventHandlers): void {
@@ -57,6 +61,18 @@ export function useMenuEvents(handlers: MenuEventHandlers): void {
           break;
         case "menu:redo":
           h.onRedo();
+          break;
+        case "menu:zoom-in":
+          h.onZoomIn();
+          break;
+        case "menu:zoom-out":
+          h.onZoomOut();
+          break;
+        case "menu:zoom-fit":
+          h.onZoomFit();
+          break;
+        case "menu:zoom-actual":
+          h.onZoomActual();
           break;
       }
     });

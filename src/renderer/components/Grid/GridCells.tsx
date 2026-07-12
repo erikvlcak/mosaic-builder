@@ -12,6 +12,7 @@ import {
 } from "../../model/panel-interaction";
 import { DRAG_MIME, parseDrag, type DragPayload } from "../../dnd/drag-payload";
 import { previewForDrop } from "../../dnd/preview-for-drop";
+import { useSpaceHeld } from "../../interaction/InteractionContext";
 
 export interface DropEvent {
   from: DragPayload;
@@ -384,6 +385,10 @@ export function GridCells({
         return (
           <div
             key={panel.id}
+            // Occupied panels are interactive objects (drag = pick up the
+            // image, Phase 2); empty and hidden panels are pannable
+            // background — drag there pans the viewport, click selects.
+            data-interactive={occupied && !isHidden ? "panel" : undefined}
             draggable={draggable}
             onDragStart={onDragStart}
             onDragEnd={onDragEnd}
@@ -487,6 +492,7 @@ function TrackHandle({
   onChange,
 }: TrackHandleProps): JSX.Element {
   const ref = useRef<HTMLDivElement | null>(null);
+  const spaceHeld = useSpaceHeld();
   const dragRef = useRef<{ pointerId: number } | null>(null);
   // Hit-strip width in figure-px. Wider than the gutter so the user can grab.
   const STRIP = 12;
@@ -506,6 +512,8 @@ function TrackHandle({
   }
 
   function onPointerDown(e: React.PointerEvent<HTMLDivElement>): void {
+    // Space = hand tool: yield to the viewport pan owner.
+    if (spaceHeld) return;
     if (e.button !== 0 || ref.current === null) return;
     e.stopPropagation();
     // jsdom (used in tests) doesn't implement pointer capture; guard so unit
@@ -536,6 +544,7 @@ function TrackHandle({
     <div
       ref={ref}
       data-testid={testId}
+      data-interactive="true"
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}

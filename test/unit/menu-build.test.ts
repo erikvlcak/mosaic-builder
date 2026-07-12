@@ -52,4 +52,38 @@ describe("buildMenuTemplate", () => {
     expect(send).toHaveBeenCalledWith("menu:undo");
     expect(send).toHaveBeenCalledWith("menu:redo");
   });
+
+  it("View menu binds ⌘+/⌘−/⌘0/⌘1 to canvas zoom events, not webpage-zoom roles", () => {
+    const send = vi.fn();
+    const tpl = buildMenuTemplate({ isMac: true, send });
+    const view = tpl.find((m) => (m.label ?? "").toLowerCase() === "view");
+    const items = view?.submenu as {
+      label?: string;
+      role?: string;
+      accelerator?: string;
+      click?: () => void;
+    }[];
+    // The Electron roles would double-bind the same accelerators and zoom
+    // the whole UI instead of the figure.
+    const roles = items.map((x) => x.role).filter(Boolean);
+    expect(roles).not.toContain("resetZoom");
+    expect(roles).not.toContain("zoomIn");
+    expect(roles).not.toContain("zoomOut");
+    const zoomIn = items.find((x) => x.label === "Zoom In");
+    const zoomOut = items.find((x) => x.label === "Zoom Out");
+    const fit = items.find((x) => x.label === "Zoom to Fit");
+    const actual = items.find((x) => x.label === "Actual Size");
+    expect(zoomIn?.accelerator).toBe("CommandOrControl+=");
+    expect(zoomOut?.accelerator).toBe("CommandOrControl+-");
+    expect(fit?.accelerator).toBe("CommandOrControl+0");
+    expect(actual?.accelerator).toBe("CommandOrControl+1");
+    zoomIn?.click?.();
+    zoomOut?.click?.();
+    fit?.click?.();
+    actual?.click?.();
+    expect(send).toHaveBeenCalledWith("menu:zoom-in");
+    expect(send).toHaveBeenCalledWith("menu:zoom-out");
+    expect(send).toHaveBeenCalledWith("menu:zoom-fit");
+    expect(send).toHaveBeenCalledWith("menu:zoom-actual");
+  });
 });

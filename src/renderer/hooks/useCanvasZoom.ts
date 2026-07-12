@@ -79,21 +79,26 @@ export interface CanvasZoom {
   zoomOut: () => void;
   fit: () => void;
   actualSize: () => void;
+  /**
+   * Cursor-anchored zoom step from a wheel/pinch delta. The DOM wheel
+   * listener itself lives in useViewportGestures — this hook keeps the
+   * zoom math and fit machinery only.
+   */
+  wheelZoom: (e: { deltaY: number; clientX: number; clientY: number }) => void;
 }
 
 export function useCanvasZoom(args: {
   scrollRef: RefObject<HTMLElement>;
   sourceScale: number;
-  spacebarHeld: boolean;
   modelW: number;
   modelH: number;
 }): CanvasZoom {
-  const { scrollRef, sourceScale, spacebarHeld, modelW, modelH } = args;
+  const { scrollRef, sourceScale, modelW, modelH } = args;
   const [view, setView] = useState<ViewTransform>({ zoom: 1, mode: "fit" });
 
-  // Latest values for the imperative (addEventListener) handlers.
-  const s = useRef({ view, sourceScale, spacebarHeld, modelW, modelH });
-  s.current = { view, sourceScale, spacebarHeld, modelW, modelH };
+  // Latest values for callbacks invoked from imperative listeners.
+  const s = useRef({ view, sourceScale, modelW, modelH });
+  s.current = { view, sourceScale, modelW, modelH };
 
   // The raw (uncapped) zoom at which the whole figure fits the pane. Used as
   // the zoom-out FLOOR: for a high-res image the display-% floor sits above
@@ -142,16 +147,13 @@ export function useCanvasZoom(args: {
     return () => ro.disconnect();
   }, [scrollRef, modelW, modelH, sourceScale, view.mode, recomputeFitFloor]);
 
-  // Wheel = cursor-anchored ZOOM (mouse wheel and trackpad alike). Panning is
-  // done by dragging (the pan-drag effect below) or the scrollbars. We take
-  // over the wheel and preventDefault so the overflow:auto container doesn't
-  // also scroll — otherwise a mouse wheel would scroll instead of zoom.
-  useEffect(() => {
-    const el = scrollRef.current;
-    if (el === null) return;
-    function onWheel(e: WheelEvent): void {
-      if (e.defaultPrevented) return; // panel-zoom consumed it (Space held)
-      e.preventDefault();
+  // Cursor-anchored wheel zoom. Called by useViewportGestures (the single
+  // wheel owner) when the resolver says "zoom-view" — this hook registers
+  // no DOM listeners of its own.
+  const wheelZoom = useCallback(
+    (e: { deltaY: number; clientX: number; clientY: number }): void => {
+      const el = scrollRef.current;
+      if (el === null) return;
       const cur = s.current;
       const oldCss = zoomToCssSize(cur.view.zoom, cur.modelW, cur.modelH);
       const factor = Math.exp(-e.deltaY * 0.0015);
@@ -161,60 +163,23 @@ export function useCanvasZoom(args: {
         fitFloorRef.current,
       );
       const newCss = zoomToCssSize(nextZoom, cur.modelW, cur.modelH);
-      const rect = el!.getBoundingClientRect();
+      const rect = el.getBoundingClientRect();
       const next = scrollForCursorZoom({
         cursorX: e.clientX - rect.left,
         cursorY: e.clientY - rect.top,
-        oldScrollLeft: el!.scrollLeft,
-        oldScrollTop: el!.scrollTop,
+        oldScrollLeft: el.scrollLeft,
+        oldScrollTop: el.scrollTop,
         oldCssW: oldCss.cssW,
         oldCssH: oldCss.cssH,
         newCssW: newCss.cssW,
         newCssH: newCss.cssH,
       });
       setView({ zoom: nextZoom, mode: "free" });
-      el!.scrollLeft = next.scrollLeft;
-      el!.scrollTop = next.scrollTop;
-    }
-    el.addEventListener("wheel", onWheel, { passive: false });
-    return () => el.removeEventListener("wheel", onWheel);
-  }, [scrollRef]);
-
-  // Drag-to-pan-view — unless Space is held (then the panel image-pans).
-  useEffect(() => {
-    const el = scrollRef.current;
-    if (el === null) return;
-    let drag: { x: number; y: number; sl: number; st: number } | null = null;
-    function onDown(e: PointerEvent): void {
-      if (e.button !== 0) return;
-      if (s.current.spacebarHeld) return; // Space → image pan on the panel layer
-      drag = {
-        x: e.clientX,
-        y: e.clientY,
-        sl: el!.scrollLeft,
-        st: el!.scrollTop,
-      };
-    }
-    function onMove(e: PointerEvent): void {
-      if (drag === null) return;
-      el!.scrollLeft = drag.sl - (e.clientX - drag.x);
-      el!.scrollTop = drag.st - (e.clientY - drag.y);
-    }
-    function onUp(): void {
-      drag = null;
-    }
-    el.addEventListener("pointerdown", onDown);
-    window.addEventListener("pointermove", onMove);
-    window.addEventListener("pointerup", onUp);
-    // Canceled streams never fire pointerup, so reset here too.
-    window.addEventListener("pointercancel", onUp);
-    return () => {
-      el.removeEventListener("pointerdown", onDown);
-      window.removeEventListener("pointermove", onMove);
-      window.removeEventListener("pointerup", onUp);
-      window.removeEventListener("pointercancel", onUp);
-    };
-  }, [scrollRef]);
+      el.scrollLeft = next.scrollLeft;
+      el.scrollTop = next.scrollTop;
+    },
+    [scrollRef],
+  );
 
   const { cssW, cssH, displayPct } = deriveCss(
     view,
@@ -247,7 +212,9 @@ export function useCanvasZoom(args: {
   );
   const setPercent = useCallback(
     (pct: number) =>
-      setView(nextViewForPercent(pct, s.current.sourceScale, recomputeFitFloor())),
+      setView(
+        nextViewForPercent(pct, s.current.sourceScale, recomputeFitFloor()),
+      ),
     [recomputeFitFloor],
   );
 
@@ -264,5 +231,6 @@ export function useCanvasZoom(args: {
     zoomOut,
     fit,
     actualSize,
+    wheelZoom,
   };
 }

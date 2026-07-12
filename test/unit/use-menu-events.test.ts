@@ -30,12 +30,20 @@ describe("useMenuEvents", () => {
       onExportPdf: vi.fn(),
       onUndo: vi.fn(),
       onRedo: vi.fn(),
+      onZoomIn: vi.fn(),
+      onZoomOut: vi.fn(),
+      onZoomFit: vi.fn(),
+      onZoomActual: vi.fn(),
     };
     const { unmount } = renderHook(() => useMenuEvents(handlers));
     listener?.("menu:save");
     listener?.("menu:undo");
+    listener?.("menu:zoom-in");
+    listener?.("menu:zoom-fit");
     expect(handlers.onSave).toHaveBeenCalledTimes(1);
     expect(handlers.onUndo).toHaveBeenCalledTimes(1);
+    expect(handlers.onZoomIn).toHaveBeenCalledTimes(1);
+    expect(handlers.onZoomFit).toHaveBeenCalledTimes(1);
     unmount();
     expect(unsubscribe).toHaveBeenCalled();
   });

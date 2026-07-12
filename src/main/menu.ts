@@ -68,15 +68,35 @@ export function buildMenuTemplate({
       { role: "selectAll" },
     ],
   };
+  // Canvas zoom, NOT webpage zoom: the resetZoom/zoomIn/zoomOut roles are
+  // deliberately absent — they'd double-bind ⌘+/⌘−/⌘0 against these items
+  // and scale the whole UI instead of the figure.
   const view: MenuItemConstructorOptions = {
     label: "View",
     submenu: [
       { role: "reload" },
       { role: "toggleDevTools" },
       { type: "separator" },
-      { role: "resetZoom" },
-      { role: "zoomIn" },
-      { role: "zoomOut" },
+      {
+        label: "Zoom In",
+        accelerator: "CommandOrControl+=",
+        click: () => send(MENU_EVENTS.zoomIn),
+      },
+      {
+        label: "Zoom Out",
+        accelerator: "CommandOrControl+-",
+        click: () => send(MENU_EVENTS.zoomOut),
+      },
+      {
+        label: "Zoom to Fit",
+        accelerator: "CommandOrControl+0",
+        click: () => send(MENU_EVENTS.zoomFit),
+      },
+      {
+        label: "Actual Size",
+        accelerator: "CommandOrControl+1",
+        click: () => send(MENU_EVENTS.zoomActual),
+      },
       { type: "separator" },
       { role: "togglefullscreen" },
     ],

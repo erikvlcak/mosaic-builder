@@ -32,6 +32,14 @@ export const MENU_EVENTS = {
   exportPdf: "menu:export-pdf",
   undo: "menu:undo",
   redo: "menu:redo",
+  // View-menu canvas zoom. These replace the Electron resetZoom/zoomIn/
+  // zoomOut roles: the roles zoomed the WEBPAGE on the same accelerators
+  // the canvas zoom wants (⌘+/⌘−/⌘0), so the two raced. Canvas zoom is
+  // menu-driven and single-bound.
+  zoomIn: "menu:zoom-in",
+  zoomOut: "menu:zoom-out",
+  zoomFit: "menu:zoom-fit",
+  zoomActual: "menu:zoom-actual",
 } as const;
 
 export type MenuEvent = (typeof MENU_EVENTS)[keyof typeof MENU_EVENTS];

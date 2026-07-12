@@ -66,6 +66,7 @@ import {
   replaceSelection,
   singleSelectedId,
 } from "../../state/anno-selection";
+import { useSpaceHeld } from "../../interaction/InteractionContext";
 
 /**
  * User-facing annotation kinds in their RESOLVED shape (as carried by
@@ -572,6 +573,9 @@ export function AnnotationInteractionLayer({
   // chrome/handles/effects so existing single-select code paths are
   // untouched when the user has exactly one annotation selected.
   const selectedAnnotationId = singleSelectedId(selectedAnnotationIds);
+  // Space = hand tool: every pointerdown below yields (returns before
+  // stopPropagation/capture) so the press bubbles to the viewport pan owner.
+  const spaceHeld = useSpaceHeld();
   const ref = useRef<HTMLDivElement | null>(null);
   const textInputRef = useRef<HTMLInputElement | null>(null);
   const [drag, setDrag] = useState<DragState | null>(null);
@@ -702,6 +706,7 @@ export function AnnotationInteractionLayer({
   // -------------------------------------------------------------------
 
   function onLayerPointerDown(e: React.PointerEvent<HTMLDivElement>): void {
+    if (spaceHeld) return;
     if (activeTool === "select") return; // handled per-hitrect
     if (e.button !== 0) return;
     const c = clientToFigure(e);
@@ -819,6 +824,7 @@ export function AnnotationInteractionLayer({
   // -------------------------------------------------------------------
 
   function onBackdropPointerDown(e: React.PointerEvent<HTMLDivElement>): void {
+    if (spaceHeld) return;
     if (e.button !== 0) return;
     if (activeTool !== "select") return;
     // Hit-rects are above this div in DOM order and stopPropagation, so an
@@ -911,6 +917,7 @@ export function AnnotationInteractionLayer({
     e: React.PointerEvent<HTMLDivElement>,
     a: UserAnno,
   ): void {
+    if (spaceHeld) return;
     if (e.button !== 0) return;
     e.stopPropagation();
     const c = clientToFigure(e);
@@ -1201,6 +1208,7 @@ export function AnnotationInteractionLayer({
     a: SymbolAnnotation,
     _corner: "tl" | "tr" | "bl" | "br",
   ): void {
+    if (spaceHeld) return;
     if (e.button !== 0) return;
     e.stopPropagation();
     onSelectionChange(replaceSelection(a.id));
@@ -1270,6 +1278,7 @@ export function AnnotationInteractionLayer({
     e: React.PointerEvent<HTMLDivElement>,
     a: SymbolAnnotation,
   ): void {
+    if (spaceHeld) return;
     if (e.button !== 0) return;
     e.stopPropagation();
     onSelectionChange(replaceSelection(a.id));
@@ -1550,6 +1559,7 @@ export function AnnotationInteractionLayer({
     e: React.PointerEvent<HTMLDivElement>,
     letterId: string,
   ): void {
+    if (spaceHeld) return;
     if (e.button !== 0) return;
     e.stopPropagation();
     // Letters use the same selection set as user-annos but never engage the
@@ -1781,6 +1791,7 @@ export function AnnotationInteractionLayer({
           <div
             key={`hit-${a.id}`}
             data-testid={`anno-hit-${a.id}`}
+            data-interactive="true"
             onPointerDown={(e) => onHitPointerDown(e, a)}
             onPointerMove={onHitPointerMove}
             onPointerUp={onHitPointerUp}
@@ -1804,6 +1815,7 @@ export function AnnotationInteractionLayer({
         <div
           key={`hit-${b.id}`}
           data-testid={`anno-hit-${b.id}`}
+          data-interactive="true"
           onPointerDown={(e) => onLetterHitPointerDown(e, b.id)}
           style={{
             position: "absolute",
@@ -1966,6 +1978,7 @@ export function AnnotationInteractionLayer({
               <div
                 key={`symbol-handle-${corner}`}
                 data-testid={`anno-symbol-handle-${corner}`}
+                data-interactive="true"
                 onPointerDown={(e) =>
                   onSymbolCornerPointerDown(e, selected, corner)
                 }
@@ -1988,6 +2001,7 @@ export function AnnotationInteractionLayer({
             {/* Rotation handle: small disc 16 figure-px above the top edge. */}
             <div
               data-testid="anno-symbol-handle-rotate"
+              data-interactive="true"
               onPointerDown={(e) => onSymbolRotatePointerDown(e, selected)}
               onPointerMove={onSymbolRotatePointerMove}
               onPointerUp={onSymbolRotatePointerUp}
@@ -2020,6 +2034,7 @@ export function AnnotationInteractionLayer({
         <input
           ref={textInputRef}
           data-testid="anno-text-input"
+          data-interactive="true"
           value={pendingTextValue}
           onChange={(e) => setPendingTextValue(e.currentTarget.value)}
           onPointerDown={(e) => e.stopPropagation()}
@@ -2060,6 +2075,7 @@ export function AnnotationInteractionLayer({
       {pendingScalebar !== null && (
         <div
           data-testid="anno-scalebar-popover"
+          data-interactive="true"
           onPointerDown={(e) => e.stopPropagation()}
           style={{
             position: "absolute",
@@ -2148,6 +2164,7 @@ export function AnnotationInteractionLayer({
         <button
           type="button"
           data-testid="anno-delete-chip"
+          data-interactive="true"
           onClick={() => {
             dispatch(removeAnnotation(selected.id));
             onSelectionChange(clearSelection());
