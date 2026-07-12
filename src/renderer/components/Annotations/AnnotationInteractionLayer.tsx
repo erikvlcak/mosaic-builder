@@ -16,18 +16,12 @@
  * convert to figure-px via `figurePxW / cssW`. In M6 these are equal so
  * the factor is 1.0, but the math is written generally.
  *
- * NOTE: This layer coexists with `PanelInteractionLayer` (per-panel
- * pan/zoom). PanelInteractionLayer mounts over a focused image panel
- * whenever one exists — independent of the active annotation tool — so
- * wheel-zoom on the focused panel keeps working even while a creation
- * tool is selected. The two layers are z-stacked: AnnotationInteractionLayer
- * (zIndex 3) sits ABOVE PanelInteractionLayer (zIndex 2). To avoid click
- * conflicts, the annotation layer is `pointer-events: none` whenever the
- * `select` tool is active over empty space — clicks pass through to the
- * panel layer below. When a creation tool is active, the annotation layer
- * captures all clicks (this is the user's expectation: switching to "Symbol"
- * disables panel-layer click/drag until they switch back to Select), while
- * wheel events still reach the panel layer underneath naturally.
+ * NOTE: Global gestures never route through this layer. The viewport pan
+ * owner (interaction/useViewportGestures) skips any target stamped
+ * `data-interactive` (every hit-rect and handle here carries it), Space =
+ * the hand tool (every pointerdown below early-returns via useSpaceHeld),
+ * and Frame mode intercepts pointerdowns in capture phase before they
+ * reach these handlers. This layer only owns object-local gestures.
  */
 
 import { useEffect, useRef, useState } from "react";
@@ -155,16 +149,14 @@ interface Props {
    */
   onPanelDoubleClick?: (panelId: string) => void;
   /**
-   * Forward a backdrop click (no movement past MARQUEE_MIN_PX) to a
+   * Forward a backdrop click (no movement past CLICK_DRAG_MIN_PX) to a
    * panel hit-tested via panelRectsById. Mirrors `onPanelDoubleClick`.
-   * Needed because the backdrop covers unselected occupied panels (so
-   * marquee selection of annotations works there); without this
-   * forward, single-click would never reach GridCells's per-panel
-   * onClick to select the panel.
+   * The backdrop covers empty panels; without this forward, a click
+   * there would never reach GridCells's per-panel onClick to select it.
    */
   onPanelClick?: (panelId: string) => void;
   /**
-   * Forward a backdrop click (no movement past MARQUEE_MIN_PX) that lands
+   * Forward a backdrop click (no movement past CLICK_DRAG_MIN_PX) that lands
    * on a grid *hole* (a cell no panel covers, from DELETE_PANEL) to
    * onHoleClick(row, col) so the panel can be restored. Mirrors
    * `onPanelClick` — the backdrop is the topmost hit-target, so GridCells's
@@ -228,7 +220,7 @@ interface DragState {
    * on grab.
    */
   startGripAngleRad?: number;
-  /** Marquee gesture only: shift held when the gesture began (additive marquee). */
+  /** Backdrop press only: shift held at press (preserves the selection on click). */
   shiftKey?: boolean;
   /**
    * For "move" only: the bbox (figure-px) of the moving anno (or union
@@ -286,10 +278,11 @@ const MIN_SYMBOL_DIM = 8;
 // Endpoint/corner handle size in CSS px (square hit-rect).
 const HANDLE_PX = 8;
 
-// Marquee gesture only counts as a drag (vs a click) once the pointer has
+// A backdrop press counts as a drag (vs a click) once the pointer has
 // moved this many CSS px. Below this we treat pointerdown+pointerup as a
-// click on empty space and apply the clear-or-preserve logic.
-const MARQUEE_MIN_PX = 4;
+// click on empty space and apply the clear-or-preserve logic; at or past
+// it, the gesture was a viewport pan (owned by useViewportGestures).
+const CLICK_DRAG_MIN_PX = 4;
 
 // How long the scalebar error banner stays visible (ms).
 const SCALEBAR_ERROR_TTL_MS = 2500;
@@ -305,7 +298,7 @@ function newAnnoId(): string {
  * `<div draggable>` panel reaches GridCells underneath) plus the editing
  * panel rect (so PanelInteractionLayer's pan/resize handles aren't
  * eclipsed). Strips outside any hole keep `pointerEvents: auto` so
- * marquee selection and click-to-clear continue to work on gutters and
+ * click-to-clear and click-forwarding continue to work on gutters and
  * empty panels.
  *
  * Algorithm: horizontal-band sweep. The y-axis is split at every hole's
@@ -831,7 +824,8 @@ export function AnnotationInteractionLayer({
   }
 
   // -------------------------------------------------------------------
-  // SELECT MODE — marquee (rubber-band selection from empty space).
+  // SELECT TOOL — backdrop press (click-vs-pan discrimination on empty
+  // space).
   //
   // Mounted on the backdrop div (zIndex below the per-anno hit-rects), so
   // any pointerdown on a real annotation goes to onHitPointerDown instead.
@@ -850,8 +844,8 @@ export function AnnotationInteractionLayer({
     // We do NOT setPointerCapture here: a drag on empty space is a view PAN
     // (owned by useCanvasZoom on the scroll container, our ancestor). Capturing
     // would steal the pointer stream and run a competing gesture. We only
-    // record the press origin so pointerup can tell a click from a drag —
-    // marquee area-selection was removed (drag == pan, always).
+    // record the press origin so pointerup can tell a click from a drag
+    // (drag == pan, always).
     setDrag({
       pointerId: e.pointerId,
       kind: "backdrop-press",
@@ -893,7 +887,7 @@ export function AnnotationInteractionLayer({
     const endFy = c?.fy ?? drag.curFy;
     const dxCss = (endFx - drag.startFx) * figToCssX;
     const dyCss = (endFy - drag.startFy) * figToCssY;
-    const moved = Math.hypot(dxCss, dyCss) >= MARQUEE_MIN_PX;
+    const moved = Math.hypot(dxCss, dyCss) >= CLICK_DRAG_MIN_PX;
     // A moved press was a view pan (handled by useCanvasZoom) — do nothing,
     // and crucially DON'T clear the selection. Only a genuine click acts.
     if (moved) {
@@ -924,7 +918,7 @@ export function AnnotationInteractionLayer({
   }
 
   // -------------------------------------------------------------------
-  // SELECT MODE — per-annotation hit-rects.
+  // SELECT TOOL — per-annotation hit-rects.
   // -------------------------------------------------------------------
 
   function onHitPointerDown(
@@ -1198,7 +1192,7 @@ export function AnnotationInteractionLayer({
   }
 
   // -------------------------------------------------------------------
-  // SELECT MODE — corner / rotation / endpoint handles.
+  // SELECT TOOL — corner / rotation / endpoint handles.
   //
   // Corner / rotation / endpoint handles render when the matching
   // annotation kind is selected. Whole-annotation drag remains active on
@@ -1209,7 +1203,7 @@ export function AnnotationInteractionLayer({
   // -------------------------------------------------------------------
 
   // -------------------------------------------------------------------
-  // SELECT MODE — symbol corner + rotation handles.
+  // SELECT TOOL — symbol corner + rotation handles.
   //
   // Symbols are center-anchored: dragging any corner grows/shrinks the
   // square symmetrically about (x, y). The rotation handle floats above
@@ -1699,14 +1693,11 @@ export function AnnotationInteractionLayer({
         touchAction: activeTool === "select" ? "auto" : "none",
       }}
     >
-      {/* Backdrop in select mode: pointerdown starts a marquee. On
-          pointerup, a "click" (no movement past MARQUEE_MIN_PX) clears
-          the annotation selection (or preserves it on shift) and
-          forwards the click to onPanelClick when over a panel; a real
-          drag commits the marquee selection. The backdrop is mounted
-          whenever the layer is in select mode — it has to be live
-          BEFORE anything is selected so the user can drag-select on an
-          empty canvas.
+      {/* Backdrop in select mode: on pointerup, a "click" (no movement
+          past CLICK_DRAG_MIN_PX) clears the annotation selection (or
+          preserves it on shift) and forwards the click to onPanelClick /
+          onHoleClick; a real drag was a viewport pan and does nothing
+          here.
 
           The backdrop carves holes over EVERY occupied panel, so
           GridCells's `<div draggable>` receives the mousedown that

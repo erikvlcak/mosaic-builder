@@ -205,10 +205,14 @@ shifts on export.
    *selected* = 2 px solid `--c-accent`; *editing* = 2 px dashed
    `--c-accent` + accent corner handles; merge cells keep accent fill.
    Retire green/orange from panel chrome (green stays for success toasts).
-2. **Teach double-click.** While a panel is *selected*, properties subtitle
-   appends " — double-click panel to pan & zoom"; the same hint renders as
-   the existing chip pattern near the canvas the first time a panel is
-   selected per session. Cheap, no persistent onboarding machinery.
+2. **Teach double-click.** _Superseded (2026-07-12): the interaction-model
+   redesign's always-on hint bar (`components/StatusHints/HintBar.tsx`,
+   under the canvas pane) covers this — see
+   `2026-07-12-interaction-model-redesign.md` Part 3._ Original idea:
+   while a panel is *selected*, properties subtitle appends " —
+   double-click panel to pan & zoom"; the same hint renders as the
+   existing chip pattern near the canvas the first time a panel is
+   selected per session.
 3. **App bar.** Add: `New` button (wired to existing `onNew`); document
    name + bullet when dirty (`untitled.mosaic •`) centered or next to
    Save; Undo/Redo icon-buttons with labels and disabled states (wired to

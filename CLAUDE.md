@@ -142,13 +142,50 @@ Key modules (all under `src/renderer/`):
   at `PDF_DPI = 160` (`pdf-lib`; see
   `docs/superpowers/specs/2026-05-08-qa-feedback/04-fix-pdf-export.md`).
 
+### Interaction model (the One Rule)
+
+> **Verbs are fixed; modes change only the subject.** Scroll pans;
+> `⌘`/`Ctrl`+scroll and pinch zoom; drag moves the thing under the
+> cursor; `Space`+drag and middle-drag always pan the viewport; `Esc`
+> unwinds one level.
+
+All gesture-routing precedence lives in **`interaction/resolve.ts`**
+(pure functions, table-driven tests): `resolveWheel`,
+`resolvePointerDown`, `resolveEscape`. One DOM owner per global gesture:
+
+- **`interaction/useViewportGestures.ts`** — THE wheel listener and the
+  background-pan pointer sequence on the canvas pane. Pans start only on
+  targets without a `data-interactive` attribute — stamp it on anything
+  clickable you add over the canvas (occupied panels use the value
+  `"panel"`, which routes to native HTML5 drag).
+- **`interaction/useFrameGestures.ts`** — Frame mode (`PanelInteraction`
+  `"editing"`; entered by double-click / Enter on a placed panel):
+  drag/wheel/keys retarget onto the framed image position-independently
+  within the pane. 4 px click/drag threshold; wheel/key bursts commit
+  after a 250 ms settle → one undo step.
+- **`interaction/InteractionContext.tsx`** — `useSpaceHeld()`.
+  Object-local `pointerdown` handlers early-return when Space is held so
+  the hand tool always wins.
+
+Object-local handlers (annotation move/resize/rotate, track and corner
+handles, HTML5 dnd, popovers) stay local, using pointer capture +
+`stopPropagation`. **Never** reintroduce cursor-position-dependent wheel
+behavior or `e.defaultPrevented` handshakes between listeners. Chrome
+components own no gestures: `FrameChrome` (scrim + chip + zoom readout),
+`SelectedPanelHandles` (corner resize on selected panels), `HintBar`
+(`hintFor` is a pure projection of the interaction state). `⌘+`/`⌘−`/
+`⌘0`/`⌘1` are single-bound to the View menu (MENU_EVENTS → canvas zoom;
+no Electron zoom roles, no in-page keydown binding). Placement tools are
+one-shot stamps (auto-return to Select; `Shift`+place keeps them armed).
+
 ### UI vs domain state
 
 `PanelInteraction` (`model/panel-interaction.ts`) is **UI-only** — it
-controls "selected vs editing" on a panel and lives outside `FigureState`
-(not undo-able, not serialized). The pattern: single-click → `selected`
-(drag-to-swap on, pan/zoom off); double-click → `editing` (pan/zoom on,
-drag-to-swap off). Don't promote ephemeral UI selections into `FigureState`.
+controls "selected vs editing (Frame mode)" on a panel and lives outside
+`FigureState` (not undo-able, not serialized). Single-click → `selected`
+(corner handles, drag moves the image, Delete unplaces); double-click or
+Enter → `editing` = Frame mode. Don't promote ephemeral UI selections
+into `FigureState`.
 
 ### Persistence (`.mosaic` files)
 

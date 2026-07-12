@@ -376,7 +376,7 @@ export function GridCells({
         // data-interactive targets, and this panel is stamped "panel".
         const draggable = occupied && !isHidden;
 
-        // editing: no outline here — PanelInteractionLayer owns editing-mode chrome.
+        // editing: no outline here — FrameChrome owns Frame-mode chrome.
         // Hover outline switches to a "not allowed" treatment for invalid drops
         // (e.g., dropping a tray image whose source is already placed).
         const hoverInvalid =
