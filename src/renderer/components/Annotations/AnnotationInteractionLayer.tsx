@@ -64,9 +64,7 @@ import {
   clearSelection,
   removeFromSelection,
   replaceSelection,
-  setSelection,
   singleSelectedId,
-  unionSelection,
 } from "../../state/anno-selection";
 
 /**
@@ -208,10 +206,11 @@ interface DragState {
    * - "symbol-corner": drag one corner of a selected symbol (center-anchored
    *   resize — see onSymbolCornerPointerMove).
    * - "symbol-rotate": drag the rotation grip above a selected symbol.
-   * - "marquee": rubber-band drag in select mode from empty space — selects
-   *   every annotation whose bounds intersect the drag rect on pointerup.
+   * - "backdrop-press": a press on empty space in select mode. Tracks
+   *   click-vs-drag: a click clears/forwards selection, a drag is a view pan
+   *   (owned by useCanvasZoom) and this gesture does nothing on release.
    */
-  kind: "move" | "symbol-corner" | "symbol-rotate" | "marquee";
+  kind: "move" | "symbol-corner" | "symbol-rotate" | "backdrop-press";
   /** Origin in figure-px. */
   startFx: number;
   startFy: number;
@@ -508,21 +507,6 @@ function anchorFromFigure(
  * approximate it as the bottom-right corner of the panel (close enough
  * for selection in M6).
  */
-/**
- * AABB-intersection test for two rectangles (figure-px). Used by marquee
- * selection to test annotation bounds against the drag rect. Touching
- * edges count as intersecting, which matches user expectation for a
- * "drag a rectangle that crosses the annotation" gesture.
- */
-function rectsIntersect(
-  a: { x: number; y: number; w: number; h: number },
-  b: { x: number; y: number; w: number; h: number },
-): boolean {
-  return (
-    a.x <= b.x + b.w && a.x + a.w >= b.x && a.y <= b.y + b.h && a.y + a.h >= b.y
-  );
-}
-
 function annoBounds(
   a: UserAnno,
   panelRectsById: Map<string, PanelRect>,
@@ -838,15 +822,19 @@ export function AnnotationInteractionLayer({
     if (e.button !== 0) return;
     if (activeTool !== "select") return;
     // Hit-rects are above this div in DOM order and stopPropagation, so an
-    // event arriving here means the user clicked empty space. Belt-and-
+    // event arriving here means the user pressed empty space. Belt-and-
     // braces: bail out unless the event target IS the backdrop itself.
     if (e.target !== e.currentTarget) return;
     const c = clientToFigure(e);
     if (c === null) return;
-    e.currentTarget.setPointerCapture(e.pointerId);
+    // We do NOT setPointerCapture here: a drag on empty space is a view PAN
+    // (owned by useCanvasZoom on the scroll container, our ancestor). Capturing
+    // would steal the pointer stream and run a competing gesture. We only
+    // record the press origin so pointerup can tell a click from a drag —
+    // marquee area-selection was removed (drag == pan, always).
     setDrag({
       pointerId: e.pointerId,
-      kind: "marquee",
+      kind: "backdrop-press",
       startFx: c.fx,
       startFy: c.fy,
       curFx: c.fx,
@@ -858,7 +846,7 @@ export function AnnotationInteractionLayer({
   function onBackdropPointerMove(e: React.PointerEvent<HTMLDivElement>): void {
     if (
       drag === null ||
-      drag.kind !== "marquee" ||
+      drag.kind !== "backdrop-press" ||
       drag.pointerId !== e.pointerId
     )
       return;
@@ -870,16 +858,13 @@ export function AnnotationInteractionLayer({
   function onBackdropPointerUp(e: React.PointerEvent<HTMLDivElement>): void {
     if (
       drag === null ||
-      drag.kind !== "marquee" ||
+      drag.kind !== "backdrop-press" ||
       drag.pointerId !== e.pointerId
     )
       return;
-    if (e.currentTarget.hasPointerCapture(e.pointerId)) {
-      e.currentTarget.releasePointerCapture(e.pointerId);
-    }
     // Use the most recent pointer position from this event; falls back to
     // the last move's stored coords if the up event somehow has no client
-    // coords. We compute "did the drag move enough" here (instead of in
+    // coords. We compute "did the pointer move" here (instead of in
     // onBackdropPointerMove + state) so the test harness's synchronous
     // fireEvent flow is reliable: pointermove's setDrag may not have
     // committed by the time pointerup runs.
@@ -889,48 +874,32 @@ export function AnnotationInteractionLayer({
     const dxCss = (endFx - drag.startFx) * figToCssX;
     const dyCss = (endFy - drag.startFy) * figToCssY;
     const moved = Math.hypot(dxCss, dyCss) >= MARQUEE_MIN_PX;
-    if (!moved) {
-      // Treat as a click on the backdrop.
-      // Shift-click on empty preserves selection; plain click clears it.
-      if (drag.shiftKey !== true) {
-        onSelectionChange(clearSelection());
-      }
-      // Forward the click to the panel underneath if the cursor is over
-      // one. Mirrors the dblclick passthrough: GridCells's onClick never
-      // fires here because the backdrop is the topmost hit-target. The
-      // user's mental model is "click a panel to select it", and the
-      // backdrop covers unselected panels by design (so marquee works
-      // there) — we have to bridge that gap explicitly.
-      const targetPanelId = panelAt(panelRectsById, endFx, endFy);
-      if (targetPanelId !== null) {
-        if (onPanelClick !== undefined) onPanelClick(targetPanelId);
-      } else if (onHoleClick !== undefined) {
-        // No panel under the cursor — the click may be on a grid hole
-        // (deleted-panel gap). Forward so the restore affordance works
-        // even though the backdrop eats the hole's own onClick.
-        const hole = holeAt(figure, figurePxW, figurePxH, endFx, endFy);
-        if (hole !== null) onHoleClick(hole.row, hole.col);
-      }
+    // A moved press was a view pan (handled by useCanvasZoom) — do nothing,
+    // and crucially DON'T clear the selection. Only a genuine click acts.
+    if (moved) {
       setDrag(null);
       return;
     }
-    // Commit marquee: collect every user-anno whose bounds intersect the rect.
-    const x = Math.min(drag.startFx, endFx);
-    const y = Math.min(drag.startFy, endFy);
-    const w = Math.abs(endFx - drag.startFx);
-    const h = Math.abs(endFy - drag.startFy);
-    const hits: string[] = [];
-    for (const a of figure.annotations) {
-      if (!isUserAnno(a)) continue;
-      const b = annoBounds(a, panelRectsById);
-      if (b === null) continue;
-      if (rectsIntersect(b, { x, y, w, h })) hits.push(a.id);
+    // Click on empty space: shift-click preserves selection; plain click
+    // clears it.
+    if (drag.shiftKey !== true) {
+      onSelectionChange(clearSelection());
     }
-    onSelectionChange(
-      drag.shiftKey === true
-        ? unionSelection(selectedAnnotationIds, hits)
-        : setSelection(hits),
-    );
+    // Forward the click to the panel underneath if the cursor is over one.
+    // GridCells's onClick never fires here because the backdrop is the
+    // topmost hit-target. The user's mental model is "click a panel to
+    // select it", and the backdrop covers unselected panels by design —
+    // we bridge that gap explicitly.
+    const targetPanelId = panelAt(panelRectsById, endFx, endFy);
+    if (targetPanelId !== null) {
+      if (onPanelClick !== undefined) onPanelClick(targetPanelId);
+    } else if (onHoleClick !== undefined) {
+      // No panel under the cursor — the click may be on a grid hole
+      // (deleted-panel gap). Forward so the restore affordance works
+      // even though the backdrop eats the hole's own onClick.
+      const hole = holeAt(figure, figurePxW, figurePxH, endFx, endFy);
+      if (hole !== null) onHoleClick(hole.row, hole.col);
+    }
     setDrag(null);
   }
 
@@ -1800,33 +1769,6 @@ export function AnnotationInteractionLayer({
           </>
         );
       })()}
-
-      {/* Marquee preview rectangle while a drag is in flight. The threshold
-          check matches onBackdropPointerUp's drag-vs-click detection — under
-          MARQUEE_MIN_PX of movement we suppress the preview so a quick click
-          on empty space doesn't flicker a tiny rectangle into view. */}
-      {drag !== null &&
-        drag.kind === "marquee" &&
-        Math.hypot(
-          (drag.curFx - drag.startFx) * figToCssX,
-          (drag.curFy - drag.startFy) * figToCssY,
-        ) >= MARQUEE_MIN_PX && (
-          <div
-            data-testid="anno-marquee"
-            style={{
-              position: "absolute",
-              left: Math.min(drag.startFx, drag.curFx) * figToCssX,
-              top: Math.min(drag.startFy, drag.curFy) * figToCssY,
-              width: Math.abs(drag.curFx - drag.startFx) * figToCssX,
-              height: Math.abs(drag.curFy - drag.startFy) * figToCssY,
-              pointerEvents: "none",
-              border: "1px dashed var(--c-select-stroke)",
-              background: "var(--c-select-fill)",
-              boxSizing: "border-box",
-              zIndex: 5,
-            }}
-          />
-        )}
 
       {/* Per-annotation hit-rects. Rendered in every tool so that clicks on an
           existing annotation always select (and never create a new one nearby).

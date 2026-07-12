@@ -142,19 +142,15 @@ export function useCanvasZoom(args: {
     return () => ro.disconnect();
   }, [scrollRef, modelW, modelH, sourceScale, view.mode, recomputeFitFloor]);
 
-  // Wheel routing — mirrors the platform convention every image/document app
-  // uses: a plain two-finger trackpad swipe (or mouse wheel) PANS; a pinch
-  // gesture ZOOMS. Browsers surface a pinch as a wheel event with `ctrlKey`
-  // set (the OS synthesises it), so that flag is the discriminator. For the
-  // pan case we simply DON'T preventDefault and let the overflow:auto
-  // container scroll natively — that pans both axes (deltaX + deltaY) for
-  // free, which is exactly the "move around freely" the trackpad should do.
+  // Wheel = cursor-anchored ZOOM (mouse wheel and trackpad alike). Panning is
+  // done by dragging (the pan-drag effect below) or the scrollbars. We take
+  // over the wheel and preventDefault so the overflow:auto container doesn't
+  // also scroll — otherwise a mouse wheel would scroll instead of zoom.
   useEffect(() => {
     const el = scrollRef.current;
     if (el === null) return;
     function onWheel(e: WheelEvent): void {
       if (e.defaultPrevented) return; // panel-zoom consumed it (Space held)
-      if (!e.ctrlKey) return; // plain scroll → native pan (both axes)
       e.preventDefault();
       const cur = s.current;
       const oldCss = zoomToCssSize(cur.view.zoom, cur.modelW, cur.modelH);

@@ -637,35 +637,27 @@ describe("AnnotationInteractionLayer: multi-select gestures", () => {
     expect(onSelectionChange).not.toHaveBeenCalled();
   });
 
-  it("dragging a marquee from empty space selects every annotation crossed by the rect", () => {
+  it("dragging on empty space does NOT select annotations (drag is a view pan)", () => {
+    // Marquee area-selection was removed: a drag on the backdrop pans the
+    // view (handled by useCanvasZoom) and must not select anything.
     const { onSelectionChange } = setupSelectMode();
     const backdrop = screen.getByTestId("annotation-backdrop");
-    // Start at (5,5), drag to (160,160) so both b1 and b2 are crossed.
     fireEvent.pointerDown(backdrop, { button: 0, clientX: 5, clientY: 5 });
     fireEvent.pointerMove(backdrop, { clientX: 160, clientY: 160 });
     fireEvent.pointerUp(backdrop, { clientX: 160, clientY: 160 });
-    expect(onSelectionChange).toHaveBeenCalledWith(new Set(["b1", "b2"]));
+    expect(onSelectionChange).not.toHaveBeenCalled();
   });
 
-  it("shift-marquee unions with existing selection instead of replacing it", () => {
+  it("dragging on empty space does NOT clear an existing selection", () => {
+    // The user's complaint: dragging to pan shouldn't disturb selection.
     const { onSelectionChange } = setupSelectMode({
       selectedIds: new Set(["b2"]),
     });
     const backdrop = screen.getByTestId("annotation-backdrop");
-    // Marquee covers only b1 (10..40 area). With shift we expect {b1, b2}.
-    fireEvent.pointerDown(backdrop, {
-      button: 0,
-      clientX: 5,
-      clientY: 5,
-      shiftKey: true,
-    });
-    fireEvent.pointerMove(backdrop, {
-      clientX: 50,
-      clientY: 50,
-      shiftKey: true,
-    });
-    fireEvent.pointerUp(backdrop, { clientX: 50, clientY: 50, shiftKey: true });
-    expect(onSelectionChange).toHaveBeenCalledWith(new Set(["b2", "b1"]));
+    fireEvent.pointerDown(backdrop, { button: 0, clientX: 5, clientY: 5 });
+    fireEvent.pointerMove(backdrop, { clientX: 160, clientY: 160 });
+    fireEvent.pointerUp(backdrop, { clientX: 160, clientY: 160 });
+    expect(onSelectionChange).not.toHaveBeenCalled();
   });
 });
 
