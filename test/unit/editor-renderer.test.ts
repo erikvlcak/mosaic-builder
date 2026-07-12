@@ -200,3 +200,96 @@ describe("editor-renderer: pool propagation", () => {
     expect(pool.size).toBe(0);
   });
 });
+
+describe("editor-renderer: editorScale", () => {
+  let canvas: HTMLCanvasElement;
+  let drawFigureSpy: ReturnType<typeof vi.spyOn>;
+  let setTransformCalls: number[][];
+
+  beforeEach(() => {
+    canvas = document.createElement("canvas");
+    setTransformCalls = [];
+    canvas.getContext = (() =>
+      ({
+        setTransform: (...args: number[]) => {
+          setTransformCalls.push(args);
+        },
+        scale: () => {},
+      }) as unknown) as HTMLCanvasElement["getContext"];
+
+    drawFigureSpy = vi
+      .spyOn(drawFigureModule, "drawFigure")
+      .mockImplementation(() => {});
+
+    let pending: FrameRequestCallback | null = null;
+    vi.stubGlobal("requestAnimationFrame", (cb: FrameRequestCallback) => {
+      pending = cb;
+      queueMicrotask(() => {
+        if (pending !== null) {
+          const c = pending;
+          pending = null;
+          c(0);
+        }
+      });
+      return 1;
+    });
+    vi.stubGlobal("cancelAnimationFrame", () => {});
+    // Force a deterministic dpr for the assertions.
+    vi.stubGlobal("window", { devicePixelRatio: 2 });
+  });
+
+  afterEach(() => {
+    drawFigureSpy.mockRestore();
+    vi.unstubAllGlobals();
+  });
+
+  it("sizes the backing store to model * editorScale * dpr", async () => {
+    const r = createEditorRenderer(canvas);
+    r.setEditorScale(3);
+    r.setFigure(FIG); // FIG.canvas is 100x100 in this test file
+    await Promise.resolve();
+    await Promise.resolve();
+    // 100 * 3 * 2 = 600
+    expect(canvas.width).toBe(600);
+    expect(canvas.height).toBe(600);
+  });
+
+  it("composes editorScale*dpr into the single ctx transform", async () => {
+    const r = createEditorRenderer(canvas);
+    r.setEditorScale(3);
+    r.setFigure(FIG);
+    await Promise.resolve();
+    await Promise.resolve();
+    // editorScale 3 * dpr 2 = 6 on both axes.
+    expect(setTransformCalls.at(-1)).toEqual([6, 0, 0, 6, 0, 0]);
+  });
+
+  it("passes an identical model-space figure to drawFigure regardless of editorScale", async () => {
+    const r1 = createEditorRenderer(canvas);
+    r1.setEditorScale(1);
+    r1.setFigure(FIG);
+    await Promise.resolve();
+    await Promise.resolve();
+    const figAt1 = drawFigureSpy.mock.calls.at(-1)?.[1];
+
+    const r2 = createEditorRenderer(canvas);
+    r2.setEditorScale(4);
+    r2.setFigure(FIG);
+    await Promise.resolve();
+    await Promise.resolve();
+    const figAt4 = drawFigureSpy.mock.calls.at(-1)?.[1];
+
+    // Same model figure object reaches drawFigure; zoom does not leak in.
+    expect(figAt1).toBe(FIG);
+    expect(figAt4).toBe(FIG);
+  });
+
+  it("defaults editorScale to 1 before setEditorScale is called", async () => {
+    const r = createEditorRenderer(canvas);
+    r.setFigure(FIG);
+    await Promise.resolve();
+    await Promise.resolve();
+    // 100 * 1 * 2 = 200
+    expect(canvas.width).toBe(200);
+  });
+});
