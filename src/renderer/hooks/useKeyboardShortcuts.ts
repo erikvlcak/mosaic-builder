@@ -14,6 +14,14 @@ export interface ShortcutHandlers {
   onUndo?: () => void;
   /** Cmd/Ctrl-Shift-Z. */
   onRedo?: () => void;
+  /** Cmd/Ctrl-'='/'+'. */
+  onZoomIn?: () => void;
+  /** Cmd/Ctrl-'-'. */
+  onZoomOut?: () => void;
+  /** Cmd/Ctrl-'0'. */
+  onZoomFit?: () => void;
+  /** Cmd/Ctrl-'1'. */
+  onZoomActual?: () => void;
 }
 
 function isTypingTarget(t: EventTarget | null): boolean {
@@ -43,6 +51,33 @@ export function useKeyboardShortcuts(h: ShortcutHandlers): void {
         } else {
           if (handlers.onUndo) handlers.onUndo();
         }
+        return;
+      }
+      // Zoom shortcuts also require a modifier and would otherwise be
+      // filtered out by the "no modifier" guard below.
+      const isZoomMod = (e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey;
+      if (isZoomMod && (e.key === "=" || e.key === "+")) {
+        if (isTypingTarget(e.target)) return;
+        e.preventDefault();
+        if (handlers.onZoomIn) handlers.onZoomIn();
+        return;
+      }
+      if (isZoomMod && e.key === "-") {
+        if (isTypingTarget(e.target)) return;
+        e.preventDefault();
+        if (handlers.onZoomOut) handlers.onZoomOut();
+        return;
+      }
+      if (isZoomMod && e.key === "0") {
+        if (isTypingTarget(e.target)) return;
+        e.preventDefault();
+        if (handlers.onZoomFit) handlers.onZoomFit();
+        return;
+      }
+      if (isZoomMod && e.key === "1") {
+        if (isTypingTarget(e.target)) return;
+        e.preventDefault();
+        if (handlers.onZoomActual) handlers.onZoomActual();
         return;
       }
       if (e.metaKey || e.ctrlKey || e.altKey) return;

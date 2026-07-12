@@ -519,6 +519,10 @@ export function App(): JSX.Element {
     onDeleteAnnotation,
     onUndo: history.undo,
     onRedo: history.redo,
+    onZoomIn: zoom.zoomIn,
+    onZoomOut: zoom.zoomOut,
+    onZoomFit: zoom.fit,
+    onZoomActual: zoom.actualSize,
   });
 
   // Hold-spacebar = temporary Select mode. Release returns to the prior tool.
