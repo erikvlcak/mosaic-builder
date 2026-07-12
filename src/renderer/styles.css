@@ -31,6 +31,13 @@
   --c-focus-stroke: #1f7a4d;
   --c-hover-stroke: #6e8bff;
 
+  --c-on-accent: #ffffff;
+  --c-toast-info-text: #1a327f;
+  --c-toast-success-text: #134b30;
+  --c-toast-danger-text: #6e1f1f;
+  --c-thumb-bg: #1e232b;
+  --c-overlay: rgba(0, 0, 0, 0.06);
+
   --r-sm: 3px;
   --r-md: 5px;
   --r-lg: 8px;
@@ -41,6 +48,99 @@
 
   --t-fast: 80ms cubic-bezier(0.4, 0, 0.2, 1);
   --t-base: 140ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Dark theme — a second token set of the SAME design system. Applied when
+   the OS prefers dark AND the user hasn't pinned light, OR when the user
+   explicitly pins dark. The :not([data-theme="light"]) guard lets an
+   explicit light pin win even under a dark OS. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --c-bg: #14171c;
+    --c-surface: #1e232b;
+    --c-surface-muted: #262c35;
+    --c-surface-sunken: #2e343f;
+
+    --c-border: #3a414d;
+    --c-border-strong: #4b5361;
+    --c-divider: #2b313a;
+
+    --c-text: #e8eaed;
+    --c-text-muted: #a6adba;
+    --c-text-faint: #7b8494;
+
+    --c-accent: #5b7dff;
+    --c-accent-hover: #7089ff;
+    --c-accent-soft: rgba(91, 125, 255, 0.18);
+    --c-accent-ring: rgba(91, 125, 255, 0.4);
+
+    --c-success: #4ec98a;
+    --c-success-soft: rgba(78, 201, 138, 0.16);
+    --c-warn: #e0a35a;
+    --c-warn-soft: rgba(224, 163, 90, 0.16);
+    --c-danger: #e57373;
+    --c-danger-soft: rgba(229, 115, 115, 0.16);
+
+    --c-select-fill: rgba(91, 125, 255, 0.22);
+    --c-select-stroke: #5b7dff;
+    --c-focus-stroke: #4ec98a;
+    --c-hover-stroke: #7089ff;
+
+    --c-on-accent: #ffffff;
+    --c-toast-info-text: #c7d3ff;
+    --c-toast-success-text: #b7ecce;
+    --c-toast-danger-text: #f2c2c2;
+    --c-thumb-bg: #0d0f13;
+    --c-overlay: rgba(255, 255, 255, 0.08);
+
+    --sh-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+    --sh-md: 0 6px 16px rgba(0, 0, 0, 0.5);
+    --sh-lg: 0 16px 40px rgba(0, 0, 0, 0.6);
+  }
+}
+
+/* Explicit dark pin — identical tokens, wins over any OS setting. */
+:root[data-theme="dark"] {
+  --c-bg: #14171c;
+  --c-surface: #1e232b;
+  --c-surface-muted: #262c35;
+  --c-surface-sunken: #2e343f;
+
+  --c-border: #3a414d;
+  --c-border-strong: #4b5361;
+  --c-divider: #2b313a;
+
+  --c-text: #e8eaed;
+  --c-text-muted: #a6adba;
+  --c-text-faint: #7b8494;
+
+  --c-accent: #5b7dff;
+  --c-accent-hover: #7089ff;
+  --c-accent-soft: rgba(91, 125, 255, 0.18);
+  --c-accent-ring: rgba(91, 125, 255, 0.4);
+
+  --c-success: #4ec98a;
+  --c-success-soft: rgba(78, 201, 138, 0.16);
+  --c-warn: #e0a35a;
+  --c-warn-soft: rgba(224, 163, 90, 0.16);
+  --c-danger: #e57373;
+  --c-danger-soft: rgba(229, 115, 115, 0.16);
+
+  --c-select-fill: rgba(91, 125, 255, 0.22);
+  --c-select-stroke: #5b7dff;
+  --c-focus-stroke: #4ec98a;
+  --c-hover-stroke: #7089ff;
+
+  --c-on-accent: #ffffff;
+  --c-toast-info-text: #c7d3ff;
+  --c-toast-success-text: #b7ecce;
+  --c-toast-danger-text: #f2c2c2;
+  --c-thumb-bg: #0d0f13;
+  --c-overlay: rgba(255, 255, 255, 0.08);
+
+  --sh-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --sh-md: 0 6px 16px rgba(0, 0, 0, 0.5);
+  --sh-lg: 0 16px 40px rgba(0, 0, 0, 0.6);
 }
 
 *,
@@ -523,17 +623,17 @@ body {
 }
 .toast--info {
   background: var(--c-accent-soft);
-  color: #1a327f;
+  color: var(--c-toast-info-text);
   border-left: 3px solid var(--c-accent);
 }
 .toast--success {
   background: var(--c-success-soft);
-  color: #134b30;
+  color: var(--c-toast-success-text);
   border-left: 3px solid var(--c-success);
 }
 .toast--error {
   background: var(--c-danger-soft);
-  color: #6e1f1f;
+  color: var(--c-toast-danger-text);
   border-left: 3px solid var(--c-danger);
 }
 .toast-dismiss {
@@ -551,7 +651,7 @@ body {
 }
 .toast-dismiss:hover {
   opacity: 1;
-  background: rgba(0, 0, 0, 0.06);
+  background: var(--c-overlay);
 }
 
 @keyframes toast-in {
@@ -632,7 +732,7 @@ body {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  color: #fff;
+  color: var(--c-on-accent);
   background: var(--c-accent);
   border-radius: 50%;
 }
@@ -641,7 +741,7 @@ body {
   height: 12px;
 }
 .thumb-canvas {
-  background: #1e232b;
+  background: var(--c-thumb-bg);
   border-radius: 3px;
   flex: 0 0 auto;
 }
@@ -723,7 +823,7 @@ body {
   padding: 0;
   font-size: 13px;
   line-height: 1;
-  background: rgba(255, 255, 255, 0.92);
+  background: var(--c-surface);
   color: var(--c-text);
   border-radius: var(--r-sm);
   border: 1px solid var(--c-border);
