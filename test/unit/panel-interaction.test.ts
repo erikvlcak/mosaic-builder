@@ -3,6 +3,7 @@ import {
   selectedIdOf,
   editingIdOf,
   focusedIdOf,
+  demoteEditingIfUnframable,
   type PanelInteraction,
 } from "../../src/renderer/model/panel-interaction";
 
@@ -32,5 +33,37 @@ describe("PanelInteraction helpers", () => {
     } else {
       expect.fail("narrowing failed — union type has regressed");
     }
+  });
+});
+
+describe("demoteEditingIfUnframable", () => {
+  it("demotes editing → selected when the panel can no longer be framed", () => {
+    // Switching a framed panel's fit to Stretch removes its framing degrees of
+    // freedom. Frame mode must end AND the interaction must drop to `selected`
+    // — otherwise the panel is stuck in a zombie `editing` state with no frame
+    // chrome, and single-click (which no-ops on the already-editing panel) can
+    // never re-select it.
+    const pi: PanelInteraction = { mode: "editing", panelId: "p1" };
+    expect(demoteEditingIfUnframable(pi, false)).toEqual({
+      mode: "selected",
+      panelId: "p1",
+    });
+  });
+
+  it("keeps editing untouched while the panel is still framable", () => {
+    const pi: PanelInteraction = { mode: "editing", panelId: "p1" };
+    // Same reference back so `===` short-circuits skip a needless setState.
+    expect(demoteEditingIfUnframable(pi, true)).toBe(pi);
+  });
+
+  it("leaves a selected interaction alone regardless of framability", () => {
+    const pi: PanelInteraction = { mode: "selected", panelId: "p1" };
+    expect(demoteEditingIfUnframable(pi, false)).toBe(pi);
+    expect(demoteEditingIfUnframable(pi, true)).toBe(pi);
+  });
+
+  it("leaves null alone", () => {
+    expect(demoteEditingIfUnframable(null, false)).toBeNull();
+    expect(demoteEditingIfUnframable(null, true)).toBeNull();
   });
 });

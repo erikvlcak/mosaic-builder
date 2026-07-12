@@ -20,6 +20,7 @@ import { SelectedPanelHandles } from "./components/Grid/SelectedPanelHandles";
 import type { DragPayload } from "./dnd/drag-payload";
 import {
   type PanelInteraction,
+  demoteEditingIfUnframable,
   editingIdOf,
   focusedIdOf,
   selectedIdOf,
@@ -705,6 +706,26 @@ export function App(): JSX.Element {
       imageH: focusedBitmap.height,
     };
   }, [panelInteraction, selectedImagePanel, focusedPanelRect, focusedBitmap]);
+
+  // When the framed panel loses its framing degrees of freedom — switching its
+  // fit to Stretch is the only way today — Frame mode must not just disappear
+  // visually (frameTarget already goes null): the interaction has to drop from
+  // `editing` back to `selected`. Otherwise the panel is stuck editing with no
+  // frame chrome, single-click no-ops on it, and it can't be re-selected or
+  // re-framed. Keyed off the editing panel's own fit (not frameTarget, which
+  // also nulls transiently during image decode — that must NOT demote).
+  const editingPanelFit = useMemo(() => {
+    const id = editingIdOf(panelInteraction);
+    if (id === null) return undefined;
+    const panel = state.panels.find((p) => p.id === id);
+    if (panel === undefined || panel.imageId === undefined) return undefined;
+    return panel.transform?.fit;
+  }, [panelInteraction, state.panels]);
+  useEffect(() => {
+    const canFrame =
+      editingPanelFit !== undefined && editingPanelFit !== "stretch";
+    setPanelInteraction((pi) => demoteEditingIfUnframable(pi, canFrame));
+  }, [editingPanelFit]);
 
   const onExitFrame = useCallback(() => {
     // Esc unwinds one level: framing ends, the panel stays selected.

@@ -28,3 +28,22 @@ export function editingIdOf(pi: PanelInteraction): string | null {
 export function focusedIdOf(pi: PanelInteraction): string | null {
   return pi !== null ? pi.panelId : null;
 }
+
+/**
+ * Drop an `editing` (Frame mode) interaction to `selected` when the panel can
+ * no longer be framed — e.g. its fit switched to Stretch, which has no framing
+ * degrees of freedom. Without this the panel is stuck in a zombie `editing`
+ * state: Frame mode is visually gone (no frame target derives) but the
+ * interaction still reads `editing`, so single-click no-ops (it treats the
+ * panel as still-being-edited) and the user can't re-select or re-frame it.
+ *
+ * Returns the SAME reference when no change is needed, so callers can `===`
+ * short-circuit a redundant setState.
+ */
+export function demoteEditingIfUnframable(
+  pi: PanelInteraction,
+  canFrame: boolean,
+): PanelInteraction {
+  if (pi === null || pi.mode !== "editing" || canFrame) return pi;
+  return { mode: "selected", panelId: pi.panelId };
+}
