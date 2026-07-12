@@ -24,6 +24,7 @@ describe("EditorCanvas: editorScale plumbing", () => {
       setImages: vi.fn(),
       setPool: vi.fn(),
       setEditorScale,
+      setTheme: vi.fn(),
       dispose: vi.fn(),
     });
     render(

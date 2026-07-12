@@ -7,6 +7,7 @@ export interface EditorRenderer {
   setImages(images: Map<string, ImageBitmap>): void;
   setPool(pool: Map<string, ImagePoolItem>): void;
   setEditorScale(scale: number): void;
+  setTheme(theme: "light" | "dark"): void;
   dispose(): void;
 }
 
@@ -26,6 +27,10 @@ export function createEditorRenderer(
   // the bar.
   let pool: Map<string, ImagePoolItem> = new Map();
   let editorScale = 1;
+  // Chrome-only theme: selects the empty-panel placeholder palette. Figure
+  // content never reads this, so it can't leak into exports (which never
+  // construct an EditorRenderer).
+  let theme: "light" | "dark" = "light";
   let rafHandle: number | null = null;
   let disposed = false;
 
@@ -74,6 +79,7 @@ export function createEditorRenderer(
     drawFigure(ctx, figure, images, pool, {
       editorHints: true,
       poolHasImages: images.size > 0,
+      theme,
     });
   }
 
@@ -92,6 +98,10 @@ export function createEditorRenderer(
     },
     setEditorScale(next: number): void {
       editorScale = next;
+      schedule();
+    },
+    setTheme(next: "light" | "dark"): void {
+      theme = next;
       schedule();
     },
     dispose(): void {

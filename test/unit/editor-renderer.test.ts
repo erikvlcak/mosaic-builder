@@ -293,3 +293,80 @@ describe("editor-renderer: editorScale", () => {
     expect(canvas.width).toBe(200);
   });
 });
+
+describe("editor-renderer: setTheme", () => {
+  let canvas: HTMLCanvasElement;
+  let drawFigureSpy: ReturnType<typeof vi.spyOn>;
+
+  beforeEach(() => {
+    canvas = document.createElement("canvas");
+    canvas.getContext = (() =>
+      ({
+        setTransform: () => {},
+        scale: () => {},
+      }) as unknown) as HTMLCanvasElement["getContext"];
+
+    drawFigureSpy = vi
+      .spyOn(drawFigureModule, "drawFigure")
+      .mockImplementation(() => {});
+
+    let pending: FrameRequestCallback | null = null;
+    vi.stubGlobal("requestAnimationFrame", (cb: FrameRequestCallback) => {
+      pending = cb;
+      queueMicrotask(() => {
+        if (pending !== null) {
+          const c = pending;
+          pending = null;
+          c(0);
+        }
+      });
+      return 1;
+    });
+    vi.stubGlobal("cancelAnimationFrame", () => {});
+  });
+
+  afterEach(() => {
+    drawFigureSpy.mockRestore();
+    vi.unstubAllGlobals();
+  });
+
+  it("exposes setTheme and tolerates calls before a figure is set", () => {
+    const r = createEditorRenderer(canvas);
+    expect(typeof r.setTheme).toBe("function");
+    expect(() => r.setTheme("dark")).not.toThrow();
+    r.dispose();
+  });
+
+  it("threads the chrome theme into drawFigure opts", async () => {
+    const r = createEditorRenderer(canvas);
+    r.setTheme("dark");
+    r.setFigure(FIG);
+    await Promise.resolve();
+    await Promise.resolve();
+
+    const [, , , , opts] = drawFigureSpy.mock.calls.at(-1) as unknown as [
+      unknown,
+      Figure,
+      Map<string, ImageBitmap>,
+      Map<string, ImagePoolItem>,
+      { theme?: "light" | "dark" } | undefined,
+    ];
+    expect(opts?.theme).toBe("dark");
+  });
+
+  it("defaults the theme to light before setTheme is called", async () => {
+    const r = createEditorRenderer(canvas);
+    r.setFigure(FIG);
+    await Promise.resolve();
+    await Promise.resolve();
+
+    const [, , , , opts] = drawFigureSpy.mock.calls.at(-1) as unknown as [
+      unknown,
+      Figure,
+      Map<string, ImageBitmap>,
+      Map<string, ImagePoolItem>,
+      { theme?: "light" | "dark" } | undefined,
+    ];
+    expect(opts?.theme).toBe("light");
+  });
+});
