@@ -187,6 +187,48 @@ describe("AnnotationInteractionLayer: tray drag passthrough", () => {
     expect(onTrayDrop).not.toHaveBeenCalled();
   });
 
+  it("dragleave does NOT clear the hover mid-drag (flicker guard)", () => {
+    // The native drag arbitrates the target between the annotation backdrop
+    // (inside the layer) and the GridCells panel underneath (a SIBLING layer)
+    // on every event, even with a stationary cursor. Each swing to the panel
+    // fires dragleave on the layer with a relatedTarget it doesn't contain.
+    // If that cleared the hover, the preview would toggle target→null→target =
+    // flicker. dragover is the sole source of hover truth; dragleave must not
+    // clear (drop/dragend do the real clear via dragSource going null).
+    const onTrayDragHoverChange = vi.fn();
+    render(
+      <AnnotationInteractionLayer
+        activeTool="select"
+        defaultSymbolStyle={DEFAULT_PICKER}
+        defaultTextStyle={DEFAULT_TEXT}
+        defaultScalebarStyle={DEFAULT_SCALEBAR}
+        onDefaultScalebarStyleChange={vi.fn()}
+        figure={FIG}
+        panelRectsById={PANEL_RECTS}
+        imagesById={new Map()}
+        cssW={200}
+        cssH={200}
+        figurePxW={200}
+        figurePxH={200}
+        selectedAnnotationIds={new Set()}
+        onSelectionChange={() => {}}
+        onEditingChange={() => {}}
+        dispatch={vi.fn()}
+        onTrayDrop={vi.fn()}
+        onTrayDragHoverChange={onTrayDragHoverChange}
+      />,
+    );
+    const layers = screen.getAllByTestId("annotation-layer");
+    const layer = layers[layers.length - 1]!;
+    // A sibling element the layer does not contain (mimics a GridCells panel).
+    const sibling = document.createElement("div");
+    document.body.appendChild(sibling);
+    const ev = createEvent.dragLeave(layer);
+    Object.defineProperty(ev, "relatedTarget", { get: () => sibling });
+    fireEvent(layer, ev);
+    expect(onTrayDragHoverChange).not.toHaveBeenCalledWith(null);
+  });
+
   it("does not fire onTrayDrop when the cursor is outside every panel rect", () => {
     // Tighten panel rect so (190,190) is outside it.
     const tightRects: Map<string, PanelRect> = new Map([

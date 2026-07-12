@@ -1630,12 +1630,15 @@ export function AnnotationInteractionLayer({
       onTrayDragHoverChange(hit);
     }
   }
-  function onLayerDragLeave(e: React.DragEvent<HTMLDivElement>): void {
-    // Only clear when the cursor leaves the layer rect itself, not when
-    // crossing internal children (same idea as Tray's onDragLeave).
-    if (e.currentTarget.contains(e.relatedTarget as Node | null)) return;
-    onTrayDragHoverChange?.(null);
-  }
+  // No dragleave→null clear. During a native drag the browser arbitrates the
+  // event target between this layer's backdrop and the GridCells panels beneath
+  // it (a SIBLING layer, not a descendant) on nearly every event — even with a
+  // stationary cursor. A `contains(relatedTarget)` guard can't tell that apart
+  // from a real canvas-exit, so it fired `null` on every swing and the preview
+  // toggled target→null→target = flicker. `onLayerDragOver` already reports the
+  // true target on every move (including null over a gutter via hit-test), and
+  // the preview is gated on `dragSource !== null`, which `drop`/`dragend` clear.
+  // So dragleave has nothing left to do.
   function onLayerDrop(e: React.DragEvent<HTMLDivElement>): void {
     if (onTrayDrop === undefined) return;
     if (!e.dataTransfer.types.includes(DRAG_MIME)) return;
@@ -1675,7 +1678,6 @@ export function AnnotationInteractionLayer({
       onPointerUp={onLayerPointerUp}
       onPointerCancel={onLayerPointerUp}
       onDragOver={onLayerDragOver}
-      onDragLeave={onLayerDragLeave}
       onDrop={onLayerDrop}
       onDoubleClick={onLayerDoubleClick}
       style={{

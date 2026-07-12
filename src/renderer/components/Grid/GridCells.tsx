@@ -63,7 +63,7 @@ interface Props {
   ) => void;
 }
 
-export function GridCells({
+function GridCellsImpl({
   state,
   figurePxW,
   figurePxH,
@@ -316,9 +316,15 @@ export function GridCells({
             preview !== null && !preview.valid ? "none" : "move";
           if (hoverPanelId !== panel.id) onHoverPanelChange(panel.id);
         }
-        function onDragLeave(): void {
-          if (hoverPanelId === panel.id) onHoverPanelChange(null);
-        }
+        // No per-panel onDragLeave clear: over an empty panel the annotation
+        // layer's backdrop sits on top and BOTH layers fire drag events, so the
+        // browser interleaves this panel's dragleave (→null) with the layer's
+        // dragover (→this panel) on every sub-pixel boundary crossing — the
+        // preview would flicker target→null→target. `onDragOver` (from whichever
+        // layer is topmost — the annotation layer over empty panels/gutters, this
+        // div over occupied ones through the backdrop hole) already reports the
+        // true hover every move, including null over the gutter, so a dragleave
+        // clear here is redundant. onDrop/onDragEnd do the real clear.
         function onDropEvt(e: React.DragEvent<HTMLDivElement>): void {
           e.preventDefault();
           onHoverPanelChange(null);
@@ -412,7 +418,6 @@ export function GridCells({
             onDragStart={onDragStart}
             onDragEnd={onDragEnd}
             onDragOver={onDragOver}
-            onDragLeave={onDragLeave}
             onDrop={onDropEvt}
             onClick={onClick}
             onDoubleClick={onDoubleClick}
@@ -467,6 +472,15 @@ export function GridCells({
     </div>
   );
 }
+
+/**
+ * Memoized so an App re-render that leaves GridCells's props untouched (e.g.
+ * a Frame-mode transform dispatch, or the rAF-coalesced drop-hover commit
+ * that only changes `hoverPanelId`) skips this subtree's reconciliation.
+ * Every callback prop is `useCallback`-stable in App and the data props are
+ * state values, so shallow comparison is correct here.
+ */
+export const GridCells = React.memo(GridCellsImpl);
 
 function firstPanelIdInCol(state: FigureState, col: number): string {
   const p = state.panels.find((q) => q.col === col);

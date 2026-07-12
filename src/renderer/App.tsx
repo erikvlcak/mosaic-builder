@@ -87,6 +87,7 @@ import { APP_VERSION } from "./app-version";
 import { useToasts } from "./hooks/useToasts";
 import { ToastTray } from "./components/Toasts/ToastTray";
 import { useCanvasZoom } from "./hooks/useCanvasZoom";
+import { useRafHover } from "./hooks/useRafHover";
 import {
   InteractionProvider,
   useSpaceHeldState,
@@ -121,6 +122,12 @@ export function App(): JSX.Element {
   // Lifted to App so the GridCells outline and the DropGhostLayer share truth.
   const [dragSource, setDragSource] = useState<DragPayload | null>(null);
   const [hoverPanelId, setHoverPanelId] = useState<string | null>(null);
+  // `dragover` fires ~60×/s (and keeps firing on a stationary cursor). Each
+  // hover change re-runs the drop preview through the reducer and repaints the
+  // full-resolution canvas, so committing per-event starves the native drag
+  // loop — the preview flickers and the drag ghost lags. Coalesce to one commit
+  // per animation frame, deduped, and drive the drag handlers through this.
+  const setHoverPanelRaf = useRafHover(setHoverPanelId);
   const toasts = useToasts(5000);
   const [panelInteraction, setPanelInteraction] =
     useState<PanelInteraction>(null);
@@ -347,13 +354,16 @@ export function App(): JSX.Element {
     (ev: DropEvent): void => {
       // Drops can arrive via GridCells per-panel handlers OR via the
       // annotation layer's passthrough (zIndex: 3 sits above the grid).
-      // Either way, clear preview state so the ghost layer disappears.
+      // Either way, clear preview state so the ghost layer disappears. Drain
+      // the coalescing frame first so a queued hover update can't fire after
+      // this clear and resurrect the stale preview.
+      setHoverPanelRaf.flushNow();
       setHoverPanelId(null);
       setDragSource(null);
       const action = dispatchDrop(stateRef.current, ev);
       if (action !== null) dispatch(action);
     },
-    [dispatch],
+    [dispatch, setHoverPanelRaf],
   );
 
   const onMerge = useCallback(() => {
@@ -532,6 +542,19 @@ export function App(): JSX.Element {
     },
     [dispatch, selection],
   );
+
+  const onTrackWeightChange = useCallback(
+    (axis: "row" | "col", index: number, weight: number) => {
+      dispatch(setTrackWeightAction(axis, index, weight));
+      history.commit();
+    },
+    [dispatch, history],
+  );
+
+  // Placement tools are one-shot: the annotation layer returns to Select
+  // after a stamp commits. Stable so the memoized layer isn't re-rendered by
+  // a fresh inline closure on every parent render.
+  const onToolAutoReturn = useCallback(() => setActiveTool("select"), []);
 
   // Esc unwinds ONE level per press. Modals, the inline text editor, the
   // scale-bar popover, and Frame mode all consume Esc before it reaches
@@ -1158,7 +1181,7 @@ export function App(): JSX.Element {
                   cssH={zoom.cssH}
                   onDrop={onDrop}
                   hoverPanelId={hoverPanelId}
-                  onHoverPanelChange={setHoverPanelId}
+                  onHoverPanelChange={setHoverPanelRaf}
                   dragSource={dragSource}
                   onDragSourceChange={setDragSource}
                   selection={selection.selected}
@@ -1168,10 +1191,7 @@ export function App(): JSX.Element {
                   onPanelDoubleClick={onPanelDoubleClick}
                   onHoleClick={onHoleClick}
                   onPanelCropBadgeClick={setCroppingPanelId}
-                  onTrackWeightChange={(axis, index, weight) => {
-                    dispatch(setTrackWeightAction(axis, index, weight));
-                    history.commit();
-                  }}
+                  onTrackWeightChange={onTrackWeightChange}
                 />
                 {frameTarget !== null && (
                   <FrameChrome
@@ -1230,11 +1250,11 @@ export function App(): JSX.Element {
                   onEditingChange={setAnnotationEditing}
                   dispatch={dispatch}
                   onTrayDrop={onDrop}
-                  onTrayDragHoverChange={setHoverPanelId}
+                  onTrayDragHoverChange={setHoverPanelRaf}
                   onPanelDoubleClick={onPanelDoubleClick}
                   onPanelClick={onPanelSingleClick}
                   onHoleClick={onHoleClick}
-                  onToolAutoReturn={() => setActiveTool("select")}
+                  onToolAutoReturn={onToolAutoReturn}
                   onRequestCalibration={onRequestCalibration}
                 />
               </div>
