@@ -973,3 +973,59 @@ describe("drawAnnotations", () => {
     expect(original.map((a) => a.id)).toEqual(orderBefore);
   });
 });
+
+describe("drawFigure — theme flag (chrome only)", () => {
+  function placeholderFigure(): Figure {
+    return {
+      canvas: { widthPx: 100, heightPx: 100, background: "#FFFFFF" },
+      grid: { rows: 1, cols: 1, gutterPx: 0, gutterColor: "#FFFFFF" },
+      panels: [{ row: 0, col: 0, kind: "placeholder", label: "A" }],
+      annotations: [],
+      globalStyle: DEFAULT_GLOBAL_STYLE,
+    };
+  }
+
+  it("paints the LIGHT placeholder fill by default", () => {
+    const ctx = makeRecorder();
+    drawFigure(ctx, placeholderFigure(), new Map());
+    const fills = ctx.calls
+      .filter((c) => c.op === "fillRect")
+      .map((c) => c.fillStyle);
+    expect(fills).toContain("#EEEEEE");
+    expect(fills).not.toContain("#2A2F37");
+  });
+
+  it("paints the DARK placeholder fill when theme is 'dark'", () => {
+    const ctx = makeRecorder();
+    drawFigure(ctx, placeholderFigure(), new Map(), new Map(), {
+      theme: "dark",
+    });
+    const fills = ctx.calls
+      .filter((c) => c.op === "fillRect")
+      .map((c) => c.fillStyle);
+    expect(fills).toContain("#2A2F37");
+    expect(fills).not.toContain("#EEEEEE");
+  });
+
+  it("does NOT let theme affect content (canvas background + gutter identical across themes)", () => {
+    const contentFills = (theme: "light" | "dark"): string[] => {
+      // Image-less figure with a distinct gutter so content fills are visible.
+      const fig: Figure = {
+        canvas: { widthPx: 100, heightPx: 100, background: "#123456" },
+        grid: { rows: 1, cols: 1, gutterPx: 4, gutterColor: "#654321" },
+        panels: [{ row: 0, col: 0, kind: "placeholder", label: "A" }],
+        annotations: [],
+        globalStyle: DEFAULT_GLOBAL_STYLE,
+      };
+      const ctx2 = makeRecorder();
+      drawFigure(ctx2, fig, new Map(), new Map(), { theme });
+      return ctx2.calls
+        .filter((c) => c.op === "fillRect")
+        .map((c) => c.fillStyle)
+        .filter((f) => f === "#123456" || f === "#654321");
+    };
+    expect(contentFills("light")).toEqual(contentFills("dark"));
+    expect(contentFills("light")).toContain("#123456");
+    expect(contentFills("light")).toContain("#654321");
+  });
+});

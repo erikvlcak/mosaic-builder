@@ -65,6 +65,14 @@ const PLACEHOLDER_LABEL = "#666666";
 const PLACEHOLDER_CAPTION = "#9AA0A8";
 const DRAG_HINT_TEXT = "Drag an image here";
 
+// Dark-theme editor chrome for empty panels. Chrome only — never exported.
+// A lifted charcoal reads as an empty slot against the dark surround without
+// the glare a bright #EEEEEE panel would throw on a dark canvas.
+const PLACEHOLDER_FILL_DARK = "#2A2F37";
+const PLACEHOLDER_STROKE_DARK = "#3A414D";
+const PLACEHOLDER_LABEL_DARK = "#A6ADBA";
+const PLACEHOLDER_CAPTION_DARK = "#7B8494";
+
 /**
  * Editor-only rendering hints. These affordances (e.g. the "Drag an image
  * here" caption on empty panels) MUST NOT appear in exports — exports are
@@ -77,6 +85,10 @@ export interface DrawFigureOpts {
   /** Whether the pool has any images — gates the "Drag an image here" caption
    *  (no point inviting a drag when there's nothing to drag). */
   poolHasImages?: boolean;
+  /** Editor CHROME theme. Selects the empty-panel placeholder palette only —
+   *  figure content (background, gutter, annotations) never reads this, so
+   *  exports (which never pass it) stay byte-identical across themes. */
+  theme?: "light" | "dark";
 }
 
 /**
@@ -119,14 +131,14 @@ export function drawFigure(
       if (bitmap !== undefined) {
         drawPanelImage(ctx, bitmap, rect, panel.transform);
       } else {
-        drawPlaceholder(ctx, rect, "(missing)", false);
+        drawPlaceholder(ctx, rect, "(missing)", false, opts.theme);
       }
     } else {
       // Empty panel: invite a drag, but only in the editor and only when the
       // pool actually holds an image to drag in.
       const showCaption =
         opts.editorHints === true && opts.poolHasImages === true;
-      drawPlaceholder(ctx, rect, panel.label, showCaption);
+      drawPlaceholder(ctx, rect, panel.label, showCaption, opts.theme);
     }
   }
 
@@ -210,15 +222,17 @@ function drawPlaceholder(
   rect: PanelRect,
   label: string,
   showCaption: boolean,
+  theme: "light" | "dark" = "light",
 ): void {
-  ctx.fillStyle = PLACEHOLDER_FILL;
+  const dark = theme === "dark";
+  ctx.fillStyle = dark ? PLACEHOLDER_FILL_DARK : PLACEHOLDER_FILL;
   ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
-  ctx.strokeStyle = PLACEHOLDER_STROKE;
+  ctx.strokeStyle = dark ? PLACEHOLDER_STROKE_DARK : PLACEHOLDER_STROKE;
   ctx.strokeRect(rect.x + 0.5, rect.y + 0.5, rect.w - 1, rect.h - 1);
 
   const cx = rect.x + rect.w / 2;
   const cy = rect.y + rect.h / 2;
-  ctx.fillStyle = PLACEHOLDER_LABEL;
+  ctx.fillStyle = dark ? PLACEHOLDER_LABEL_DARK : PLACEHOLDER_LABEL;
   ctx.font = "bold 24px system-ui, sans-serif";
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
@@ -227,7 +241,7 @@ function drawPlaceholder(
   ctx.fillText(label, cx, showCaption ? cy - 14 : cy);
 
   if (showCaption) {
-    ctx.fillStyle = PLACEHOLDER_CAPTION;
+    ctx.fillStyle = dark ? PLACEHOLDER_CAPTION_DARK : PLACEHOLDER_CAPTION;
     ctx.font = "13px system-ui, sans-serif";
     ctx.fillText(DRAG_HINT_TEXT, cx, cy + 14);
   }
