@@ -2,6 +2,15 @@ import type { Figure } from "../model/types";
 import type { ImagePoolItem } from "../model/pool";
 import { drawFigure } from "./draw-figure";
 
+// Browsers cap a single canvas's backing-store dimensions (~16384px in
+// Chromium; lower on some GPUs/Safari). Exceeding it makes the context
+// silently fail to paint — the "canvas crashes on upload" symptom, since a
+// high-res image drives editorScale (and thus model×editorScale×dpr) past the
+// cap. 8192 is safe across the browsers/GPUs we ship on and is still far more
+// resolution than the on-screen display box can show. Exports use their own
+// full-resolution OffscreenCanvas path and are unaffected by this editor cap.
+export const MAX_EDITOR_CANVAS_PX = 8192;
+
 export interface EditorRenderer {
   setFigure(figure: Figure): void;
   setImages(images: Map<string, ImageBitmap>): void;
@@ -58,7 +67,20 @@ export function createEditorRenderer(
     // (full source resolution, from the pool) and dpr (HiDPI). Both are also
     // composed into the single ctx transform so drawFigure still paints in
     // the 800x600 model coordinate system and never learns about zoom.
-    const combined = editorScale * dpr;
+    //
+    // Clamp so neither axis exceeds MAX_EDITOR_CANVAS_PX — a high-res image
+    // can push model×editorScale×dpr past the browser's canvas-size limit,
+    // which silently blanks the whole editor. We scale `combined` down to the
+    // largest multiple that keeps both axes within the cap; the same clamped
+    // value feeds the ctx transform below, so drawing stays consistent with
+    // the backing store (just at a slightly lower editor resolution — still
+    // sharper than the display box, and exports are unaffected).
+    const requested = editorScale * dpr;
+    const capMultiple = Math.min(
+      MAX_EDITOR_CANVAS_PX / figure.canvas.widthPx,
+      MAX_EDITOR_CANVAS_PX / figure.canvas.heightPx,
+    );
+    const combined = Math.min(requested, capMultiple);
     const targetW = Math.round(figure.canvas.widthPx * combined);
     const targetH = Math.round(figure.canvas.heightPx * combined);
     if (canvas.width !== targetW) canvas.width = targetW;

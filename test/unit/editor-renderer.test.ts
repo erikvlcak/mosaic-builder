@@ -11,7 +11,10 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { createEditorRenderer } from "../../src/renderer/render/editor-renderer";
+import {
+  createEditorRenderer,
+  MAX_EDITOR_CANVAS_PX,
+} from "../../src/renderer/render/editor-renderer";
 import type { Figure } from "../../src/renderer/model/types";
 import type { ImagePoolItem } from "../../src/renderer/model/pool";
 import { DEFAULT_TRANSFORM } from "../../src/renderer/model/panels";
@@ -290,6 +293,32 @@ describe("editor-renderer: editorScale", () => {
     await Promise.resolve();
     // 100 * 1 * 2 = 200
     expect(canvas.width).toBe(200);
+  });
+
+  it("clamps the backing store to the max canvas dimension for huge scales", async () => {
+    // A high-res image drives editorScale up; 100 * 500 * 2 = 100000 would
+    // blow past the browser's ~16384px canvas limit and paint nothing (the
+    // "canvas crashes on upload" bug). The backing store must stay ≤ the max.
+    const r = createEditorRenderer(canvas);
+    r.setEditorScale(500);
+    r.setFigure(FIG);
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(canvas.width).toBeLessThanOrEqual(MAX_EDITOR_CANVAS_PX);
+    expect(canvas.height).toBeLessThanOrEqual(MAX_EDITOR_CANVAS_PX);
+    expect(canvas.width).toBeGreaterThan(0);
+  });
+
+  it("keeps the ctx transform consistent with the clamped backing store", async () => {
+    // When clamped, the transform scale must match the actual backing store
+    // (backingW / modelW) or the drawing overflows / underfills the canvas.
+    const r = createEditorRenderer(canvas);
+    r.setEditorScale(500);
+    r.setFigure(FIG); // 100x100 model
+    await Promise.resolve();
+    await Promise.resolve();
+    const scale = setTransformCalls.at(-1)?.[0];
+    expect(scale).toBeCloseTo(canvas.width / 100, 6);
   });
 });
 
