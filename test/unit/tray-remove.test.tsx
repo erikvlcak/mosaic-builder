@@ -23,7 +23,6 @@ function renderTray(placedIds: Set<string>, onRemoveImage = vi.fn()) {
       bitmaps={new Map()}
       placedIds={placedIds}
       onAddImagesClick={() => {}}
-      onUnplacePanel={() => {}}
       onRemoveImage={onRemoveImage}
     />,
   );
@@ -54,7 +53,6 @@ describe("Tray click-to-place wiring", () => {
         bitmaps={new Map()}
         placedIds={new Set()}
         onAddImagesClick={() => {}}
-        onUnplacePanel={() => {}}
         onRemoveImage={vi.fn()}
         selectedThumbId={null}
         onSelectThumb={onSelectThumb}
@@ -72,7 +70,6 @@ describe("Tray click-to-place wiring", () => {
         bitmaps={new Map()}
         placedIds={new Set()}
         onAddImagesClick={() => {}}
-        onUnplacePanel={() => {}}
         onRemoveImage={vi.fn()}
         selectedThumbId="a"
         onSelectThumb={vi.fn()}
@@ -91,10 +88,30 @@ describe("Tray click-to-place wiring", () => {
         bitmaps={new Map()}
         placedIds={new Set(["a"])}
         onAddImagesClick={() => {}}
-        onUnplacePanel={() => {}}
         onRemoveImage={vi.fn()}
       />,
     );
     expect(screen.getByTestId("thumb-badge-a")).toBeDefined();
+  });
+
+  it("forwards onDragSourceChange to placed thumbnails so their drag drives the drop preview", () => {
+    const onDragSourceChange = vi.fn();
+    render(
+      <Tray
+        pool={[img("a"), img("b")]}
+        bitmaps={new Map()}
+        placedIds={new Set(["a"])} // "a" placed
+        onAddImagesClick={() => {}}
+        onRemoveImage={vi.fn()}
+        onDragSourceChange={onDragSourceChange}
+      />,
+    );
+    fireEvent.dragStart(screen.getByTestId("thumb-a"), {
+      dataTransfer: { setData: vi.fn(), effectAllowed: "" },
+    });
+    expect(onDragSourceChange).toHaveBeenCalledWith({
+      kind: "tray",
+      imageId: "a",
+    });
   });
 });

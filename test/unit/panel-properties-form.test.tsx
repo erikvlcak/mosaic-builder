@@ -135,4 +135,28 @@ describe("PanelPropertiesForm", () => {
     await userEvent.click(screen.getByRole("button", { name: /calibrate/i }));
     expect(onCalibrate).toHaveBeenCalled();
   });
+
+  it("dispatches UNPLACE_PANEL when 'Remove from panel' is clicked", async () => {
+    const dispatch = vi.fn();
+    const flush = vi.fn();
+    render(
+      <PanelPropertiesForm
+        panel={panel}
+        letterOverrideText={undefined}
+        letterOverride={undefined}
+        dispatch={dispatch}
+        onCalibrate={() => {}}
+        onCrop={() => {}}
+        commit={{ markDirty: vi.fn(), flush }}
+      />,
+    );
+    await userEvent.click(
+      screen.getByRole("button", { name: /remove from panel/i }),
+    );
+    expect(dispatch).toHaveBeenCalledWith({
+      type: "UNPLACE_PANEL",
+      panelId: "p1",
+    });
+    expect(flush).toHaveBeenCalled();
+  });
 });

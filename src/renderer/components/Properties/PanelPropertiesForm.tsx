@@ -10,6 +10,7 @@ import {
   resetPanelTransform,
   setLetterOverride,
   resetPanelCrop,
+  unplacePanel,
 } from "../../model/figure-actions";
 import type { FieldCommit } from "../../hooks/useFieldCommit";
 import { SelectField } from "./inputs/SelectField";
@@ -204,6 +205,18 @@ export function PanelPropertiesForm({
           )}
         </div>
       </div>
+
+      <button
+        type="button"
+        className="btn"
+        onClick={() => {
+          dispatch(unplacePanel(panel.id));
+          commit.flush();
+        }}
+        title="Return this image to the tray (the panel becomes empty)"
+      >
+        Remove from panel
+      </button>
     </div>
   );
 }

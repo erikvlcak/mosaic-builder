@@ -54,7 +54,6 @@ import {
   removeAnnotation,
   setLettersEnabled,
   resetFigureAction,
-  unplacePanel,
   placeIntoPanel,
   restorePanelAt,
   setTrackWeightAction,
@@ -997,7 +996,6 @@ export function App(): JSX.Element {
           onAddImagesClick={() => {
             void onAddImagesClick();
           }}
-          onUnplacePanel={(panelId) => dispatch(unplacePanel(panelId))}
           onDragSourceChange={setDragSource}
           onRemoveImage={onRemoveImage}
           selectedThumbId={selectedThumbId}

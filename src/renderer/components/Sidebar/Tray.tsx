@@ -1,15 +1,12 @@
-import { useState } from "react";
 import type { ImagePoolItem } from "../../model/pool";
 import { Thumbnail } from "./Thumbnail";
-import { DRAG_MIME, parseDrag, type DragPayload } from "../../dnd/drag-payload";
+import type { DragPayload } from "../../dnd/drag-payload";
 
 interface Props {
   pool: ImagePoolItem[];
   bitmaps: Map<string, ImageBitmap>;
   placedIds: Set<string>;
   onAddImagesClick: () => void;
-  /** Called with the panelId when a placed-panel drag is dropped on the tray. */
-  onUnplacePanel: (panelId: string) => void;
   /** Reports tray drag start/end so the drop-ghost layer can preview. */
   onDragSourceChange?: (src: DragPayload | null) => void;
   /** Remove an unplaced image from the pool (hover × on its thumbnail). */
@@ -27,7 +24,6 @@ export function Tray({
   bitmaps,
   placedIds,
   onAddImagesClick,
-  onUnplacePanel,
   onDragSourceChange,
   onRemoveImage,
   selectedThumbId,
@@ -36,41 +32,11 @@ export function Tray({
 }: Props): JSX.Element {
   const unplaced = pool.filter((p) => !placedIds.has(p.id));
   const placed = pool.filter((p) => placedIds.has(p.id));
-  const [dropActive, setDropActive] = useState(false);
-
-  function isPanelDrag(e: React.DragEvent<HTMLElement>): boolean {
-    return e.dataTransfer.types.includes(DRAG_MIME);
-  }
-
-  function onDragOver(e: React.DragEvent<HTMLElement>): void {
-    if (!isPanelDrag(e)) return;
-    e.preventDefault();
-    e.dataTransfer.dropEffect = "move";
-    if (!dropActive) setDropActive(true);
-  }
-  function onDragLeave(e: React.DragEvent<HTMLElement>): void {
-    // Only clear when leaving the aside itself, not when crossing children.
-    if (e.currentTarget.contains(e.relatedTarget as Node | null)) return;
-    setDropActive(false);
-  }
-  function onDrop(e: React.DragEvent<HTMLElement>): void {
-    setDropActive(false);
-    const raw = e.dataTransfer.getData(DRAG_MIME);
-    const from = parseDrag(raw);
-    if (from === null) return;
-    if (from.kind !== "panel") return;
-    e.preventDefault();
-    onUnplacePanel(from.panelId);
-  }
 
   return (
     <aside
       className="surface-sidebar"
       data-testid="tray"
-      data-drop-active={dropActive ? "true" : undefined}
-      onDragOver={onDragOver}
-      onDragLeave={onDragLeave}
-      onDrop={onDrop}
       style={{
         width: 232,
         padding: 12,
@@ -147,7 +113,15 @@ export function Tray({
         <Empty primary="—" />
       ) : (
         placed.map((it) => (
-          <Thumbnail key={it.id} item={it} bitmap={bitmaps.get(it.id)} placed />
+          <Thumbnail
+            key={it.id}
+            item={it}
+            bitmap={bitmaps.get(it.id)}
+            placed
+            {...(onDragSourceChange !== undefined
+              ? { onDragSourceChange }
+              : {})}
+          />
         ))
       )}
     </aside>
