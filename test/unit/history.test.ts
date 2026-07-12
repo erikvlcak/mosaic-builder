@@ -66,17 +66,20 @@ describe("history ring buffer", () => {
     expect(next.past).toEqual([1, 2]);
   });
 
-  it("caps past at MAX_HISTORY (=10), dropping the oldest", () => {
-    expect(MAX_HISTORY).toBe(10);
+  it("caps past at MAX_HISTORY (=50), dropping the oldest", () => {
+    expect(MAX_HISTORY).toBe(50);
     let h: History<number> = emptyHistory();
     let cur = 0;
-    // 12 pushes → past should hold the 10 most-recent prior states (0..11 prev).
-    for (let i = 0; i < 12; i++) {
+    // MAX_HISTORY + 2 pushes → past should hold the MAX_HISTORY most-recent
+    // prior states, oldest dropped.
+    const pushes = MAX_HISTORY + 2;
+    for (let i = 0; i < pushes; i++) {
       h = pushHistory(h, cur, cur + 1);
       cur += 1;
     }
-    expect(h.past.length).toBe(10);
-    expect(h.past[0]).toBe(2); // oldest retained
-    expect(h.past[9]).toBe(11); // most recent past
+    expect(h.past.length).toBe(MAX_HISTORY);
+    // First two prev-states (0, 1) dropped; oldest retained is 2.
+    expect(h.past[0]).toBe(2);
+    expect(h.past[MAX_HISTORY - 1]).toBe(pushes - 1);
   });
 });

@@ -14,6 +14,12 @@ interface Props {
   onDragSourceChange?: (src: DragPayload | null) => void;
   /** Remove this image from the pool. Shown as a hover × on unplaced thumbs. */
   onRemove?: (imageId: string) => void;
+  /** True when this thumbnail is the click-to-place candidate (accent ring). */
+  selectedForPlace?: boolean;
+  /** Click an unplaced thumbnail to arm it for click-to-place. */
+  onSelectForPlace?: (imageId: string) => void;
+  /** Enter on a focused unplaced thumbnail places it into the first empty panel. */
+  onPlaceIntoFirstEmpty?: (imageId: string) => void;
 }
 
 const SIZE = 56;
@@ -28,6 +34,9 @@ export function Thumbnail({
   placed,
   onDragSourceChange,
   onRemove,
+  selectedForPlace = false,
+  onSelectForPlace,
+  onPlaceIntoFirstEmpty,
 }: Props): JSX.Element {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
@@ -62,6 +71,11 @@ export function Thumbnail({
     onDragSourceChange?.(null);
   }
 
+  // Unplaced thumbnails double as click-to-place candidates AND keyboard
+  // entry points: click arms placement, Enter places into the first empty
+  // panel. Placed thumbnails are inert (they can't be re-dragged or placed).
+  const clickable = !placed && onSelectForPlace !== undefined;
+
   return (
     <div
       draggable={!placed}
@@ -69,7 +83,26 @@ export function Thumbnail({
       onDragEnd={onDragEnd}
       data-testid={`thumb-${item.id}`}
       title={`${item.filename} — ${formatSize(item)}${placed ? " (placed)" : ""}`}
-      className={`thumb ${placed ? "thumb--placed" : "thumb--draggable"}`}
+      className={`thumb ${placed ? "thumb--placed" : "thumb--draggable"}${
+        selectedForPlace ? " thumb--armed" : ""
+      }`}
+      {...(clickable
+        ? {
+            role: "button",
+            tabIndex: 0,
+            "aria-pressed": selectedForPlace,
+            onClick: () => onSelectForPlace?.(item.id),
+            onKeyDown: (e: React.KeyboardEvent<HTMLDivElement>) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                onPlaceIntoFirstEmpty?.(item.id);
+              } else if (e.key === " ") {
+                e.preventDefault();
+                onSelectForPlace?.(item.id);
+              }
+            },
+          }
+        : {})}
     >
       <canvas
         ref={canvasRef}
@@ -82,7 +115,25 @@ export function Thumbnail({
         <div className="thumb-name">{item.filename}</div>
         <div className="thumb-sub">{formatSize(item)}</div>
       </div>
-      {onRemove !== undefined && (
+      {placed && (
+        <span
+          className="thumb-badge"
+          data-testid={`thumb-badge-${item.id}`}
+          title="Placed in the figure"
+          aria-label="Placed"
+        >
+          <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
+            <path
+              d="M3.5 8.5l3 3 6-6.5"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+        </span>
+      )}
+      {onRemove !== undefined && !placed && (
         <button
           type="button"
           className="thumb-remove"

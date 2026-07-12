@@ -146,6 +146,20 @@ describe("AnnotationInteractionLayer: text creation", () => {
     expect(adds[0]?.annotation?.text).toBe("hello");
   });
 
+  it("carries the default text style's halo flag onto the created annotation", () => {
+    const { dispatch } = setup();
+    const layer = screen.getByTestId("annotation-layer");
+    fireEvent.pointerDown(layer, { button: 0, clientX: 80, clientY: 60 });
+    const input = screen.getByTestId("anno-text-input");
+    fireEvent.change(input, { target: { value: "legend" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    const add = dispatch.mock.calls
+      .map(([a]) => a as { type: string; annotation?: { halo?: boolean } })
+      .find((a) => a.type === "ADD_ANNOTATION");
+    // DEFAULT_TEXT_PICKER = initialDefaultTextStyle() ships halo on.
+    expect(add?.annotation?.halo).toBe(true);
+  });
+
   it("switching tools mid-type commits the pending text instead of dropping it (4.1)", () => {
     const dispatch = vi.fn();
     const props = {
@@ -836,5 +850,83 @@ describe("AnnotationInteractionLayer: alignment guidelines (spec 14)", () => {
       clientY: 240,
     });
     expect(screen.queryByTestId("anno-guidelines")).toBeNull();
+  });
+});
+
+describe("AnnotationInteractionLayer: scale bar on uncalibrated panel", () => {
+  const panelRectsById = new Map<string, PanelRect>([
+    ["p-1", { x: 0, y: 0, w: 200, h: 200 }],
+  ]);
+  const uncalibrated = new Map<string, ImagePoolItem>([
+    [
+      "img-1",
+      {
+        id: "img-1",
+        filename: "x.png",
+        filePath: "/tmp/x.png",
+        mime: "image/png",
+        width: 100,
+        height: 100,
+        bitDepth: 8,
+      },
+    ],
+  ]);
+  const figureWithImage: Figure = {
+    ...FIG,
+    panels: [
+      {
+        panelId: "p-1",
+        row: 0,
+        col: 0,
+        kind: "image",
+        imageId: "img-1",
+        transform: {
+          fit: "cover",
+          zoom: 1,
+          panX: 0,
+          panY: 0,
+          rotation: 0,
+          flipH: false,
+          flipV: false,
+        },
+      },
+    ],
+  };
+
+  function renderScalebar(
+    onRequestCalibration: (i: string, p: string) => void,
+  ) {
+    render(
+      <AnnotationInteractionLayer
+        activeTool="scalebar"
+        defaultSymbolStyle={DEFAULT_PICKER}
+        defaultTextStyle={DEFAULT_TEXT_PICKER}
+        defaultScalebarStyle={DEFAULT_SCALEBAR_PICKER}
+        onDefaultScalebarStyleChange={() => {}}
+        figure={figureWithImage}
+        panelRectsById={panelRectsById}
+        imagesById={uncalibrated}
+        cssW={200}
+        cssH={200}
+        figurePxW={200}
+        figurePxH={200}
+        selectedAnnotationIds={new Set()}
+        onSelectionChange={() => {}}
+        onEditingChange={() => {}}
+        dispatch={vi.fn()}
+        onRequestCalibration={onRequestCalibration}
+      />,
+    );
+  }
+
+  it("clicking an uncalibrated image panel requests calibration instead of dead-ending", () => {
+    const onRequestCalibration = vi.fn();
+    renderScalebar(onRequestCalibration);
+    fireEvent.pointerDown(screen.getByTestId("annotation-layer"), {
+      button: 0,
+      clientX: 100,
+      clientY: 100,
+    });
+    expect(onRequestCalibration).toHaveBeenCalledWith("img-1", "p-1");
   });
 });

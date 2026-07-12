@@ -3,6 +3,8 @@ import { useId } from "react";
 interface Option<V extends string> {
   value: V;
   label: string;
+  /** Optional per-option native tooltip. */
+  title?: string;
 }
 interface Props<V extends string> {
   label: string;
@@ -29,7 +31,7 @@ export function SelectField<V extends string>({
         onChange={(e) => onChange(e.currentTarget.value as V)}
       >
         {options.map((o) => (
-          <option key={o.value} value={o.value}>
+          <option key={o.value} value={o.value} title={o.title}>
             {o.label}
           </option>
         ))}

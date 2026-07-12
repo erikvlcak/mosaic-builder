@@ -44,3 +44,57 @@ describe("Tray image removal (4.4)", () => {
     expect(screen.getByTestId("thumb-remove-b")).toBeDefined();
   });
 });
+
+describe("Tray click-to-place wiring", () => {
+  it("clicking an unplaced thumbnail forwards onSelectThumb with its id", () => {
+    const onSelectThumb = vi.fn();
+    render(
+      <Tray
+        pool={[img("a"), img("b")]}
+        bitmaps={new Map()}
+        placedIds={new Set()}
+        onAddImagesClick={() => {}}
+        onUnplacePanel={() => {}}
+        onRemoveImage={vi.fn()}
+        selectedThumbId={null}
+        onSelectThumb={onSelectThumb}
+        onPlaceIntoFirstEmpty={vi.fn()}
+      />,
+    );
+    fireEvent.click(screen.getByTestId("thumb-a"));
+    expect(onSelectThumb).toHaveBeenCalledWith("a");
+  });
+
+  it("marks the armed thumbnail with aria-pressed", () => {
+    render(
+      <Tray
+        pool={[img("a"), img("b")]}
+        bitmaps={new Map()}
+        placedIds={new Set()}
+        onAddImagesClick={() => {}}
+        onUnplacePanel={() => {}}
+        onRemoveImage={vi.fn()}
+        selectedThumbId="a"
+        onSelectThumb={vi.fn()}
+        onPlaceIntoFirstEmpty={vi.fn()}
+      />,
+    );
+    expect(screen.getByTestId("thumb-a").getAttribute("aria-pressed")).toBe(
+      "true",
+    );
+  });
+
+  it("renders the placed badge on placed thumbnails", () => {
+    render(
+      <Tray
+        pool={[img("a"), img("b")]}
+        bitmaps={new Map()}
+        placedIds={new Set(["a"])}
+        onAddImagesClick={() => {}}
+        onUnplacePanel={() => {}}
+        onRemoveImage={vi.fn()}
+      />,
+    );
+    expect(screen.getByTestId("thumb-badge-a")).toBeDefined();
+  });
+});

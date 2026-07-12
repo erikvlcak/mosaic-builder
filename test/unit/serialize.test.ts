@@ -404,6 +404,113 @@ describe("v1 → v2 migration on fromMosaicFile", () => {
   });
 });
 
+describe("serialize — letter halo (optional, backward-compatible)", () => {
+  it("round-trips globalStyle.letters.halo = true through v5", () => {
+    const base = initialFigureState();
+    const state = {
+      ...base,
+      globalStyle: {
+        ...base.globalStyle,
+        letters: { ...base.globalStyle.letters, halo: true },
+      },
+    };
+    const file = toMosaicFile({
+      state,
+      canvas: { widthPx: 800, heightPx: 600, background: "#FFFFFF" },
+      mosaicPath: "/tmp/x.mosaic",
+      appVersion: "0.1.0",
+      now: () => "2026-07-11T00:00:00Z",
+    });
+    expect(file.state.globalStyle.letters.halo).toBe(true);
+    const back = fromMosaicFile(file);
+    expect(back.state.globalStyle.letters.halo).toBe(true);
+  });
+
+  it("round-trips a text annotation's halo flag through v5", () => {
+    const base = initialFigureState();
+    const state = {
+      ...base,
+      annotations: [
+        {
+          id: "t1",
+          kind: "text" as const,
+          z: 0,
+          x: 10,
+          y: 10,
+          text: "Legend",
+          font: "Arial",
+          sizePt: 12,
+          bold: false,
+          italic: false,
+          color: "#000000",
+          halo: true,
+        },
+      ],
+    };
+    const file = toMosaicFile({
+      state,
+      canvas: { widthPx: 800, heightPx: 600, background: "#FFFFFF" },
+      mosaicPath: "/tmp/x.mosaic",
+      appVersion: "0.1.0",
+    });
+    const back = fromMosaicFile(file);
+    const t = back.state.annotations[0];
+    expect(t?.kind).toBe("text");
+    expect((t as { halo?: boolean }).halo).toBe(true);
+  });
+
+  it("a pre-halo file (no halo field) loads without injecting halo (renders as before)", () => {
+    // v5 file whose letters block lacks `halo` — must load unchanged so it
+    // renders pixel-identically (absent ⇒ no stroke pass).
+    const v5 = {
+      schemaVersion: 5 as const,
+      app: "mosaic-builder" as const,
+      appVersion: "0.1.0",
+      createdAt: "2026-05-02T00:00:00Z",
+      modifiedAt: "2026-05-02T00:00:00Z",
+      canvas: { widthPx: 800, heightPx: 600, background: "#FFFFFF" },
+      state: {
+        rows: 1,
+        cols: 1,
+        gutterPx: 12,
+        gutterColor: "#FFFFFF",
+        outerGutter: true,
+        pool: [],
+        panels: [{ id: "p1", row: 0, col: 0, rowSpan: 1, colSpan: 1 }],
+        annotations: [],
+        globalStyle: {
+          letters: {
+            enabled: true,
+            font: "Arial",
+            sizePt: 12,
+            color: "#000000",
+            corner: "tl" as const,
+            paddingPx: 6,
+            bold: true,
+            italic: false,
+            // intentionally no halo — pre-halo file
+          },
+          scalebar: {
+            font: "Arial",
+            sizePt: 10,
+            color: "#FFFFFF",
+            barColor: "#FFFFFF",
+            thicknessPx: 4,
+            corner: "br" as const,
+            paddingPx: 8,
+            showLabel: true,
+          },
+        },
+        letterOverrides: {},
+        letterPattern: "uppercase" as const,
+        layout: { kind: "uniform" as const, colWeights: [1], rowWeights: [1] },
+      },
+    };
+    const r = fromMosaicFile(v5 as unknown as MosaicFile);
+    expect(r.state.globalStyle.letters.halo).toBeUndefined();
+  });
+});
+
 describe("serialize — layout v5 (spec 11 carried into v5)", () => {
   it("toMosaicFile writes schemaVersion 5 with state.layout", () => {
     const state = initialFigureState();

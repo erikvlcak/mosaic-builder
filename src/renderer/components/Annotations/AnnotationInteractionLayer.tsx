@@ -190,6 +190,13 @@ interface Props {
    * outside the editing panel.
    */
   editingPanelRect?: PanelRect;
+  /**
+   * Scale-bar guided flow: called when the scale tool clicks an image panel
+   * whose image is not yet calibrated. The parent opens the calibration modal
+   * for that image and, on success, places the requested bar. When provided,
+   * this replaces the old dead-end error banner for the uncalibrated case.
+   */
+  onRequestCalibration?: (imageId: string, panelId: string) => void;
 }
 
 interface DragState {
@@ -575,6 +582,7 @@ export function AnnotationInteractionLayer({
   onHoleClick,
   selectedPanelId,
   editingPanelRect,
+  onRequestCalibration,
 }: Props): JSX.Element {
   // Single-select id (null when 0 or > 1 selected). Reused throughout
   // chrome/handles/effects so existing single-select code paths are
@@ -741,10 +749,14 @@ export function AnnotationInteractionLayer({
       }
       const img = imagesById.get(panel.imageId);
       if (img === undefined || img.calibration === undefined) {
-        console.warn(
-          `[scalebar] Cannot add scale bar: panel ${panel?.panelId ?? "(none)"} requires a calibrated image. ` +
-            `Use the "Calibrate…" button on the panel toolbar first.`,
-        );
+        // Uncalibrated image: instead of dead-ending, open the calibration
+        // flow for this image. The parent stashes the pending placement and
+        // places the bar once calibration succeeds. Fall back to the error
+        // banner only when no calibration entry point is wired.
+        if (onRequestCalibration !== undefined && panel.panelId !== undefined) {
+          onRequestCalibration(panel.imageId, panel.panelId);
+          return;
+        }
         flashScalebarError(
           "Calibrate this image first (Calibrate… button).",
           c.cssX,
@@ -1423,6 +1435,7 @@ export function AnnotationInteractionLayer({
       ...(defaultTextStyle.bgColor !== undefined
         ? { bgColor: defaultTextStyle.bgColor }
         : {}),
+      ...(defaultTextStyle.halo === true ? { halo: true } : {}),
     };
     // If the click landed on an image-bearing panel, bind the annotation
     // to that image so it follows the image when swapped to another panel.

@@ -15,6 +15,13 @@ export interface LetterStyle {
   paddingPx: number;
   bold: boolean;
   italic: boolean;
+  /**
+   * When true, paint a contrasting outline (halo) behind the glyphs so the
+   * label stays legible on any background. Optional so pre-halo `.mosaic`
+   * files (absent ⇒ false) render pixel-identically. The halo color is
+   * derived from the fill luminance — no user knob.
+   */
+  halo?: boolean;
 }
 
 export interface ScaleBarStyle {
@@ -38,11 +45,14 @@ export const DEFAULT_GLOBAL_STYLE: GlobalAnnoStyle = Object.freeze({
     enabled: true,
     font: "Arial, Helvetica, sans-serif",
     sizePt: 12,
-    color: "#000000",
+    // White + halo is legible on both dark micrographs and light plots. See
+    // the UI/UX refresh spec (Phase 1 — annotation legibility).
+    color: "#FFFFFF",
     corner: "tl",
     paddingPx: 6,
     bold: true,
     italic: false,
+    halo: true,
   }),
   scalebar: Object.freeze({
     font: "Arial, Helvetica, sans-serif",

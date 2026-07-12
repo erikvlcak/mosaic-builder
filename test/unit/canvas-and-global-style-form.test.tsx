@@ -97,7 +97,32 @@ describe("CanvasAndGlobalStyleForm", () => {
     });
   });
 
-  it("disables the reset button when no overrides exist", () => {
+  it("toggles the letters halo via its checkbox and dispatches SET_GLOBAL_STYLE", async () => {
+    const dispatch = vi.fn<(a: FigureAction) => void>();
+    const commit = { markDirty: vi.fn(), flush: vi.fn() };
+    // Start with halo off so clicking turns it on.
+    const style = {
+      ...DEFAULT_GLOBAL_STYLE,
+      letters: { ...DEFAULT_GLOBAL_STYLE.letters, halo: false },
+    };
+    render(
+      <CanvasAndGlobalStyleForm
+        state={initialFigureState()}
+        globalStyle={style}
+        dispatch={dispatch}
+        commit={commit}
+      />,
+    );
+    await userEvent.click(screen.getByLabelText(/halo/i));
+    const last = dispatch.mock.calls.at(-1)?.[0] as
+      | SetGlobalStyleAction
+      | undefined;
+    expect(last?.type).toBe("SET_GLOBAL_STYLE");
+    expect(last?.style.letters.halo).toBe(true);
+    expect(commit.flush).toHaveBeenCalled();
+  });
+
+  it("hides the reset button + its explanatory paragraph when no overrides exist", () => {
     render(
       <CanvasAndGlobalStyleForm
         state={initialFigureState()}
@@ -106,9 +131,31 @@ describe("CanvasAndGlobalStyleForm", () => {
         commit={{ markDirty: vi.fn(), flush: vi.fn() }}
       />,
     );
+    // The button and the always-on three-line paragraph are gone until an
+    // override exists (the paragraph collapses into the button's tooltip).
+    expect(
+      screen.queryByRole("button", { name: /reset all letter overrides/i }),
+    ).toBeNull();
+    expect(screen.queryByText(/Pattern controls auto-generated/i)).toBeNull();
+  });
+
+  it("shows the reset button (with an explanatory tooltip) once an override exists", () => {
+    const stateWithOverrides = {
+      ...initialFigureState(),
+      letterOverrides: { p1: { text: "Z" } },
+    };
+    render(
+      <CanvasAndGlobalStyleForm
+        state={stateWithOverrides}
+        globalStyle={DEFAULT_GLOBAL_STYLE}
+        dispatch={vi.fn()}
+        commit={{ markDirty: vi.fn(), flush: vi.fn() }}
+      />,
+    );
     const btn = screen.getByRole("button", {
       name: /reset all letter overrides/i,
     });
-    expect((btn as HTMLButtonElement).disabled).toBe(true);
+    expect((btn as HTMLButtonElement).disabled).toBe(false);
+    expect(btn.getAttribute("title")).toMatch(/pattern|override/i);
   });
 });

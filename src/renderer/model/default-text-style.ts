@@ -16,6 +16,8 @@ export interface DefaultTextStyle {
   color: string;
   /** Undefined means transparent — same convention as `TextAnnotation.bgColor`. */
   bgColor?: string;
+  /** Contrasting outline behind glyphs; see `TextAnnotation.halo`. */
+  halo?: boolean;
 }
 
 export function initialDefaultTextStyle(): DefaultTextStyle {
@@ -25,5 +27,7 @@ export function initialDefaultTextStyle(): DefaultTextStyle {
     bold: false,
     italic: false,
     color: "#000000",
+    // Legible on dark micrographs out of the box (black glyph + white halo).
+    halo: true,
   };
 }

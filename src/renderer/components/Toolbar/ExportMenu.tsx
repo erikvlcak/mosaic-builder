@@ -1,64 +1,49 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { Figure } from "../../model/types";
-import type { ImagePoolItem } from "../../model/pool";
-import { exportFigureAsPng } from "../../export/png";
-import { exportFigureAsJpeg } from "../../export/jpeg";
-import { exportFigureAsTiff } from "../../export/tiff";
-import { exportFigureAsPdf } from "../../export/pdf";
-import { computeExportScale } from "../../render/export-scale";
+import type { ExportStatus } from "../../hooks/useFigureExport";
+import { TIFF_DPI } from "../../hooks/useFigureExport";
+import { PDF_DPI } from "../../export/pdf";
 
 interface Props {
   figure: Figure;
-  images: Map<string, ImageBitmap>;
-  pool?: Map<string, ImagePoolItem>;
-  /** Pool ordered as the reducer holds it (for export-scale computation). */
-  poolList: readonly ImagePoolItem[];
-  rows: number;
-  cols: number;
-  gutterPx: number;
+  /** Output enlargement factor; drives the displayed pixel dimensions. */
+  exportScale: number;
+  status: ExportStatus;
+  jpegQuality: number;
+  onJpegQualityChange: (q: number) => void;
+  runPng: () => void | Promise<void>;
+  runJpeg: () => void | Promise<void>;
+  runTiff: () => void | Promise<void>;
+  runPdf: () => void | Promise<void>;
 }
 
-type Status =
-  | { kind: "idle" }
-  | { kind: "exporting"; format: string }
-  | { kind: "success"; filePath: string }
-  | { kind: "error"; message: string };
-
-const TIFF_DPI = 300;
+const CM_PER_INCH = 2.54;
 
 export function ExportMenu({
   figure,
-  images,
-  pool,
-  poolList,
-  rows,
-  cols,
-  gutterPx,
+  exportScale,
+  status,
+  jpegQuality,
+  onJpegQualityChange,
+  runPng,
+  runJpeg,
+  runTiff,
+  runPdf,
 }: Props): JSX.Element {
-  const exportScale = useMemo(
-    () =>
-      computeExportScale(
-        poolList,
-        rows,
-        cols,
-        gutterPx,
-        figure.canvas.widthPx,
-        figure.canvas.heightPx,
-      ),
-    [
-      poolList,
-      rows,
-      cols,
-      gutterPx,
-      figure.canvas.widthPx,
-      figure.canvas.heightPx,
-    ],
-  );
   const [open, setOpen] = useState(false);
-  const [status, setStatus] = useState<Status>({ kind: "idle" });
   const [jpegOpen, setJpegOpen] = useState(false);
-  const [jpegQuality, setJpegQuality] = useState(0.92);
   const wrapRef = useRef<HTMLSpanElement | null>(null);
+
+  const outW = Math.round(figure.canvas.widthPx * exportScale);
+  const outH = Math.round(figure.canvas.heightPx * exportScale);
+  const pxLabel = `${outW} × ${outH} px`;
+  // PDF pages are sized to physical dimensions at PDF_DPI — the researcher's
+  // real question is "how big on the page", answered in cm.
+  const cmW = ((outW / PDF_DPI) * CM_PER_INCH).toFixed(1);
+  const cmH = ((outH / PDF_DPI) * CM_PER_INCH).toFixed(1);
+  const pdfLabel = `${cmW} × ${cmH} cm`;
+
+  const exporting = status.kind === "exporting";
 
   useEffect(() => {
     if (!open) return;
@@ -83,54 +68,13 @@ export function ExportMenu({
     };
   }, [open]);
 
-  function applyResult(
-    format: string,
-    r: Awaited<ReturnType<typeof exportFigureAsPng>>,
-  ): void {
-    if (r.ok) {
-      setStatus({ kind: "success", filePath: r.filePath });
-      setOpen(false);
-      setJpegOpen(false);
-    } else if (r.reason === "canceled") {
-      setStatus({ kind: "idle" });
-    } else {
-      setStatus({
-        kind: "error",
-        message: `${format}: ${r.message ?? r.reason}`,
-      });
-    }
+  // Close the menu after a run is dispatched so the toast (success/error) is
+  // the single feedback surface.
+  function afterRun(run: () => void | Promise<void>): void {
+    void run();
+    setOpen(false);
+    setJpegOpen(false);
   }
-
-  async function runPng(): Promise<void> {
-    setStatus({ kind: "exporting", format: "PNG" });
-    applyResult(
-      "PNG",
-      await exportFigureAsPng(figure, images, pool, exportScale),
-    );
-  }
-  async function runJpeg(): Promise<void> {
-    setStatus({ kind: "exporting", format: "JPEG" });
-    applyResult(
-      "JPEG",
-      await exportFigureAsJpeg(figure, images, jpegQuality, pool, exportScale),
-    );
-  }
-  async function runTiff(): Promise<void> {
-    setStatus({ kind: "exporting", format: "TIFF" });
-    applyResult(
-      "TIFF",
-      await exportFigureAsTiff(figure, images, TIFF_DPI, pool, exportScale),
-    );
-  }
-  async function runPdf(): Promise<void> {
-    setStatus({ kind: "exporting", format: "PDF" });
-    applyResult(
-      "PDF",
-      await exportFigureAsPdf(figure, images, pool, exportScale),
-    );
-  }
-
-  const exporting = status.kind === "exporting";
 
   return (
     <span
@@ -170,21 +114,11 @@ export function ExportMenu({
             className="menu-item"
             role="menuitem"
             data-testid="export-png-btn"
-            onClick={() => {
-              void runPng();
-            }}
+            onClick={() => afterRun(runPng)}
             disabled={exporting}
           >
             PNG
-            <span
-              style={{
-                float: "right",
-                color: "var(--c-text-faint)",
-                marginLeft: 12,
-              }}
-            >
-              transparent OK
-            </span>
+            <span className="export-meta">{pxLabel} · keeps transparency</span>
           </button>
           <button
             type="button"
@@ -196,6 +130,7 @@ export function ExportMenu({
             aria-expanded={jpegOpen}
           >
             JPEG…
+            <span className="export-meta">{pxLabel}</span>
           </button>
           {jpegOpen && (
             <div className="menu-section">
@@ -209,7 +144,7 @@ export function ExportMenu({
                   max={1}
                   step={0.01}
                   value={jpegQuality}
-                  onChange={(e) => setJpegQuality(Number(e.target.value))}
+                  onChange={(e) => onJpegQualityChange(Number(e.target.value))}
                   data-testid="export-jpeg-quality"
                   style={{ accentColor: "var(--c-accent)" }}
                 />
@@ -218,9 +153,7 @@ export function ExportMenu({
                 type="button"
                 className="btn btn-primary"
                 data-testid="export-jpeg-confirm"
-                onClick={() => {
-                  void runJpeg();
-                }}
+                onClick={() => afterRun(runJpeg)}
                 disabled={exporting}
               >
                 Export JPEG
@@ -232,20 +165,12 @@ export function ExportMenu({
             className="menu-item"
             role="menuitem"
             data-testid="export-tiff-btn"
-            onClick={() => {
-              void runTiff();
-            }}
+            onClick={() => afterRun(runTiff)}
             disabled={exporting}
           >
             TIFF
-            <span
-              style={{
-                float: "right",
-                color: "var(--c-text-faint)",
-                marginLeft: 12,
-              }}
-            >
-              {TIFF_DPI} dpi
+            <span className="export-meta">
+              {pxLabel} · {TIFF_DPI} dpi
             </span>
           </button>
           <button
@@ -253,24 +178,13 @@ export function ExportMenu({
             className="menu-item"
             role="menuitem"
             data-testid="export-pdf-btn"
-            onClick={() => {
-              void runPdf();
-            }}
+            onClick={() => afterRun(runPdf)}
             disabled={exporting}
           >
             PDF
+            <span className="export-meta">{pdfLabel}</span>
           </button>
         </div>
-      )}
-      {status.kind === "success" && (
-        <span style={{ color: "var(--c-success)", fontSize: 12 }}>
-          Saved → {status.filePath}
-        </span>
-      )}
-      {status.kind === "error" && (
-        <span style={{ color: "var(--c-danger)", fontSize: 12 }}>
-          {status.message}
-        </span>
       )}
     </span>
   );

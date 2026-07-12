@@ -40,6 +40,9 @@ function makeRecorder(): DrawCtx & { calls: Call[] } {
     fillText(...args: unknown[]) {
       this.rec("fillText", args);
     },
+    strokeText(...args: unknown[]) {
+      this.rec("strokeText", args);
+    },
     measureText() {
       return { width: 10 };
     },

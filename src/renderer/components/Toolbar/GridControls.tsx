@@ -48,6 +48,7 @@ export function GridControls({
           onChange={(e) => onChangeRows(Number(e.target.value))}
           data-testid="grid-rows-input"
           aria-label="Rows"
+          title="1–10"
         />
       </Field>
       <Field label="Cols">
@@ -60,6 +61,7 @@ export function GridControls({
           onChange={(e) => onChangeCols(Number(e.target.value))}
           data-testid="grid-cols-input"
           aria-label="Columns"
+          title="1–10"
         />
       </Field>
       <Field label="Gutter">

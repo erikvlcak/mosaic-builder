@@ -49,6 +49,9 @@ function makeRecorder(): DrawCtx & { calls: Call[] } {
     fillText(...args) {
       calls.push(snapshot("fillText", args));
     },
+    strokeText(...args) {
+      calls.push(snapshot("strokeText", args));
+    },
     measureText(text: string) {
       return { width: text.length * 8 };
     },

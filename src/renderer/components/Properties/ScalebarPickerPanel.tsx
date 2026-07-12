@@ -6,15 +6,41 @@ import { CornerField } from "./inputs/CornerField";
 interface Props {
   value: DefaultScalebarStyle;
   onChange: (next: DefaultScalebarStyle) => void;
+  /** Placed images whose image carries a calibration. */
+  calibratedCount?: number;
+  /** Placed (image-bearing) panels. When both counts are present, a status
+   *  line tells the user how many are ready for a scale bar. */
+  placedCount?: number;
 }
 
-export function ScalebarPickerPanel({ value, onChange }: Props): JSX.Element {
+export function ScalebarPickerPanel({
+  value,
+  onChange,
+  calibratedCount,
+  placedCount,
+}: Props): JSX.Element {
   function patch(p: Partial<DefaultScalebarStyle>): void {
     onChange({ ...value, ...p });
   }
 
+  const showStatus = calibratedCount !== undefined && placedCount !== undefined;
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      {showStatus && (
+        <div
+          data-testid="scalebar-cal-status"
+          style={{
+            fontSize: 11,
+            color: "var(--c-text-muted)",
+            lineHeight: 1.4,
+          }}
+        >
+          {calibratedCount} of {placedCount} placed image
+          {placedCount === 1 ? "" : "s"} calibrated. Click an uncalibrated panel
+          to calibrate it, then place the bar.
+        </div>
+      )}
       <NumberField
         label="Length"
         value={value.lengthValue}

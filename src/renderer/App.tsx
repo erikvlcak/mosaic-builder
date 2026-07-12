@@ -3,7 +3,6 @@ import { EditorCanvas } from "./components/Canvas/EditorCanvas";
 import { ExportMenu } from "./components/Toolbar/ExportMenu";
 import { GridControls } from "./components/Toolbar/GridControls";
 import { MergeControls } from "./components/Toolbar/MergeControls";
-import { PanelControls } from "./components/Toolbar/PanelControls";
 import {
   AnnotationToolbar,
   type Tool,
@@ -48,7 +47,6 @@ import {
   setOuterGutter,
   mergeCells,
   unmergePanelAction,
-  setPanelFit,
   rotatePanel90,
   flipPanelH,
   flipPanelV,
@@ -57,13 +55,16 @@ import {
   setLettersEnabled,
   resetFigureAction,
   unplacePanel,
+  placeIntoPanel,
   restorePanelAt,
   setTrackWeightAction,
   resizePanelFreeformAction,
   resetToUniformGridAction,
   relinkPoolImage,
   removeFromPool,
+  addAnnotation,
 } from "./model/figure-actions";
+import type { ScaleBarAnnotation } from "./model/annotations";
 import { useHistoryReducer } from "./state/use-history-reducer";
 import { isDirty } from "./state/dirty";
 import { applyLoadedProject } from "./state/load-project";
@@ -78,6 +79,7 @@ import { useMergeSelection } from "./hooks/useMergeSelection";
 import { useFieldCommit } from "./hooks/useFieldCommit";
 import { useKeyboardShortcuts } from "./hooks/useKeyboardShortcuts";
 import { useMenuEvents } from "./hooks/useMenuEvents";
+import { useFigureExport } from "./hooks/useFigureExport";
 import { toMosaicFile } from "./model/serialize";
 import { APP_VERSION } from "./app-version";
 import { useToasts } from "./hooks/useToasts";
@@ -88,6 +90,9 @@ const CANVAS_CSS_W = 800;
 const CANVAS_CSS_H = 600;
 const FIGURE_PX_W = 800;
 const FIGURE_PX_H = 600;
+// Matches the interaction layer's Z_SCALEBAR — scale bars sit above other
+// annotations so they can't be hidden behind them.
+const Z_SCALEBAR = 10;
 
 function basename(p: string): string {
   const ix = Math.max(p.lastIndexOf("/"), p.lastIndexOf("\\"));
@@ -124,8 +129,19 @@ export function App(): JSX.Element {
   const [calibratingImageId, setCalibratingImageId] = useState<string | null>(
     null,
   );
+  // Guided scale-bar flow: the panel awaiting a scale bar once its image is
+  // calibrated (set when the scale tool clicks an uncalibrated panel).
+  const [pendingScalebarPanelId, setPendingScalebarPanelId] = useState<
+    string | null
+  >(null);
   const [croppingPanelId, setCroppingPanelId] = useState<string | null>(null);
   const [annotationEditing, setAnnotationEditing] = useState<boolean>(false);
+  // Click-to-place: the unplaced tray image armed for placement. Session-only
+  // UI state — never promoted into FigureState (mirrors PanelInteraction).
+  const [selectedThumbId, setSelectedThumbId] = useState<string | null>(null);
+  // JPEG export quality — session-only; shared by the toolbar menu slider and
+  // the native-menu JPEG export (which uses the current stored value).
+  const [jpegQuality, setJpegQuality] = useState(0.92);
   const stateRef = useRef<FigureState>(state);
   stateRef.current = state;
 
@@ -375,8 +391,42 @@ export function App(): JSX.Element {
     dispatch(resetPanelTransform(selectedImagePanel.id));
   }, [selectedImagePanel, dispatch]);
 
+  // Click-to-place: arm/toggle an unplaced tray image. Clicking the armed
+  // image again disarms it.
+  const onSelectThumb = useCallback((imageId: string) => {
+    setSelectedThumbId((prev) => (prev === imageId ? null : imageId));
+  }, []);
+
+  // Place `imageId` into the first empty (image-less, visible) panel. Used by
+  // Enter-on-thumbnail; no-op when the figure is full.
+  const onPlaceIntoFirstEmpty = useCallback(
+    (imageId: string) => {
+      const target = stateRef.current.panels.find(
+        (p) => p.imageId === undefined && p.hidden !== true,
+      );
+      if (target === undefined) return;
+      dispatch(placeIntoPanel(imageId, target.id));
+      setSelectedThumbId(null);
+    },
+    [dispatch],
+  );
+
   const onPanelSingleClick = useCallback(
     (panelId: string) => {
+      const panel = stateRef.current.panels.find((p) => p.id === panelId);
+      // Click-to-place: if an unplaced image is armed and this panel is empty,
+      // place it here (same action as a drop) and disarm.
+      if (
+        selectedThumbId !== null &&
+        panel !== undefined &&
+        panel.imageId === undefined &&
+        panel.hidden !== true
+      ) {
+        dispatch(placeIntoPanel(selectedThumbId, panelId));
+        setSelectedThumbId(null);
+        setPanelInteraction({ mode: "selected", panelId });
+        return;
+      }
       // Single-click while already editing this same panel: no-op (stay
       // in editing so the user doesn't lose pan/zoom state mid-drag).
       if (
@@ -391,7 +441,7 @@ export function App(): JSX.Element {
       // "selected" focus for the Unmerge action and properties panel.
       setPanelInteraction({ mode: "selected", panelId });
     },
-    [panelInteraction],
+    [panelInteraction, selectedThumbId, dispatch],
   );
 
   const onPanelDoubleClick = useCallback((panelId: string) => {
@@ -410,18 +460,11 @@ export function App(): JSX.Element {
     [dispatch, selection],
   );
 
-  const onSetFit = useCallback(
-    (fit: "contain" | "cover" | "stretch") => {
-      if (selectedImagePanel === undefined) return;
-      dispatch(setPanelFit(selectedImagePanel.id, fit));
-    },
-    [selectedImagePanel, dispatch],
-  );
-
   const onEscape = useCallback(() => {
     selection.clear();
     setPanelInteraction(null);
     setSelectedAnnotationIds(emptySelection());
+    setSelectedThumbId(null);
     setActiveTool("select");
   }, [selection]);
 
@@ -522,6 +565,20 @@ export function App(): JSX.Element {
     return m;
   }, [state.pool]);
 
+  // One export hook shared by the toolbar menu AND the native menu-bar Export
+  // items, so both call the same code and both report via toasts.
+  const figureExport = useFigureExport({
+    figure,
+    images: bitmaps,
+    pool: imagesByIdMemo,
+    poolList: state.pool,
+    rows: state.rows,
+    cols: state.cols,
+    gutterPx: state.gutterPx,
+    jpegQuality,
+    pushToast: toasts.push,
+  });
+
   // Compute the focused panel's rect once for the interaction layer.
   const focusedPanelRect = useMemo(() => {
     if (selectedImagePanel === undefined) return null;
@@ -537,6 +594,40 @@ export function App(): JSX.Element {
     if (selectedImagePanel?.imageId === undefined) return;
     setCalibratingImageId(selectedImagePanel.imageId);
   }, [selectedImagePanel]);
+
+  // Scale tool clicked an uncalibrated panel: open the calibration modal for
+  // its image and remember the panel so we can place the bar on success.
+  const onRequestCalibration = useCallback(
+    (imageId: string, panelId: string) => {
+      setPendingScalebarPanelId(panelId);
+      setCalibratingImageId(imageId);
+    },
+    [],
+  );
+
+  // Calibration succeeded — if it was triggered by the scale tool, place the
+  // scale bar the user originally asked for into the stashed panel.
+  const onScalebarCalibrated = useCallback(() => {
+    if (pendingScalebarPanelId === null) return;
+    const panelId = pendingScalebarPanelId;
+    setPendingScalebarPanelId(null);
+    const panel = stateRef.current.panels.find((p) => p.id === panelId);
+    if (panel === undefined || panel.imageId === undefined) return;
+    const bar: ScaleBarAnnotation = {
+      id: crypto.randomUUID(),
+      kind: "scalebar",
+      z: Z_SCALEBAR,
+      panelId,
+      imageId: panel.imageId,
+      lengthValue: defaultScalebarStyle.lengthValue,
+      lengthUnit: defaultScalebarStyle.lengthUnit,
+      ...(defaultScalebarStyle.cornerOverride !== undefined
+        ? { cornerOverride: defaultScalebarStyle.cornerOverride }
+        : {}),
+    };
+    dispatch(addAnnotation(bar));
+    history.commit();
+  }, [pendingScalebarPanelId, defaultScalebarStyle, dispatch, history]);
 
   const onCrop = useCallback(() => {
     if (selectedImagePanel?.imageId === undefined) return;
@@ -612,7 +703,10 @@ export function App(): JSX.Element {
           .join(", ")}`,
       });
     }
-    toasts.push({ kind: "success", message: "Project loaded" });
+    toasts.push({
+      kind: "success",
+      message: `Loaded ${basename(r.filePath)}`,
+    });
   }, [dispatch, toasts, confirmDiscardIfDirty]);
 
   const onNew = useCallback(async () => {
@@ -637,20 +731,10 @@ export function App(): JSX.Element {
     onOpen: onOpenProject,
     onSave: onSaveProject,
     onSaveAs,
-    onExportPng: () =>
-      toasts.push({ kind: "info", message: "Use Export → PNG in the toolbar" }),
-    onExportJpeg: () =>
-      toasts.push({
-        kind: "info",
-        message: "Use Export → JPEG in the toolbar",
-      }),
-    onExportTiff: () =>
-      toasts.push({
-        kind: "info",
-        message: "Use Export → TIFF in the toolbar",
-      }),
-    onExportPdf: () =>
-      toasts.push({ kind: "info", message: "Use Export → PDF in the toolbar" }),
+    onExportPng: () => void figureExport.runPng(),
+    onExportJpeg: () => void figureExport.runJpeg(),
+    onExportTiff: () => void figureExport.runTiff(),
+    onExportPdf: () => void figureExport.runPdf(),
     onUndo: history.undo,
     onRedo: history.redo,
   });
@@ -689,6 +773,17 @@ export function App(): JSX.Element {
             type="button"
             className="btn"
             onClick={() => {
+              void onNew();
+            }}
+            data-testid="new-project"
+            title="New figure (⌘N)"
+          >
+            New
+          </button>
+          <button
+            type="button"
+            className="btn"
+            onClick={() => {
               void onOpenProject();
             }}
             data-testid="open-project"
@@ -705,16 +800,59 @@ export function App(): JSX.Element {
           >
             Save
           </button>
+          <span className="toolbar-divider" aria-hidden="true" />
+          <button
+            type="button"
+            className="btn btn-icon"
+            onClick={history.undo}
+            disabled={!history.canUndo}
+            data-testid="undo-btn"
+            title="Undo (⌘Z)"
+            aria-label="Undo"
+          >
+            ↶ Undo
+          </button>
+          <button
+            type="button"
+            className="btn btn-icon"
+            onClick={history.redo}
+            disabled={!history.canRedo}
+            data-testid="redo-btn"
+            title="Redo (⇧⌘Z)"
+            aria-label="Redo"
+          >
+            ↷ Redo
+          </button>
+          <span
+            className="app-doc-name"
+            data-testid="doc-name"
+            title={projectPath ?? "Unsaved figure"}
+          >
+            {projectPath !== null ? basename(projectPath) : "untitled.mosaic"}
+            {dirty && (
+              <span
+                className="app-doc-dirty"
+                data-testid="doc-dirty"
+                aria-label="Unsaved changes"
+                title="Unsaved changes"
+              >
+                {" "}
+                •
+              </span>
+            )}
+          </span>
         </div>
         <div className="app-bar-right">
           <ExportMenu
             figure={figure}
-            images={bitmaps}
-            pool={imagesByIdMemo}
-            poolList={state.pool}
-            rows={state.rows}
-            cols={state.cols}
-            gutterPx={state.gutterPx}
+            exportScale={figureExport.exportScale}
+            status={figureExport.status}
+            jpegQuality={jpegQuality}
+            onJpegQualityChange={setJpegQuality}
+            runPng={figureExport.runPng}
+            runJpeg={figureExport.runJpeg}
+            runTiff={figureExport.runTiff}
+            runPdf={figureExport.runPdf}
           />
         </div>
       </div>
@@ -737,38 +875,35 @@ export function App(): JSX.Element {
               history.commit();
             }}
           />
+          <label
+            className="checkbox-row"
+            title="Show or hide auto-generated per-panel letter labels (A, B, C…)"
+            style={{ whiteSpace: "nowrap" }}
+          >
+            <input
+              type="checkbox"
+              checked={state.globalStyle.letters.enabled}
+              onChange={() =>
+                dispatch(setLettersEnabled(!state.globalStyle.letters.enabled))
+              }
+              data-testid="anno-letters-toggle"
+            />
+            Panel letters
+          </label>
         </ToolGroup>
         <span className="toolbar-divider" aria-hidden="true" />
-        <ToolGroup label="Selection">
+        <ToolGroup label="Merge">
           <MergeControls
             canMerge={canMerge}
             canUnmerge={canUnmerge}
+            selectedCount={selection.selected.size}
             onMerge={onMerge}
             onUnmerge={onUnmerge}
           />
         </ToolGroup>
         <span className="toolbar-divider" aria-hidden="true" />
-        <ToolGroup label="Panel">
-          <PanelControls
-            transform={selectedImagePanel?.transform ?? null}
-            onSetFit={onSetFit}
-            onRotate90={onRotate90}
-            onFlipH={onFlipH}
-            onFlipV={onFlipV}
-            onReset={onResetTransform}
-            onCalibrate={onCalibrate}
-          />
-        </ToolGroup>
-        <span className="toolbar-divider" aria-hidden="true" />
         <ToolGroup label="Annotate">
-          <AnnotationToolbar
-            active={activeTool}
-            onChange={setActiveTool}
-            lettersEnabled={state.globalStyle.letters.enabled}
-            onToggleLetters={() =>
-              dispatch(setLettersEnabled(!state.globalStyle.letters.enabled))
-            }
-          />
+          <AnnotationToolbar active={activeTool} onChange={setActiveTool} />
         </ToolGroup>
       </div>
       <div style={{ display: "flex", flex: 1, minHeight: 0 }}>
@@ -782,10 +917,16 @@ export function App(): JSX.Element {
           onUnplacePanel={(panelId) => dispatch(unplacePanel(panelId))}
           onDragSourceChange={setDragSource}
           onRemoveImage={onRemoveImage}
+          selectedThumbId={selectedThumbId}
+          onSelectThumb={onSelectThumb}
+          onPlaceIntoFirstEmpty={onPlaceIntoFirstEmpty}
         />
         <section
           onClick={(e) => {
-            if (e.target === e.currentTarget) setPanelInteraction(null);
+            if (e.target === e.currentTarget) {
+              setPanelInteraction(null);
+              setSelectedThumbId(null);
+            }
           }}
           style={{
             flex: 1,
@@ -885,6 +1026,7 @@ export function App(): JSX.Element {
               onPanelDoubleClick={onPanelDoubleClick}
               onPanelClick={onPanelSingleClick}
               onHoleClick={onHoleClick}
+              onRequestCalibration={onRequestCalibration}
               {...(() => {
                 const sid = selectedIdOf(panelInteraction);
                 return sid !== null ? { selectedPanelId: sid } : {};
@@ -931,13 +1073,22 @@ export function App(): JSX.Element {
           commit={fieldCommit}
           onCalibrate={onCalibrate}
           onCrop={onCrop}
+          onAddImages={() => {
+            void onAddImagesClick();
+          }}
         />
       </div>
       {calibratingImageId !== null && calibratingBitmap !== undefined && (
         <CalibrationModal
           bitmap={calibratingBitmap}
           imageId={calibratingImageId}
-          onClose={() => setCalibratingImageId(null)}
+          onClose={() => {
+            setCalibratingImageId(null);
+            // Cancelled (or after success) — drop any pending scale-bar
+            // placement so a later unrelated calibration won't place a bar.
+            setPendingScalebarPanelId(null);
+          }}
+          onCalibrated={onScalebarCalibrated}
           dispatch={dispatch}
         />
       )}

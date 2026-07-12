@@ -1,6 +1,7 @@
 /**
- * Toolbar exposing the annotation tool selector + the global "letters"
- * visibility toggle.
+ * Toolbar exposing the annotation tool selector. The figure-wide "panel
+ * letters" visibility toggle lives in the Grid group (it's a figure-wide
+ * visibility control, not a placement tool).
  */
 
 export type Tool = "select" | "text" | "symbol" | "scalebar";
@@ -8,8 +9,6 @@ export type Tool = "select" | "text" | "symbol" | "scalebar";
 interface Props {
   active: Tool;
   onChange: (t: Tool) => void;
-  lettersEnabled: boolean;
-  onToggleLetters: () => void;
 }
 
 const TOOLS: ReadonlyArray<{ id: Tool; label: string; title: string }> = [
@@ -23,12 +22,7 @@ const TOOLS: ReadonlyArray<{ id: Tool; label: string; title: string }> = [
   { id: "scalebar", label: "Scale", title: "Add scale bar — click a panel" },
 ];
 
-export function AnnotationToolbar({
-  active,
-  onChange,
-  lettersEnabled,
-  onToggleLetters,
-}: Props): JSX.Element {
+export function AnnotationToolbar({ active, onChange }: Props): JSX.Element {
   return (
     <div
       data-testid="annotation-toolbar"
@@ -49,18 +43,6 @@ export function AnnotationToolbar({
           </button>
         ))}
       </div>
-      <label
-        className="checkbox-row"
-        title="Show or hide auto-generated per-panel letter labels (A, B, C…)"
-      >
-        <input
-          type="checkbox"
-          checked={lettersEnabled}
-          onChange={onToggleLetters}
-          data-testid="anno-letters-toggle"
-        />
-        Letters
-      </label>
     </div>
   );
 }

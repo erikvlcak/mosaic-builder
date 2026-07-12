@@ -20,6 +20,12 @@ interface Props {
   imageId: string;
   onClose: () => void;
   dispatch: Dispatch<FigureAction>;
+  /**
+   * Fires on a successful calibration (not on cancel). Used by the guided
+   * scale-bar flow to place the bar the user originally requested once the
+   * image becomes calibrated.
+   */
+  onCalibrated?: (imageId: string) => void;
 }
 
 const MAX_W = 480;
@@ -36,6 +42,7 @@ export function CalibrationModal({
   imageId,
   onClose,
   dispatch,
+  onCalibrated,
 }: Props): JSX.Element {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [pts, setPts] = useState<ClickPt[]>([]);
@@ -100,6 +107,7 @@ export function CalibrationModal({
         source: "manual",
       }),
     );
+    onCalibrated?.(imageId);
     onClose();
   }
 
