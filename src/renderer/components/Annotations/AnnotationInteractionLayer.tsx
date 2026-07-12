@@ -173,13 +173,6 @@ interface Props {
    */
   onHoleClick?: (row: number, col: number) => void;
   /**
-   * Id of the currently selected occupied panel, if any. The backdrop
-   * carves a hole over its rect so HTML5 dragstart on GridCells's
-   * `<div draggable>` can fire and the user can drag-to-swap. Empty,
-   * unselected, or no panel selected → no carve from this prop.
-   */
-  selectedPanelId?: string;
-  /**
    * When set (figure-px rect of the panel currently in editing mode), the
    * select-mode backdrop carves an additional hole over the rect. This
    * lets pointer events inside the rect reach PanelInteractionLayer's
@@ -565,7 +558,6 @@ export function AnnotationInteractionLayer({
   onPanelDoubleClick,
   onPanelClick,
   onHoleClick,
-  selectedPanelId,
   editingPanelRect,
   onRequestCalibration,
 }: Props): JSX.Element {
@@ -1692,16 +1684,14 @@ export function AnnotationInteractionLayer({
           BEFORE anything is selected so the user can drag-select on an
           empty canvas.
 
-          The backdrop carves holes over (a) the SELECTED occupied
-          panel, so GridCells's `<div draggable>` receives the mousedown
-          that starts a native HTML5 panel-to-panel drag, and (b) the
-          editing panel, so PanelInteractionLayer (zIndex 2) receives
-          pan-drag and corner-resize handle events. Unselected occupied
-          panels, empty panels, and gutters keep backdrop coverage so
-          the user can rubber-band a marquee over their annotations
-          (and a single click forwards through onPanelClick).
+          The backdrop carves holes over (a) EVERY occupied panel, so
+          GridCells's `<div draggable>` receives the mousedown that
+          starts a native HTML5 image move/swap, and (b) the editing
+          panel, so its corner-resize handles receive events. Empty
+          panels and gutters keep backdrop coverage (click forwards
+          through onPanelClick / onHoleClick).
 
-          When no holes exist (no panel selected, no panel editing) the
+          When no holes exist (no panel occupied, none editing) the
           backdrop is one full-coverage div with the legacy testid. */}
       {(() => {
         if (activeTool !== "select") return null;
@@ -1718,23 +1708,23 @@ export function AnnotationInteractionLayer({
           onPointerCancel: onBackdropPointerUp,
         };
         const holes: BackdropRect[] = [];
-        // Carve a hole over the selected occupied panel so HTML5
-        // dragstart on GridCells's `<div draggable>` reaches the panel
-        // for drag-to-swap. Unselected occupied panels stay covered so
-        // the user can rubber-band a marquee over their annotations.
-        if (selectedPanelId !== undefined) {
-          const selPanel = figure.panels.find(
-            (p) => p.panelId === selectedPanelId && p.kind === "image",
-          );
-          const selRect = panelRectsById.get(selectedPanelId);
-          if (selPanel !== undefined && selRect !== undefined) {
-            holes.push({
-              x: selRect.x * figToCssX,
-              y: selRect.y * figToCssY,
-              w: selRect.w * figToCssX,
-              h: selRect.h * figToCssY,
-            });
-          }
+        // Carve a hole over EVERY occupied panel so HTML5 dragstart on
+        // GridCells's `<div draggable>` fires directly — dragging a
+        // placed image is a first-class gesture, no pre-selection
+        // required. Annotations over those panels stay reachable via
+        // their own hit-rect divs (rendered above with pointer-events:
+        // auto); empty panels, holes, and gutters keep backdrop coverage
+        // for click-to-clear and click-forwarding.
+        for (const p of figure.panels) {
+          if (p.kind !== "image" || p.panelId === undefined) continue;
+          const rect = panelRectsById.get(p.panelId);
+          if (rect === undefined) continue;
+          holes.push({
+            x: rect.x * figToCssX,
+            y: rect.y * figToCssY,
+            w: rect.w * figToCssX,
+            h: rect.h * figToCssY,
+          });
         }
         if (editingPanelRect !== undefined) {
           holes.push({

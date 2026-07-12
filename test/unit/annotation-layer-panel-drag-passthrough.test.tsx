@@ -1,30 +1,21 @@
 // @vitest-environment jsdom
 /**
- * Regression: in select mode, dragging an image from one panel to another
- * silently became a marquee gesture, and clicking inside an occupied
- * panel became panel selection instead of marquee. The annotation
- * layer's full-coverage backdrop (zIndex 3, pointerEvents: auto) sat
- * above GridCells's `<div draggable>` panels and captured every
- * pointerdown via setPointerCapture for marquee. The browser never saw
- * the mousedown reach a [draggable] element, so native HTML5 dragstart
- * never fired and the panel-to-panel swap gesture was lost.
+ * Direct image moving: dragging a placed image to another panel is a
+ * first-class gesture with no pre-selection step. The annotation layer's
+ * select-mode backdrop (zIndex 3, pointerEvents: auto) must therefore
+ * carve a hole over EVERY occupied panel so the mousedown reaches
+ * GridCells's `<div draggable>` and native HTML5 dragstart can fire.
  *
- * Fix (two-step model):
- * 1. Single-click on an occupied panel → "selected" (green border).
- *    The backdrop carves a hole over the selected occupied panel so a
- *    subsequent mousedown there triggers a native HTML5 drag-to-swap
- *    via GridCells's `<div draggable>`. GridCells gates draggable on
- *    `isSelected` so HTML5 drag is only attempted from selected panels.
- * 2. Drag from an unselected occupied panel → marquee selection of
- *    annotations (backdrop still covers it, so pointerdown there
- *    starts a marquee). Empty panels and gutters work the same way.
+ * Empty panels and gutters keep backdrop coverage: clicks there clear
+ * the annotation selection and forward to onPanelClick / onHoleClick,
+ * and drags there are viewport pans (owned by useViewportGestures).
  *
  * jsdom doesn't implement real CSS hit-testing, so we lock in the
- * structural invariant: only the selected occupied panel's rect is
- * uncovered by an auto-pointer-events backdrop strip.
+ * structural invariant: occupied panel rects are uncovered by any
+ * auto-pointer-events backdrop strip; other areas stay covered.
  */
 
-import { describe, it, expect, vi, beforeAll } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { AnnotationInteractionLayer } from "../../src/renderer/components/Annotations/AnnotationInteractionLayer";
 import type { Figure } from "../../src/renderer/model/types";
@@ -38,29 +29,13 @@ const DEFAULT_PICKER = initialDefaultSymbolStyle();
 const DEFAULT_TEXT = initialDefaultTextStyle();
 const DEFAULT_SCALEBAR = initialDefaultScalebarStyle();
 
-beforeAll(() => {
-  if (typeof window !== "undefined" && !("PointerEvent" in window)) {
-    class PointerEventPolyfill extends MouseEvent {
-      pointerId: number;
-      pointerType: string;
-      constructor(type: string, init: PointerEventInit = {}) {
-        super(type, init);
-        this.pointerId = init.pointerId ?? 1;
-        this.pointerType = init.pointerType ?? "mouse";
-      }
-    }
-    (
-      window as unknown as { PointerEvent: typeof PointerEventPolyfill }
-    ).PointerEvent = PointerEventPolyfill;
-  }
-});
-
 const LETTERS_OFF = {
   ...DEFAULT_GLOBAL_STYLE,
   letters: { ...DEFAULT_GLOBAL_STYLE.letters, enabled: false },
 };
 
-// 2x1 grid: panel A occupied (left half), panel B occupied (right half).
+// 2x1 grid: panel A occupied (left half), panel B empty placeholder
+// (right half).
 const PANEL_A = "panel-A";
 const PANEL_B = "panel-B";
 const RECT_A: PanelRect = { x: 0, y: 0, w: 100, h: 200 };
@@ -94,17 +69,8 @@ const FIG: Figure = {
       panelId: PANEL_B,
       row: 0,
       col: 1,
-      kind: "image",
-      imageId: "img-2",
-      transform: {
-        fit: "contain",
-        zoom: 1,
-        panX: 0,
-        panY: 0,
-        rotation: 0,
-        flipH: false,
-        flipV: false,
-      },
+      kind: "placeholder",
+      label: "B",
     },
   ],
   annotations: [],
@@ -145,29 +111,32 @@ function backdropStrips(): HTMLElement[] {
   return screen.queryAllByTestId(/^annotation-backdrop(-strip-\d+|$)/);
 }
 
-describe("AnnotationInteractionLayer: selection-driven backdrop carve", () => {
-  it("carves a hole over the SELECTED occupied panel so HTML5 drag can fire", () => {
-    render(
-      <AnnotationInteractionLayer
-        activeTool="select"
-        defaultSymbolStyle={DEFAULT_PICKER}
-        defaultTextStyle={DEFAULT_TEXT}
-        defaultScalebarStyle={DEFAULT_SCALEBAR}
-        onDefaultScalebarStyleChange={vi.fn()}
-        figure={FIG}
-        panelRectsById={PANEL_RECTS}
-        imagesById={new Map()}
-        cssW={200}
-        cssH={200}
-        figurePxW={200}
-        figurePxH={200}
-        selectedAnnotationIds={new Set()}
-        onSelectionChange={() => {}}
-        onEditingChange={() => {}}
-        dispatch={vi.fn()}
-        selectedPanelId={PANEL_A}
-      />,
-    );
+function renderLayer(figure: Figure): void {
+  render(
+    <AnnotationInteractionLayer
+      activeTool="select"
+      defaultSymbolStyle={DEFAULT_PICKER}
+      defaultTextStyle={DEFAULT_TEXT}
+      defaultScalebarStyle={DEFAULT_SCALEBAR}
+      onDefaultScalebarStyleChange={vi.fn()}
+      figure={figure}
+      panelRectsById={PANEL_RECTS}
+      imagesById={new Map()}
+      cssW={200}
+      cssH={200}
+      figurePxW={200}
+      figurePxH={200}
+      selectedAnnotationIds={new Set()}
+      onSelectionChange={() => {}}
+      onEditingChange={() => {}}
+      dispatch={vi.fn()}
+    />,
+  );
+}
+
+describe("AnnotationInteractionLayer: occupied-panel backdrop carve", () => {
+  it("carves a hole over every occupied panel so HTML5 drag fires without pre-selection", () => {
+    renderLayer(FIG);
     const aRect: CssRect = {
       left: RECT_A.x,
       top: RECT_A.y,
@@ -179,30 +148,8 @@ describe("AnnotationInteractionLayer: selection-driven backdrop carve", () => {
     }
   });
 
-  it("STILL covers unselected occupied panels so marquee selection works on them", () => {
-    render(
-      <AnnotationInteractionLayer
-        activeTool="select"
-        defaultSymbolStyle={DEFAULT_PICKER}
-        defaultTextStyle={DEFAULT_TEXT}
-        defaultScalebarStyle={DEFAULT_SCALEBAR}
-        onDefaultScalebarStyleChange={vi.fn()}
-        figure={FIG}
-        panelRectsById={PANEL_RECTS}
-        imagesById={new Map()}
-        cssW={200}
-        cssH={200}
-        figurePxW={200}
-        figurePxH={200}
-        selectedAnnotationIds={new Set()}
-        onSelectionChange={() => {}}
-        onEditingChange={() => {}}
-        dispatch={vi.fn()}
-        selectedPanelId={PANEL_A}
-      />,
-    );
-    // Center of unselected panel B must be inside at least one auto-pointer-
-    // events backdrop strip; otherwise marquee can't start there.
+  it("still covers empty panels so clicks clear/forward and drags pan the view", () => {
+    renderLayer(FIG);
     const bCenter = { x: RECT_B.x + RECT_B.w / 2, y: RECT_B.y + RECT_B.h / 2 };
     const covered = backdropStrips().some((s) =>
       pointInside(bCenter, rectFromStyle(s)),
@@ -210,38 +157,15 @@ describe("AnnotationInteractionLayer: selection-driven backdrop carve", () => {
     expect(covered).toBe(true);
   });
 
-  it("when no panel is selected, both occupied panels stay covered (full backdrop)", () => {
-    render(
-      <AnnotationInteractionLayer
-        activeTool="select"
-        defaultSymbolStyle={DEFAULT_PICKER}
-        defaultTextStyle={DEFAULT_TEXT}
-        defaultScalebarStyle={DEFAULT_SCALEBAR}
-        onDefaultScalebarStyleChange={vi.fn()}
-        figure={FIG}
-        panelRectsById={PANEL_RECTS}
-        imagesById={new Map()}
-        cssW={200}
-        cssH={200}
-        figurePxW={200}
-        figurePxH={200}
-        selectedAnnotationIds={new Set()}
-        onSelectionChange={() => {}}
-        onEditingChange={() => {}}
-        dispatch={vi.fn()}
-      />,
-    );
-    // No selectedPanelId, no editingPanelRect → single full-coverage backdrop.
+  it("with no occupied panels, the single full-coverage backdrop remains", () => {
+    const emptyFig: Figure = {
+      ...FIG,
+      panels: [
+        { panelId: PANEL_A, row: 0, col: 0, kind: "placeholder", label: "A" },
+        { panelId: PANEL_B, row: 0, col: 1, kind: "placeholder", label: "B" },
+      ],
+    };
+    renderLayer(emptyFig);
     expect(screen.getByTestId("annotation-backdrop")).toBeTruthy();
-    const aCenter = { x: RECT_A.x + RECT_A.w / 2, y: RECT_A.y + RECT_A.h / 2 };
-    const bCenter = { x: RECT_B.x + RECT_B.w / 2, y: RECT_B.y + RECT_B.h / 2 };
-    const aCovered = backdropStrips().some((s) =>
-      pointInside(aCenter, rectFromStyle(s)),
-    );
-    const bCovered = backdropStrips().some((s) =>
-      pointInside(bCenter, rectFromStyle(s)),
-    );
-    expect(aCovered).toBe(true);
-    expect(bCovered).toBe(true);
   });
 });

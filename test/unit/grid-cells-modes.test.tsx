@@ -93,24 +93,31 @@ describe("GridCells — selected vs editing modes", () => {
     expect(onPanelDoubleClick).toHaveBeenCalledWith(p.id);
   });
 
-  it("image panel is NOT HTML5-draggable when no panel is selected (annotation backdrop owns pointerdown for marquee)", () => {
-    // Drag-to-swap is now armed only after single-click selects the panel:
-    // before selection the AnnotationInteractionLayer's backdrop covers
-    // the panel so the user can rubber-band a marquee over its annotations.
-    // The backdrop carves a hole over the SELECTED panel only — see
-    // annotation-layer-panel-drag-passthrough.test.tsx.
+  it("occupied panel is HTML5-draggable without pre-selection (drag = pick up the image)", () => {
     const { state } = renderGrid({ interaction: null });
     const p = state.panels[0]!;
     const el = screen.getByTestId(`panel-${p.row}-${p.col}`);
+    expect(el.getAttribute("draggable")).toBe("true");
+    // Stamped as an interactive panel so the viewport pan owner never
+    // starts a pan on it.
+    expect(el.getAttribute("data-interactive")).toBe("panel");
+  });
+
+  it("empty panel is NOT draggable and is pannable background (no data-interactive)", () => {
+    const { state } = renderGrid({ interaction: null });
+    const empty = state.panels.find((p) => p.imageId === undefined)!;
+    const el = screen.getByTestId(`panel-${empty.row}-${empty.col}`);
     expect(el.getAttribute("draggable")).toBe("false");
+    expect(el.getAttribute("data-interactive")).toBeNull();
   });
 
-  it("image panel is NOT HTML5-draggable even in selected mode (drag == pan; move is tray-only)", () => {
-    const s = stateWithImage();
-    const p = s.panels[0]!;
+  it("dragstart on an occupied panel writes the tray payload and reports the drag source", () => {
+    const state = stateWithImage();
+    const p = state.panels[0]!;
+    const onDragSourceChange = vi.fn();
     render(
       <GridCells
-        state={s}
+        state={state}
         figurePxW={800}
         figurePxH={600}
         cssW={800}
@@ -119,46 +126,29 @@ describe("GridCells — selected vs editing modes", () => {
         hoverPanelId={null}
         onHoverPanelChange={vi.fn()}
         dragSource={null}
-        onDragSourceChange={vi.fn()}
+        onDragSourceChange={onDragSourceChange}
         selection={new Set()}
         onCellShiftClick={vi.fn()}
-        panelInteraction={{ mode: "selected", panelId: p.id }}
+        panelInteraction={null}
         onPanelClick={vi.fn()}
         onPanelDoubleClick={vi.fn()}
         onHoleClick={vi.fn()}
       />,
     );
-    expect(
-      screen.getByTestId(`panel-${p.row}-${p.col}`).getAttribute("draggable"),
-    ).toBe("false");
-  });
-
-  it("image panel is NOT HTML5-draggable when it is in editing mode", () => {
-    const s = stateWithImage();
-    const p = s.panels[0]!;
-    render(
-      <GridCells
-        state={s}
-        figurePxW={800}
-        figurePxH={600}
-        cssW={800}
-        cssH={600}
-        onDrop={vi.fn()}
-        hoverPanelId={null}
-        onHoverPanelChange={vi.fn()}
-        dragSource={null}
-        onDragSourceChange={vi.fn()}
-        selection={new Set()}
-        onCellShiftClick={vi.fn()}
-        panelInteraction={{ mode: "editing", panelId: p.id }}
-        onPanelClick={vi.fn()}
-        onPanelDoubleClick={vi.fn()}
-        onHoleClick={vi.fn()}
-      />,
+    const setData = vi.fn();
+    fireEvent.dragStart(screen.getByTestId(`panel-${p.row}-${p.col}`), {
+      dataTransfer: { setData, effectAllowed: "uninitialized" },
+    });
+    // Same payload a tray thumbnail writes — dispatchDrop resolves a
+    // placed image to SWAP_PANELS (move or swap) with no pipeline changes.
+    expect(setData).toHaveBeenCalledWith(
+      "application/x-mosaic-drag",
+      JSON.stringify({ kind: "tray", imageId: "img1" }),
     );
-    expect(
-      screen.getByTestId(`panel-${p.row}-${p.col}`).getAttribute("draggable"),
-    ).toBe("false");
+    expect(onDragSourceChange).toHaveBeenCalledWith({
+      kind: "tray",
+      imageId: "img1",
+    });
   });
 
   it("selected image panel shows solid focus outline (no grab cursor — drag pans)", () => {

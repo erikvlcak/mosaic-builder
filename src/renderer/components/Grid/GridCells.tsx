@@ -10,7 +10,12 @@ import {
   selectedIdOf,
   editingIdOf,
 } from "../../model/panel-interaction";
-import { DRAG_MIME, parseDrag, type DragPayload } from "../../dnd/drag-payload";
+import {
+  DRAG_MIME,
+  parseDrag,
+  serializeDrag,
+  type DragPayload,
+} from "../../dnd/drag-payload";
 import { previewForDrop } from "../../dnd/preview-for-drop";
 import { useSpaceHeld } from "../../interaction/InteractionContext";
 
@@ -78,10 +83,10 @@ export function GridCells({
   onPanelCropBadgeClick,
   onTrackWeightChange,
 }: Props): JSX.Element {
-  // Drag source for the panel currently being dragged (visual dim only).
-  const draggingPanelId =
-    dragSource !== null && dragSource.kind === "panel"
-      ? dragSource.panelId
+  // Image currently being dragged (visual dim on its source panel only).
+  const draggingImageId =
+    dragSource !== null && dragSource.kind === "tray"
+      ? dragSource.imageId
       : null;
 
   const selectedId = selectedIdOf(panelInteraction);
@@ -323,10 +328,23 @@ export function GridCells({
           if (from === null) return;
           onDrop({ from, targetPanelId: panel.id });
         }
-        // Panels are draggable={false}; this never fires from a panel, but
-        // guard defensively so no panel drag can start.
+        // Direct image moving: dragging a placed panel picks up its IMAGE.
+        // The payload is the same tray payload thumbnails use, so
+        // dispatchDrop/previewForDrop resolve it to SWAP_PANELS (move when
+        // the target is empty, swap when occupied) with zero dnd-pipeline
+        // changes.
         function onDragStart(e: React.DragEvent<HTMLDivElement>): void {
-          e.preventDefault();
+          if (panel.imageId === undefined) {
+            e.preventDefault();
+            return;
+          }
+          const payload: DragPayload = {
+            kind: "tray",
+            imageId: panel.imageId,
+          };
+          e.dataTransfer.setData(DRAG_MIME, serializeDrag(payload));
+          e.dataTransfer.effectAllowed = "move";
+          onDragSourceChange(payload);
         }
         function onDragEnd(): void {
           onDragSourceChange(null);
@@ -353,11 +371,10 @@ export function GridCells({
         const isSelected = selectedId === panel.id;
         const isEditing = editingId === panel.id;
 
-        // Panels are never HTML5-draggable: a plain left-drag on the canvas
-        // always pans the view (useCanvasZoom), so a native dragstart here
-        // would collide with panning. Moving/swapping an image is done from
-        // the tray (drag a placed thumbnail onto a panel → SWAP_PANELS).
-        const draggable = false;
+        // Occupied panels are HTML5-draggable — drag moves the thing under
+        // the cursor. Panning never collides: the viewport pan owner skips
+        // data-interactive targets, and this panel is stamped "panel".
+        const draggable = occupied && !isHidden;
 
         // editing: no outline here — PanelInteractionLayer owns editing-mode chrome.
         // Hover outline switches to a "not allowed" treatment for invalid drops
@@ -413,7 +430,10 @@ export function GridCells({
               cursor,
               outline,
               outlineOffset: -2,
-              opacity: draggingPanelId === panel.id ? 0.5 : 1,
+              opacity:
+                draggingImageId !== null && panel.imageId === draggingImageId
+                  ? 0.5
+                  : 1,
               transition: "outline-color 80ms ease, opacity 80ms ease",
               boxSizing: "border-box",
             }}

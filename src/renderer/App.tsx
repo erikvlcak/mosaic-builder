@@ -20,7 +20,6 @@ import {
   type PanelInteraction,
   editingIdOf,
   focusedIdOf,
-  selectedIdOf,
 } from "./model/panel-interaction";
 import {
   initialFigureState,
@@ -62,6 +61,7 @@ import {
   relinkPoolImage,
   removeFromPool,
   addAnnotation,
+  unplacePanel,
 } from "./model/figure-actions";
 import type { ScaleBarAnnotation } from "./model/annotations";
 import { useHistoryReducer } from "./state/use-history-reducer";
@@ -525,9 +525,11 @@ export function App(): JSX.Element {
     setActiveTool("select");
   }, [selection]);
 
-  const onDeleteAnnotation = useCallback(() => {
-    if (selectedAnnotationIds.size === 0) return;
-    if (annotationEditing) return; // an inline editor owns the keystroke
+  // Returns true when the keystroke was consumed — annotations keep
+  // priority over panel unplacing in useKeyboardShortcuts' Delete branch.
+  const onDeleteAnnotation = useCallback((): boolean => {
+    if (annotationEditing) return true; // an inline editor owns the keystroke
+    if (selectedAnnotationIds.size === 0) return false;
     if (selectedAnnotationIds.size === 1) {
       const id = singleSelectedId(selectedAnnotationIds);
       if (id !== null) dispatch(removeAnnotation(id));
@@ -538,7 +540,20 @@ export function App(): JSX.Element {
       });
     }
     setSelectedAnnotationIds(emptySelection());
+    return true;
   }, [selectedAnnotationIds, annotationEditing, dispatch]);
+
+  // Delete/Backspace with a placed panel focused (and no annotation
+  // selected): return the image to the tray. The panel stays selected —
+  // now empty — so the user can immediately drop a replacement.
+  const onUnplacePanel = useCallback(() => {
+    if (focusedPanelId === null) return;
+    const panel = stateRef.current.panels.find((p) => p.id === focusedPanelId);
+    if (panel === undefined || panel.imageId === undefined) return;
+    dispatch(unplacePanel(focusedPanelId));
+    history.commit();
+    setPanelInteraction({ mode: "selected", panelId: focusedPanelId });
+  }, [focusedPanelId, dispatch, history]);
 
   useKeyboardShortcuts({
     onMerge,
@@ -549,6 +564,7 @@ export function App(): JSX.Element {
     onFlipV,
     onResetTransform,
     onDeleteAnnotation,
+    onUnplacePanel,
     onUndo: history.undo,
     onRedo: history.redo,
   });
@@ -1107,10 +1123,6 @@ export function App(): JSX.Element {
                 onPanelClick={onPanelSingleClick}
                 onHoleClick={onHoleClick}
                 onRequestCalibration={onRequestCalibration}
-                {...(() => {
-                  const sid = selectedIdOf(panelInteraction);
-                  return sid !== null ? { selectedPanelId: sid } : {};
-                })()}
                 {...(editingIdOf(panelInteraction) !== null &&
                 focusedPanelRect !== null
                   ? { editingPanelRect: focusedPanelRect }

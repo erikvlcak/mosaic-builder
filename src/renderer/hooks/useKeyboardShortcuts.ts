@@ -8,8 +8,15 @@ export interface ShortcutHandlers {
   onFlipH?: () => void;
   onFlipV?: () => void;
   onResetTransform?: () => void;
-  /** Delete / Backspace removes the currently-selected annotation. */
-  onDeleteAnnotation?: () => void;
+  /**
+   * Delete / Backspace removes the currently-selected annotation. Returns
+   * true when the keystroke was consumed (annotations keep priority over
+   * panel unplacing).
+   */
+  onDeleteAnnotation?: () => boolean;
+  /** Delete / Backspace with a placed panel selected and NO annotation
+   *  selected: unplace the image back to the tray. */
+  onUnplacePanel?: () => void;
   /** Cmd/Ctrl-Z. */
   onUndo?: () => void;
   /** Cmd/Ctrl-Shift-Z. */
@@ -76,12 +83,12 @@ export function useKeyboardShortcuts(h: ShortcutHandlers): void {
           e.preventDefault();
           handlers.onResetTransform();
         }
-      } else if (
-        (e.key === "Delete" || e.key === "Backspace") &&
-        handlers.onDeleteAnnotation
-      ) {
-        e.preventDefault();
-        handlers.onDeleteAnnotation();
+      } else if (e.key === "Delete" || e.key === "Backspace") {
+        if (handlers.onDeleteAnnotation || handlers.onUnplacePanel) {
+          e.preventDefault();
+          const consumed = handlers.onDeleteAnnotation?.() === true;
+          if (!consumed) handlers.onUnplacePanel?.();
+        }
       } else if (e.key === "Escape") {
         handlers.onEscape();
       }
