@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   normalizeWheelPan,
+  resolveEscape,
   resolvePointerDown,
   resolveWheel,
 } from "../../src/renderer/interaction/resolve";
@@ -154,6 +155,27 @@ describe("resolvePointerDown", () => {
       ).toBe(row.expected);
     });
   }
+});
+
+describe("resolveEscape — one level per press", () => {
+  it("armed tool unwinds first, then frame mode, then selections, then nothing", () => {
+    expect(
+      resolveEscape({ frameMode: true, toolArmed: true, hasSelection: true }),
+    ).toBe("disarm-tool");
+    expect(
+      resolveEscape({ frameMode: true, toolArmed: false, hasSelection: true }),
+    ).toBe("exit-frame");
+    expect(
+      resolveEscape({ frameMode: false, toolArmed: false, hasSelection: true }),
+    ).toBe("clear-selections");
+    expect(
+      resolveEscape({
+        frameMode: false,
+        toolArmed: false,
+        hasSelection: false,
+      }),
+    ).toBe("none");
+  });
 });
 
 describe("normalizeWheelPan", () => {

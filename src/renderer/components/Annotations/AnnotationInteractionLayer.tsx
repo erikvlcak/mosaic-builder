@@ -173,6 +173,12 @@ interface Props {
    */
   onHoleClick?: (row: number, col: number) => void;
   /**
+   * Placement tools are one-shot stamps: called after a placement commits
+   * (unless Shift was held at the placing click) so the parent returns the
+   * toolbar to Select.
+   */
+  onToolAutoReturn?: () => void;
+  /**
    * Scale-bar guided flow: called when the scale tool clicks an image panel
    * whose image is not yet calibrated. The parent opens the calibration modal
    * for that image and, on success, places the requested bar. When provided,
@@ -244,6 +250,8 @@ interface PendingScalebar {
   /** CSS px relative to the layer (for popover positioning). */
   cssX: number;
   cssY: number;
+  /** Shift was held at the arming click — keep the tool armed after Add. */
+  keepArmed: boolean;
 }
 
 interface PendingText {
@@ -255,6 +263,8 @@ interface PendingText {
   /** CSS px (for input positioning). */
   cssX: number;
   cssY: number;
+  /** Shift was held at the placing click — keep the tool armed after commit. */
+  keepArmed: boolean;
 }
 
 const DEFAULT_SYMBOL_SIZE = 60;
@@ -548,6 +558,7 @@ export function AnnotationInteractionLayer({
   onPanelDoubleClick,
   onPanelClick,
   onHoleClick,
+  onToolAutoReturn,
   onRequestCalibration,
 }: Props): JSX.Element {
   // Single-select id (null when 0 or > 1 selected). Reused throughout
@@ -627,6 +638,21 @@ export function AnnotationInteractionLayer({
     };
   }, []);
 
+  // Esc unwind, popover level: while the scale-bar popover is open, Esc
+  // closes it (even from its own inputs) and is consumed before the global
+  // handlers — one level per press.
+  useEffect(() => {
+    if (pendingScalebar === null) return;
+    function onKeyDown(e: KeyboardEvent): void {
+      if (e.key !== "Escape") return;
+      e.preventDefault();
+      e.stopPropagation();
+      setPendingScalebar(null);
+    }
+    window.addEventListener("keydown", onKeyDown, true);
+    return () => window.removeEventListener("keydown", onKeyDown, true);
+  }, [pendingScalebar]);
+
   const cssToFigX = figurePxW / cssW;
   const cssToFigY = figurePxH / cssH;
   const figToCssX = cssW / figurePxW;
@@ -700,6 +726,7 @@ export function AnnotationInteractionLayer({
         fy: c.fy,
         cssX: c.cssX,
         cssY: c.cssY,
+        keepArmed: e.shiftKey,
       });
       return;
     }
@@ -735,7 +762,12 @@ export function AnnotationInteractionLayer({
         return;
       }
       setScalebarLengthDraft(String(defaultScalebarStyle.lengthValue));
-      setPendingScalebar({ panelId, cssX: c.cssX, cssY: c.cssY });
+      setPendingScalebar({
+        panelId,
+        cssX: c.cssX,
+        cssY: c.cssY,
+        keepArmed: e.shiftKey,
+      });
       return;
     }
 
@@ -773,9 +805,10 @@ export function AnnotationInteractionLayer({
         }
       }
       dispatch(addAnnotation(ann));
-      // Spec 06: placement mode persists. Do NOT auto-select — the user can
-      // click again to place another symbol with the same style. Switching
-      // to Select selects a placed symbol for editing.
+      // One-shot stamp: the tool returns to Select after placing (no
+      // auto-select of the new symbol). Shift+click keeps it armed for
+      // stamping several in a row.
+      if (!e.shiftKey) onToolAutoReturn?.();
       return;
     }
   }
@@ -1365,6 +1398,7 @@ export function AnnotationInteractionLayer({
       ann.imageId = panel.imageId;
     }
     dispatch(addAnnotation(ann));
+    if (!pendingScalebar.keepArmed) onToolAutoReturn?.();
     setPendingScalebar(null);
   }
 
@@ -1415,6 +1449,7 @@ export function AnnotationInteractionLayer({
     }
     dispatch(addAnnotation(ann));
     onSelectionChange(replaceSelection(ann.id));
+    if (!pendingText.keepArmed) onToolAutoReturn?.();
     setPendingText(null);
   }
 

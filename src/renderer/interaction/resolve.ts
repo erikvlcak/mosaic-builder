@@ -49,6 +49,29 @@ export function resolvePointerDown(input: {
   }
 }
 
+export type EscapeIntent =
+  | "disarm-tool"
+  | "exit-frame"
+  | "clear-selections"
+  | "none";
+
+/**
+ * Esc unwinds ONE level per press. Modals, the inline text editor, and
+ * the scale-bar popover consume Esc locally before it reaches the global
+ * handler; this resolves the remaining order: armed placement tool →
+ * Frame mode → selections (all) → nothing.
+ */
+export function resolveEscape(input: {
+  frameMode: boolean;
+  toolArmed: boolean;
+  hasSelection: boolean;
+}): EscapeIntent {
+  if (input.toolArmed) return "disarm-tool";
+  if (input.frameMode) return "exit-frame";
+  if (input.hasSelection) return "clear-selections";
+  return "none";
+}
+
 /**
  * Normalize a wheel event into 2-D pan deltas. Line-mode deltas
  * (deltaMode === 1, mice on Firefox/Windows) are scaled ×16 to

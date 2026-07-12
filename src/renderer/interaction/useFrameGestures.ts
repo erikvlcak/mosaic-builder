@@ -60,6 +60,9 @@ export function useFrameGestures(args: {
   /** null when not framing. */
   target: FrameTarget | null;
   spaceHeld: boolean;
+  /** An armed placement tool outranks Frame mode in the Esc unwind order —
+   *  when true, Esc is left for the global handler to disarm the tool. */
+  toolArmed: boolean;
   figurePxW: number;
   figurePxH: number;
   cssW: number;
@@ -304,9 +307,14 @@ export function useFrameGestures(args: {
       if (t === null) return;
       switch (e.key) {
         case "Escape":
+          // Esc unwinds ONE level: an armed tool outranks frame mode, so
+          // yield to the global handler (which disarms) in that case.
+          if (cur.toolArmed) return;
+          e.preventDefault();
+          e.stopPropagation();
+          cur.onExit();
+          return;
         case "Enter":
-          // Consume before App's global Escape (clear-everything) handler:
-          // Esc unwinds ONE level — frame mode exits, selection survives.
           e.preventDefault();
           e.stopPropagation();
           cur.onExit();

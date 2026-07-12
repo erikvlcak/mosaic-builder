@@ -95,7 +95,7 @@ import {
   useFrameGestures,
   type FrameTarget,
 } from "./interaction/useFrameGestures";
-import { nextCmdHeld } from "./hooks/useTemporarySelect";
+import { resolveEscape } from "./interaction/resolve";
 import { ZoomControls } from "./components/Toolbar/ZoomControls";
 import { computeCanvasDims, placedPoolImages } from "./model/canvas-dims";
 import { ThemeToggle } from "./components/Toolbar/ThemeToggle";
@@ -135,7 +135,6 @@ export function App(): JSX.Element {
   // Space = hand tool (viewport pan override). Owned here, provided to
   // deep handlers via InteractionProvider.
   const spaceHeld = useSpaceHeldState();
-  const [cmdHeld, setCmdHeld] = useState<boolean>(false);
   const [projectPath, setProjectPath] = useState<string | null>(null);
   const [missingImages, setMissingImages] = useState<
     { imageId: string; filename: string; attemptedPaths: string[] }[]
@@ -533,13 +532,39 @@ export function App(): JSX.Element {
     [dispatch, selection],
   );
 
+  // Esc unwinds ONE level per press. Modals, the inline text editor, the
+  // scale-bar popover, and Frame mode all consume Esc before it reaches
+  // this global handler; what remains is armed tool → selections → nothing
+  // (resolveEscape is the written-down order).
   const onEscape = useCallback(() => {
-    selection.clear();
-    setPanelInteraction(null);
-    setSelectedAnnotationIds(emptySelection());
-    setSelectedThumbId(null);
-    setActiveTool("select");
-  }, [selection]);
+    const intent = resolveEscape({
+      // Frame-mode Esc is consumed by useFrameGestures, so frameMode is
+      // effectively false here unless the frame hook yielded (armed tool).
+      frameMode: false,
+      toolArmed: activeTool !== "select",
+      hasSelection:
+        panelInteraction !== null ||
+        selectedAnnotationIds.size > 0 ||
+        selection.selected.size > 0 ||
+        selectedThumbId !== null,
+    });
+    if (intent === "disarm-tool") {
+      setActiveTool("select");
+      return;
+    }
+    if (intent === "clear-selections") {
+      selection.clear();
+      setPanelInteraction(null);
+      setSelectedAnnotationIds(emptySelection());
+      setSelectedThumbId(null);
+    }
+  }, [
+    activeTool,
+    panelInteraction,
+    selectedAnnotationIds,
+    selection,
+    selectedThumbId,
+  ]);
 
   // Returns true when the keystroke was consumed — annotations keep
   // priority over panel unplacing in useKeyboardShortcuts' Delete branch.
@@ -585,30 +610,6 @@ export function App(): JSX.Element {
     onUndo: history.undo,
     onRedo: history.redo,
   });
-
-  // Hold Cmd/Ctrl = temporary Select mode. Release returns to the prior
-  // tool; a blur clears it defensively.
-  useEffect(() => {
-    function onKeyDown(e: KeyboardEvent): void {
-      setCmdHeld((prev) => nextCmdHeld(prev, e));
-    }
-    function onKeyUp(e: KeyboardEvent): void {
-      if (e.key === "Meta" || e.key === "Control") setCmdHeld(false);
-    }
-    function onBlur(): void {
-      setCmdHeld(false);
-    }
-    window.addEventListener("keydown", onKeyDown);
-    window.addEventListener("keyup", onKeyUp);
-    window.addEventListener("blur", onBlur);
-    return () => {
-      window.removeEventListener("keydown", onKeyDown);
-      window.removeEventListener("keyup", onKeyUp);
-      window.removeEventListener("blur", onBlur);
-    };
-  }, []);
-
-  const effectiveTool: Tool = cmdHeld ? "select" : activeTool;
 
   const canMerge = useMemo(() => {
     const check = canMergeSelection(state.panels, selection.asCoords());
@@ -695,6 +696,7 @@ export function App(): JSX.Element {
     wrapperRef: wrapperRef as React.RefObject<HTMLElement>,
     target: frameTarget,
     spaceHeld,
+    toolArmed: activeTool !== "select",
     figurePxW: FIGURE_PX_W,
     figurePxH: FIGURE_PX_H,
     cssW: zoom.cssW,
@@ -1180,7 +1182,7 @@ export function App(): JSX.Element {
                 );
               })()}
               <AnnotationInteractionLayer
-                activeTool={effectiveTool}
+                activeTool={activeTool}
                 defaultSymbolStyle={defaultSymbolStyle}
                 defaultTextStyle={defaultTextStyle}
                 defaultScalebarStyle={defaultScalebarStyle}
@@ -1201,18 +1203,9 @@ export function App(): JSX.Element {
                 onPanelDoubleClick={onPanelDoubleClick}
                 onPanelClick={onPanelSingleClick}
                 onHoleClick={onHoleClick}
+                onToolAutoReturn={() => setActiveTool("select")}
                 onRequestCalibration={onRequestCalibration}
               />
-              {cmdHeld && activeTool !== "select" && (
-                <div
-                  data-testid="select-mode-chip"
-                  className="select-mode-chip"
-                  role="status"
-                  aria-live="polite"
-                >
-                  SELECT MODE (release ⌘)
-                </div>
-              )}
             </div>
           </section>
           <PropertiesPanel
