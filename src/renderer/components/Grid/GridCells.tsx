@@ -396,8 +396,10 @@ export function GridCells({
                   ? "1px dashed var(--c-text-faint)"
                   : "1px dashed transparent";
 
-        // Cursor is always default now — panels aren't grabbable (drag pans).
-        const cursor = "default";
+        // Occupied panels use the arrow (objects, as in Figma/PPT — the drag
+        // affordance comes from selection + hint bar); empty panels are
+        // pannable background.
+        const cursor = occupied && !isHidden ? "default" : "grab";
 
         return (
           <div

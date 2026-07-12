@@ -1723,7 +1723,8 @@ export function AnnotationInteractionLayer({
           position: "absolute" as const,
           pointerEvents: "auto" as const,
           background: "transparent",
-          cursor: "default",
+          // The backdrop covers pannable background (gutters, empty panels).
+          cursor: "grab",
         };
         const handlers = {
           onPointerDown: onBackdropPointerDown,
@@ -1760,7 +1761,7 @@ export function AnnotationInteractionLayer({
                 inset: 0,
                 pointerEvents: "auto",
                 background: "transparent",
-                cursor: "default",
+                cursor: "grab",
               }}
             />
           );

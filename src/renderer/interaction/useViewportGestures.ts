@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { RefObject } from "react";
 import { hitFromTarget } from "./hit-test";
 import { normalizeWheelPan, resolvePointerDown, resolveWheel } from "./resolve";
@@ -36,9 +36,14 @@ export interface ViewportGestureArgs {
  * mid-drag never changes an in-flight pan; the next pointerdown
  * re-resolves.
  */
-export function useViewportGestures(args: ViewportGestureArgs): void {
+export function useViewportGestures(args: ViewportGestureArgs): {
+  /** A background/Space/middle pan drag is in flight (drives the
+   *  grabbing cursor). */
+  panning: boolean;
+} {
   const s = useRef(args);
   s.current = args;
+  const [panning, setPanning] = useState(false);
 
   useEffect(() => {
     const el = args.scrollRef.current;
@@ -101,6 +106,7 @@ export function useViewportGestures(args: ViewportGestureArgs): void {
         sl: el!.scrollLeft,
         st: el!.scrollTop,
       };
+      setPanning(true);
     }
     function onMove(e: PointerEvent): void {
       if (drag === null) return;
@@ -108,6 +114,7 @@ export function useViewportGestures(args: ViewportGestureArgs): void {
       el!.scrollTop = drag.st - (e.clientY - drag.y);
     }
     function onUp(): void {
+      if (drag !== null) setPanning(false);
       drag = null;
     }
 
@@ -127,4 +134,6 @@ export function useViewportGestures(args: ViewportGestureArgs): void {
       window.removeEventListener("blur", onUp);
     };
   }, [args.scrollRef]);
+
+  return { panning };
 }

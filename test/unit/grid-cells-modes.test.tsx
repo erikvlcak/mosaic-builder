@@ -109,6 +109,8 @@ describe("GridCells — selected vs editing modes", () => {
     const el = screen.getByTestId(`panel-${empty.row}-${empty.col}`);
     expect(el.getAttribute("draggable")).toBe("false");
     expect(el.getAttribute("data-interactive")).toBeNull();
+    // Pannable background shows the grab cursor (Part 3 cursor spec).
+    expect(el.style.cursor).toBe("grab");
   });
 
   it("dragstart on an occupied panel writes the tray payload and reports the drag source", () => {

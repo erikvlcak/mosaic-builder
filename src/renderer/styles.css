@@ -354,6 +354,34 @@ body {
   border-right: 1px solid var(--c-divider);
 }
 
+.hint-bar {
+  flex: none;
+  padding: 4px 12px;
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--c-text-muted);
+  background: var(--c-surface-muted);
+  border-top: 1px solid var(--c-divider);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  user-select: none;
+}
+/* Pan-surface cursors. Space (the hand tool) and Frame mode apply
+   pane-wide, overriding object cursors; an in-flight pan wins over both. */
+.canvas-pane {
+  cursor: grab;
+}
+.canvas-pane.space-held,
+.canvas-pane.space-held *,
+.canvas-pane.frame-mode,
+.canvas-pane.frame-mode * {
+  cursor: grab !important;
+}
+.canvas-pane.is-panning,
+.canvas-pane.is-panning * {
+  cursor: grabbing !important;
+}
 .frame-chip {
   position: absolute;
   top: 6px;

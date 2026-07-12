@@ -13,6 +13,7 @@ import { RelinkModal } from "./components/Modals/RelinkModal";
 import { CropImageModal } from "./components/Modals/CropImageModal";
 import { Tray } from "./components/Sidebar/Tray";
 import { PropertiesPanel } from "./components/Properties/PropertiesPanel";
+import { HintBar, type HintContext } from "./components/StatusHints/HintBar";
 import { GridCells, type DropEvent } from "./components/Grid/GridCells";
 import { FrameChrome } from "./components/Grid/FrameChrome";
 import { SelectedPanelHandles } from "./components/Grid/SelectedPanelHandles";
@@ -707,7 +708,7 @@ export function App(): JSX.Element {
   });
 
   // The single owner of canvas-pane wheel + background-pan gestures.
-  useViewportGestures({
+  const viewport = useViewportGestures({
     scrollRef: scrollRef as React.RefObject<HTMLElement>,
     spaceHeld,
     frameMode: frameTarget !== null,
@@ -715,6 +716,19 @@ export function App(): JSX.Element {
     onFrameWheelPan: frame.wheelPan,
     onFrameWheelZoom: frame.wheelZoom,
   });
+
+  // Hint bar context — a pure projection of the interaction state.
+  const hintContext: HintContext = {
+    spaceHeld,
+    frameMode: frameTarget !== null,
+    toolArmed: activeTool !== "select",
+    selection:
+      focusedPanel === undefined
+        ? "none"
+        : focusedPanel.imageId !== undefined
+          ? "placed-panel"
+          : "empty-panel",
+  };
 
   const onCalibrate = useCallback(() => {
     if (selectedImagePanel?.imageId === undefined) return;
@@ -1070,144 +1084,163 @@ export function App(): JSX.Element {
             onSelectThumb={onSelectThumb}
             onPlaceIntoFirstEmpty={onPlaceIntoFirstEmpty}
           />
-          <section
-            ref={scrollRef as React.RefObject<HTMLElement>}
-            onClick={(e) => {
-              if (e.target === e.currentTarget) {
-                setPanelInteraction(null);
-                setSelectedThumbId(null);
-              }
-            }}
+          <div
             style={{
-              flex: 1,
               display: "flex",
-              padding: 24,
-              overflow: "auto",
-              background: "var(--c-surface-sunken)",
+              flexDirection: "column",
+              flex: 1,
+              minWidth: 0,
+              minHeight: 0,
             }}
           >
-            <div
-              ref={wrapperRef}
+            <section
+              ref={scrollRef as React.RefObject<HTMLElement>}
+              className={[
+                "canvas-pane",
+                spaceHeld ? "space-held" : "",
+                viewport.panning ? "is-panning" : "",
+                frameTarget !== null ? "frame-mode" : "",
+              ]
+                .filter(Boolean)
+                .join(" ")}
+              onClick={(e) => {
+                if (e.target === e.currentTarget) {
+                  setPanelInteraction(null);
+                  setSelectedThumbId(null);
+                }
+              }}
               style={{
-                position: "relative",
-                width: zoom.cssW,
-                height: zoom.cssH,
-                // Center the canvas with AUTO MARGINS, not flex justify/align.
-                // Two reasons: (1) flex would shrink this item's width to fit the
-                // pane when the zoomed canvas is wider than it — deforming the
-                // aspect ratio (height is explicit, width isn't). flexShrink:0
-                // stops that. (2) `justify-content:center` pushes an overflowing
-                // item's left/top edge OUTSIDE the scroll container where
-                // overflow:auto can't scroll to it; auto margins center when the
-                // content fits yet stay fully scroll-reachable when it overflows.
-                flexShrink: 0,
-                margin: "auto",
-                boxShadow: "var(--sh-md)",
-                // Frame the canvas with an OUTLINE (not border) so it doesn't
-                // consume layout space: the wrapper stays exactly cssW × cssH,
-                // keeping the canvas and the GridCells / annotation overlays
-                // (sized off the same cssW/cssH) pixel-aligned. A border here
-                // would shrink the content box and drift the overlay by 1px.
-                outline: "1px solid var(--c-border)",
-                outlineOffset: "-1px",
+                flex: 1,
+                display: "flex",
+                padding: 24,
+                overflow: "auto",
+                background: "var(--c-surface-sunken)",
               }}
             >
-              <EditorCanvas
-                figure={figure}
-                images={bitmaps}
-                pool={imagesByIdMemo}
-                editorScale={sourceScale}
-                theme={effectiveTheme}
-              />
-              <GridCells
-                state={state}
-                figurePxW={FIGURE_PX_W}
-                figurePxH={FIGURE_PX_H}
-                cssW={zoom.cssW}
-                cssH={zoom.cssH}
-                onDrop={onDrop}
-                hoverPanelId={hoverPanelId}
-                onHoverPanelChange={setHoverPanelId}
-                dragSource={dragSource}
-                onDragSourceChange={setDragSource}
-                selection={selection.selected}
-                onCellShiftClick={selection.toggle}
-                panelInteraction={panelInteraction}
-                onPanelClick={onPanelSingleClick}
-                onPanelDoubleClick={onPanelDoubleClick}
-                onHoleClick={onHoleClick}
-                onPanelCropBadgeClick={setCroppingPanelId}
-                onTrackWeightChange={(axis, index, weight) => {
-                  dispatch(setTrackWeightAction(axis, index, weight));
-                  history.commit();
+              <div
+                ref={wrapperRef}
+                style={{
+                  position: "relative",
+                  width: zoom.cssW,
+                  height: zoom.cssH,
+                  // Center the canvas with AUTO MARGINS, not flex justify/align.
+                  // Two reasons: (1) flex would shrink this item's width to fit the
+                  // pane when the zoomed canvas is wider than it — deforming the
+                  // aspect ratio (height is explicit, width isn't). flexShrink:0
+                  // stops that. (2) `justify-content:center` pushes an overflowing
+                  // item's left/top edge OUTSIDE the scroll container where
+                  // overflow:auto can't scroll to it; auto margins center when the
+                  // content fits yet stay fully scroll-reachable when it overflows.
+                  flexShrink: 0,
+                  margin: "auto",
+                  boxShadow: "var(--sh-md)",
+                  // Frame the canvas with an OUTLINE (not border) so it doesn't
+                  // consume layout space: the wrapper stays exactly cssW × cssH,
+                  // keeping the canvas and the GridCells / annotation overlays
+                  // (sized off the same cssW/cssH) pixel-aligned. A border here
+                  // would shrink the content box and drift the overlay by 1px.
+                  outline: "1px solid var(--c-border)",
+                  outlineOffset: "-1px",
                 }}
-              />
-              {frameTarget !== null && (
-                <FrameChrome
-                  panelRect={frameTarget.panelRect}
+              >
+                <EditorCanvas
+                  figure={figure}
+                  images={bitmaps}
+                  pool={imagesByIdMemo}
+                  editorScale={sourceScale}
+                  theme={effectiveTheme}
+                />
+                <GridCells
+                  state={state}
                   figurePxW={FIGURE_PX_W}
                   figurePxH={FIGURE_PX_H}
                   cssW={zoom.cssW}
                   cssH={zoom.cssH}
-                  zoomPct={frameTarget.transform.zoom * 100}
+                  onDrop={onDrop}
+                  hoverPanelId={hoverPanelId}
+                  onHoverPanelChange={setHoverPanelId}
+                  dragSource={dragSource}
+                  onDragSourceChange={setDragSource}
+                  selection={selection.selected}
+                  onCellShiftClick={selection.toggle}
+                  panelInteraction={panelInteraction}
+                  onPanelClick={onPanelSingleClick}
+                  onPanelDoubleClick={onPanelDoubleClick}
+                  onHoleClick={onHoleClick}
+                  onPanelCropBadgeClick={setCroppingPanelId}
+                  onTrackWeightChange={(axis, index, weight) => {
+                    dispatch(setTrackWeightAction(axis, index, weight));
+                    history.commit();
+                  }}
                 />
-              )}
-              {(() => {
-                // Corner resize handles belong to SELECTION (layout ops),
-                // not Frame mode (content framing).
-                const sid = selectedIdOf(panelInteraction);
-                if (sid === null) return null;
-                const panel = state.panels.find((p) => p.id === sid);
-                if (panel === undefined || panel.hidden === true) return null;
-                const rect = panelRectsByIdMemo.get(sid);
-                if (rect === undefined) return null;
-                return (
-                  <SelectedPanelHandles
-                    panelRect={rect}
+                {frameTarget !== null && (
+                  <FrameChrome
+                    panelRect={frameTarget.panelRect}
                     figurePxW={FIGURE_PX_W}
                     figurePxH={FIGURE_PX_H}
                     cssW={zoom.cssW}
                     cssH={zoom.cssH}
-                    onCommit={history.commit}
-                    onResizeFreeform={(corner, dx, dy) => {
-                      dispatch(
-                        resizePanelFreeformAction(sid, corner, dx, dy, {
-                          widthPx: FIGURE_PX_W,
-                          heightPx: FIGURE_PX_H,
-                        }),
-                      );
-                      // history.commit() runs on pointer-up via onCommit.
-                    }}
+                    zoomPct={frameTarget.transform.zoom * 100}
                   />
-                );
-              })()}
-              <AnnotationInteractionLayer
-                activeTool={activeTool}
-                defaultSymbolStyle={defaultSymbolStyle}
-                defaultTextStyle={defaultTextStyle}
-                defaultScalebarStyle={defaultScalebarStyle}
-                onDefaultScalebarStyleChange={setDefaultScalebarStyle}
-                figure={figure}
-                panelRectsById={panelRectsByIdMemo}
-                imagesById={imagesByIdMemo}
-                cssW={zoom.cssW}
-                cssH={zoom.cssH}
-                figurePxW={FIGURE_PX_W}
-                figurePxH={FIGURE_PX_H}
-                selectedAnnotationIds={selectedAnnotationIds}
-                onSelectionChange={setSelectedAnnotationIds}
-                onEditingChange={setAnnotationEditing}
-                dispatch={dispatch}
-                onTrayDrop={onDrop}
-                onTrayDragHoverChange={setHoverPanelId}
-                onPanelDoubleClick={onPanelDoubleClick}
-                onPanelClick={onPanelSingleClick}
-                onHoleClick={onHoleClick}
-                onToolAutoReturn={() => setActiveTool("select")}
-                onRequestCalibration={onRequestCalibration}
-              />
-            </div>
-          </section>
+                )}
+                {(() => {
+                  // Corner resize handles belong to SELECTION (layout ops),
+                  // not Frame mode (content framing).
+                  const sid = selectedIdOf(panelInteraction);
+                  if (sid === null) return null;
+                  const panel = state.panels.find((p) => p.id === sid);
+                  if (panel === undefined || panel.hidden === true) return null;
+                  const rect = panelRectsByIdMemo.get(sid);
+                  if (rect === undefined) return null;
+                  return (
+                    <SelectedPanelHandles
+                      panelRect={rect}
+                      figurePxW={FIGURE_PX_W}
+                      figurePxH={FIGURE_PX_H}
+                      cssW={zoom.cssW}
+                      cssH={zoom.cssH}
+                      onCommit={history.commit}
+                      onResizeFreeform={(corner, dx, dy) => {
+                        dispatch(
+                          resizePanelFreeformAction(sid, corner, dx, dy, {
+                            widthPx: FIGURE_PX_W,
+                            heightPx: FIGURE_PX_H,
+                          }),
+                        );
+                        // history.commit() runs on pointer-up via onCommit.
+                      }}
+                    />
+                  );
+                })()}
+                <AnnotationInteractionLayer
+                  activeTool={activeTool}
+                  defaultSymbolStyle={defaultSymbolStyle}
+                  defaultTextStyle={defaultTextStyle}
+                  defaultScalebarStyle={defaultScalebarStyle}
+                  onDefaultScalebarStyleChange={setDefaultScalebarStyle}
+                  figure={figure}
+                  panelRectsById={panelRectsByIdMemo}
+                  imagesById={imagesByIdMemo}
+                  cssW={zoom.cssW}
+                  cssH={zoom.cssH}
+                  figurePxW={FIGURE_PX_W}
+                  figurePxH={FIGURE_PX_H}
+                  selectedAnnotationIds={selectedAnnotationIds}
+                  onSelectionChange={setSelectedAnnotationIds}
+                  onEditingChange={setAnnotationEditing}
+                  dispatch={dispatch}
+                  onTrayDrop={onDrop}
+                  onTrayDragHoverChange={setHoverPanelId}
+                  onPanelDoubleClick={onPanelDoubleClick}
+                  onPanelClick={onPanelSingleClick}
+                  onHoleClick={onHoleClick}
+                  onToolAutoReturn={() => setActiveTool("select")}
+                  onRequestCalibration={onRequestCalibration}
+                />
+              </div>
+            </section>
+            <HintBar context={hintContext} />
+          </div>
           <PropertiesPanel
             state={state}
             // Pass the raw focused panel, NOT selectedImagePanel: an empty
