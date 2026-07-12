@@ -174,7 +174,7 @@ export function CalibrationModal({
                 height: 10,
                 borderRadius: "50%",
                 background: "var(--c-accent)",
-                border: "2px solid #FFF",
+                border: "2px solid var(--c-surface)",
                 boxShadow: "0 0 0 1px rgba(15,23,42,0.5)",
                 pointerEvents: "none",
               }}

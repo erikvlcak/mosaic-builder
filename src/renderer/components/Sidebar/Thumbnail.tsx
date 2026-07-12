@@ -47,7 +47,15 @@ export function Thumbnail({
     c.height = SIZE;
     const ctx = c.getContext("2d");
     if (ctx === null) return;
-    ctx.fillStyle = "#1E232B";
+    // Canvas can't read CSS custom properties; resolve the token at draw time.
+    // Deps stay [bitmap], so an already-rendered thumb won't repaint on a live
+    // theme flip — it repaints on the next data change. Acceptable for a minor
+    // chrome detail; the fallback covers an unset var.
+    const thumbBg =
+      getComputedStyle(document.documentElement)
+        .getPropertyValue("--c-thumb-bg")
+        .trim() || "#1E232B";
+    ctx.fillStyle = thumbBg;
     ctx.fillRect(0, 0, SIZE, SIZE);
     const scale = Math.min(SIZE / bitmap.width, SIZE / bitmap.height);
     const w = bitmap.width * scale;

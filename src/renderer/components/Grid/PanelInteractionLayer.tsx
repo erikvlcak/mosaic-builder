@@ -385,7 +385,7 @@ function CornerHandle({
         height: SIZE,
         ...positions[corner],
         background: "var(--c-accent)",
-        border: "1px solid #fff",
+        border: "1px solid var(--c-surface)",
         borderRadius: 2,
         zIndex: 5,
         pointerEvents: "auto",

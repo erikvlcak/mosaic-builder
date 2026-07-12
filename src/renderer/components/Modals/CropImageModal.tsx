@@ -93,8 +93,14 @@ export function CropImageModal({
     const ctx = c.getContext("2d");
     if (ctx === null) return;
     ctx.clearRect(0, 0, PREVIEW_W, PREVIEW_H);
-    // Background to indicate the panel rect.
-    ctx.fillStyle = "#F1F5F9";
+    // Background to indicate the panel rect. Canvas can't read CSS vars, so
+    // resolve the surface-muted token at draw time (fallback keeps the old hex
+    // if the var is unset).
+    const previewBg =
+      getComputedStyle(document.documentElement)
+        .getPropertyValue("--c-surface-muted")
+        .trim() || "#F1F5F9";
+    ctx.fillStyle = previewBg;
     ctx.fillRect(0, 0, PREVIEW_W, PREVIEW_H);
     const sx = crop.x * bitmap.width;
     const sy = crop.y * bitmap.height;
@@ -383,7 +389,7 @@ export function CropImageModal({
                     top: pos.y - HANDLE_PX / 2,
                     width: HANDLE_PX,
                     height: HANDLE_PX,
-                    background: "#FFF",
+                    background: "var(--c-surface)",
                     border: "1px solid var(--c-accent)",
                     borderRadius: 2,
                     cursor: handleCursor(h),
@@ -414,7 +420,7 @@ export function CropImageModal({
                   display: "block",
                   border: "1px solid var(--c-border-strong)",
                   borderRadius: "var(--r-sm)",
-                  background: "#F1F5F9",
+                  background: "var(--c-surface-muted)",
                 }}
               />
             </div>
