@@ -14,12 +14,14 @@ import { CropImageModal } from "./components/Modals/CropImageModal";
 import { Tray } from "./components/Sidebar/Tray";
 import { PropertiesPanel } from "./components/Properties/PropertiesPanel";
 import { GridCells, type DropEvent } from "./components/Grid/GridCells";
-import { PanelInteractionLayer } from "./components/Grid/PanelInteractionLayer";
+import { FrameChrome } from "./components/Grid/FrameChrome";
+import { SelectedPanelHandles } from "./components/Grid/SelectedPanelHandles";
 import type { DragPayload } from "./dnd/drag-payload";
 import {
   type PanelInteraction,
   editingIdOf,
   focusedIdOf,
+  selectedIdOf,
 } from "./model/panel-interaction";
 import {
   initialFigureState,
@@ -89,6 +91,10 @@ import {
   useSpaceHeldState,
 } from "./interaction/InteractionContext";
 import { useViewportGestures } from "./interaction/useViewportGestures";
+import {
+  useFrameGestures,
+  type FrameTarget,
+} from "./interaction/useFrameGestures";
 import { nextCmdHeld } from "./hooks/useTemporarySelect";
 import { ZoomControls } from "./components/Toolbar/ZoomControls";
 import { computeCanvasDims, placedPoolImages } from "./model/canvas-dims";
@@ -156,6 +162,9 @@ export function App(): JSX.Element {
   const stateRef = useRef<FigureState>(state);
   stateRef.current = state;
   const scrollRef = useRef<HTMLElement | null>(null);
+  // The cssW × cssH canvas box inside the scroll pane — panel rects are
+  // relative to it (frame gestures hit-test against it).
+  const wrapperRef = useRef<HTMLDivElement | null>(null);
 
   // sourceScale drives BOTH the editor backing store and the zoom % mapping.
   // Match computeExportScale: the larger per-axis ratio, floored at 1. The
@@ -184,16 +193,6 @@ export function App(): JSX.Element {
     sourceScale,
     modelW: FIGURE_PX_W,
     modelH: FIGURE_PX_H,
-  });
-
-  // The single owner of canvas-pane wheel + background-pan gestures.
-  // Frame mode retargeting arrives in Phase 3; until then wheel/drag are
-  // always viewport verbs.
-  useViewportGestures({
-    scrollRef: scrollRef as React.RefObject<HTMLElement>,
-    spaceHeld,
-    frameMode: false,
-    onZoomWheel: zoom.wheelZoom,
   });
 
   const {
@@ -504,8 +503,25 @@ export function App(): JSX.Element {
   const onPanelDoubleClick = useCallback((panelId: string) => {
     const panel = stateRef.current.panels.find((p) => p.id === panelId);
     if (panel === undefined || panel.imageId === undefined) return;
+    // Stretch fit has no framing degrees of freedom (the image always
+    // fills the panel) — select instead of entering Frame mode.
+    if (panel.transform?.fit === "stretch") {
+      setPanelInteraction({ mode: "selected", panelId });
+      return;
+    }
     setPanelInteraction({ mode: "editing", panelId });
   }, []);
+
+  // Enter on a selected placed panel enters Frame mode (same gate as
+  // double-click).
+  const onEnterFrame = useCallback(() => {
+    const sid = selectedIdOf(panelInteraction);
+    if (sid === null) return;
+    const panel = stateRef.current.panels.find((p) => p.id === sid);
+    if (panel === undefined || panel.imageId === undefined) return;
+    if (panel.transform?.fit === "stretch") return;
+    setPanelInteraction({ mode: "editing", panelId: sid });
+  }, [panelInteraction]);
 
   const onHoleClick = useCallback(
     (row: number, col: number) => {
@@ -565,6 +581,7 @@ export function App(): JSX.Element {
     onResetTransform,
     onDeleteAnnotation,
     onUnplacePanel,
+    onEnterFrame,
     onUndo: history.undo,
     onRedo: history.redo,
   });
@@ -647,6 +664,55 @@ export function App(): JSX.Element {
     selectedImagePanel?.imageId !== undefined
       ? bitmaps.get(selectedImagePanel.imageId)
       : undefined;
+
+  // Frame mode: the one true mode. Gestures retarget onto this target's
+  // image, position-independently within the canvas pane.
+  const frameTarget = useMemo((): FrameTarget | null => {
+    if (editingIdOf(panelInteraction) === null) return null;
+    if (selectedImagePanel?.transform === undefined) return null;
+    if (selectedImagePanel.transform.fit === "stretch") return null;
+    if (focusedPanelRect === null || focusedBitmap === undefined) return null;
+    return {
+      panelId: selectedImagePanel.id,
+      panelRect: focusedPanelRect,
+      transform: selectedImagePanel.transform,
+      imageW: focusedBitmap.width,
+      imageH: focusedBitmap.height,
+    };
+  }, [panelInteraction, selectedImagePanel, focusedPanelRect, focusedBitmap]);
+
+  const onExitFrame = useCallback(() => {
+    // Esc unwinds one level: framing ends, the panel stays selected.
+    setPanelInteraction((pi) =>
+      pi !== null && pi.mode === "editing"
+        ? { mode: "selected", panelId: pi.panelId }
+        : pi,
+    );
+  }, []);
+
+  const frame = useFrameGestures({
+    scrollRef: scrollRef as React.RefObject<HTMLElement>,
+    wrapperRef: wrapperRef as React.RefObject<HTMLElement>,
+    target: frameTarget,
+    spaceHeld,
+    figurePxW: FIGURE_PX_W,
+    figurePxH: FIGURE_PX_H,
+    cssW: zoom.cssW,
+    cssH: zoom.cssH,
+    dispatch,
+    onCommit: history.commit,
+    onExit: onExitFrame,
+  });
+
+  // The single owner of canvas-pane wheel + background-pan gestures.
+  useViewportGestures({
+    scrollRef: scrollRef as React.RefObject<HTMLElement>,
+    spaceHeld,
+    frameMode: frameTarget !== null,
+    onZoomWheel: zoom.wheelZoom,
+    onFrameWheelPan: frame.wheelPan,
+    onFrameWheelZoom: frame.wheelZoom,
+  });
 
   const onCalibrate = useCallback(() => {
     if (selectedImagePanel?.imageId === undefined) return;
@@ -1019,6 +1085,7 @@ export function App(): JSX.Element {
             }}
           >
             <div
+              ref={wrapperRef}
               style={{
                 position: "relative",
                 width: zoom.cssW,
@@ -1073,14 +1140,28 @@ export function App(): JSX.Element {
                   history.commit();
                 }}
               />
-              {editingIdOf(panelInteraction) !== null &&
-                selectedImagePanel !== undefined &&
-                focusedPanelRect !== null &&
-                focusedBitmap !== undefined &&
-                selectedImagePanel.transform !== undefined && (
-                  <PanelInteractionLayer
-                    panelRect={focusedPanelRect}
-                    transform={selectedImagePanel.transform}
+              {frameTarget !== null && (
+                <FrameChrome
+                  panelRect={frameTarget.panelRect}
+                  figurePxW={FIGURE_PX_W}
+                  figurePxH={FIGURE_PX_H}
+                  cssW={zoom.cssW}
+                  cssH={zoom.cssH}
+                  zoomPct={frameTarget.transform.zoom * 100}
+                />
+              )}
+              {(() => {
+                // Corner resize handles belong to SELECTION (layout ops),
+                // not Frame mode (content framing).
+                const sid = selectedIdOf(panelInteraction);
+                if (sid === null) return null;
+                const panel = state.panels.find((p) => p.id === sid);
+                if (panel === undefined || panel.hidden === true) return null;
+                const rect = panelRectsByIdMemo.get(sid);
+                if (rect === undefined) return null;
+                return (
+                  <SelectedPanelHandles
+                    panelRect={rect}
                     figurePxW={FIGURE_PX_W}
                     figurePxH={FIGURE_PX_H}
                     cssW={zoom.cssW}
@@ -1088,18 +1169,16 @@ export function App(): JSX.Element {
                     onCommit={history.commit}
                     onResizeFreeform={(corner, dx, dy) => {
                       dispatch(
-                        resizePanelFreeformAction(
-                          selectedImagePanel.id,
-                          corner,
-                          dx,
-                          dy,
-                          { widthPx: FIGURE_PX_W, heightPx: FIGURE_PX_H },
-                        ),
+                        resizePanelFreeformAction(sid, corner, dx, dy, {
+                          widthPx: FIGURE_PX_W,
+                          heightPx: FIGURE_PX_H,
+                        }),
                       );
                       // history.commit() runs on pointer-up via onCommit.
                     }}
                   />
-                )}
+                );
+              })()}
               <AnnotationInteractionLayer
                 activeTool={effectiveTool}
                 defaultSymbolStyle={defaultSymbolStyle}
@@ -1123,10 +1202,6 @@ export function App(): JSX.Element {
                 onPanelClick={onPanelSingleClick}
                 onHoleClick={onHoleClick}
                 onRequestCalibration={onRequestCalibration}
-                {...(editingIdOf(panelInteraction) !== null &&
-                focusedPanelRect !== null
-                  ? { editingPanelRect: focusedPanelRect }
-                  : {})}
               />
               {cmdHeld && activeTool !== "select" && (
                 <div

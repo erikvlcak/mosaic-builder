@@ -2,106 +2,68 @@ import * as React from "react";
 import { useRef } from "react";
 import type { Corner } from "../../model/grid-layout";
 import type { PanelRect } from "../../render/coords";
-import type { PanelTransform } from "../../model/panels";
 import { useSpaceHeld } from "../../interaction/InteractionContext";
 
 interface Props {
-  /** Panel rect in figure-pixel coordinates. */
+  /** Selected panel rect in figure-px. */
   panelRect: PanelRect;
-  transform: PanelTransform;
   figurePxW: number;
   figurePxH: number;
   cssW: number;
   cssH: number;
-  /** Called on pointer-up of a corner-handle drag (one history entry). */
-  onCommit: () => void;
   /**
-   * Spec 11: when present, four corner handles are rendered. Dragging a
-   * handle dispatches RESIZE_PANEL_FREEFORM via this callback. dx/dy are
-   * cumulative figure-px deltas from the drag start (NOT incremental).
+   * Dragging a handle dispatches RESIZE_PANEL_FREEFORM via this callback.
+   * dx/dy are INCREMENTAL figure-px deltas (frame-to-frame); the reducer
+   * applies each atop the current rects.
    */
-  onResizeFreeform?: (corner: Corner, dx: number, dy: number) => void;
+  onResizeFreeform: (corner: Corner, dx: number, dy: number) => void;
+  /** Called once on pointer-up so a whole drag is one history entry. */
+  onCommit: () => void;
 }
 
 /**
- * Chrome for the panel in editing (frame) mode: dashed accent outline +
- * corner resize handles. This layer owns NO wheel/drag gestures — the
- * viewport owner (useViewportGestures) and, from Phase 3, the frame
- * gesture owner route all pan/zoom via interaction/resolve.ts. Until
- * then, image framing is driven from the properties panel.
+ * Corner resize handles for the SELECTED panel. Layout operations (panel
+ * geometry) belong to selection; content operations (image framing) belong
+ * to Frame mode — these were conflated in one mode before the interaction
+ * redesign.
  */
-export function PanelInteractionLayer({
+export function SelectedPanelHandles({
   panelRect,
-  transform,
   figurePxW,
   figurePxH,
   cssW,
   cssH,
-  onCommit,
   onResizeFreeform,
-}: Props): JSX.Element | null {
+  onCommit,
+}: Props): JSX.Element {
   const cssToFigX = figurePxW / cssW;
   const cssToFigY = figurePxH / cssH;
-
   return (
     <div
-      data-testid="panel-interaction-layer"
+      data-testid="selected-panel-handles"
       style={{
         position: "absolute",
         left: panelRect.x * (cssW / figurePxW),
         top: panelRect.y * (cssH / figurePxH),
         width: panelRect.w * (cssW / figurePxW),
         height: panelRect.h * (cssH / figurePxH),
-        // Chrome only — pointer events pass through to the layers below;
-        // the corner handles re-enable their own.
         pointerEvents: "none",
         boxSizing: "border-box",
-        // Unified selection chrome: both modes use the accent hue so a
-        // colorblind user tells them apart by pattern, not color — DASHED
-        // accent = editing (framing), vs the SOLID accent GridCells draws
-        // around a merely-selected panel. Stretch fit has no framing
-        // degrees of freedom, so it gets no editing outline.
-        outline:
-          transform.fit === "stretch"
-            ? undefined
-            : "3px dashed var(--c-accent)",
-        outlineOffset: -3,
-        background: "transparent",
-        zIndex: 2,
+        // Above the annotation layer (zIndex 3) so the handles win hits on
+        // the panel corners; the container itself is hit-transparent.
+        zIndex: 4,
       }}
     >
-      {onResizeFreeform !== undefined && (
-        <>
-          <CornerHandle
-            corner="tl"
-            cssToFigX={cssToFigX}
-            cssToFigY={cssToFigY}
-            onResize={onResizeFreeform}
-            onCommit={onCommit}
-          />
-          <CornerHandle
-            corner="tr"
-            cssToFigX={cssToFigX}
-            cssToFigY={cssToFigY}
-            onResize={onResizeFreeform}
-            onCommit={onCommit}
-          />
-          <CornerHandle
-            corner="bl"
-            cssToFigX={cssToFigX}
-            cssToFigY={cssToFigY}
-            onResize={onResizeFreeform}
-            onCommit={onCommit}
-          />
-          <CornerHandle
-            corner="br"
-            cssToFigX={cssToFigX}
-            cssToFigY={cssToFigY}
-            onResize={onResizeFreeform}
-            onCommit={onCommit}
-          />
-        </>
-      )}
+      {(["tl", "tr", "bl", "br"] as const).map((corner) => (
+        <CornerHandle
+          key={corner}
+          corner={corner}
+          cssToFigX={cssToFigX}
+          cssToFigY={cssToFigY}
+          onResize={onResizeFreeform}
+          onCommit={onCommit}
+        />
+      ))}
     </div>
   );
 }
@@ -179,8 +141,8 @@ function CornerHandle({
   }
 
   const SIZE = 12;
-  // Position relative to parent (PanelInteractionLayer's outer div). The
-  // negative offsets put the handle CENTERED on the panel's corner.
+  // Position relative to the container. The negative offsets put the handle
+  // CENTERED on the panel's corner.
   const positions: Record<Corner, React.CSSProperties> = {
     tl: { left: -SIZE / 2, top: -SIZE / 2, cursor: "nwse-resize" },
     tr: { right: -SIZE / 2, top: -SIZE / 2, cursor: "nesw-resize" },

@@ -173,16 +173,6 @@ interface Props {
    */
   onHoleClick?: (row: number, col: number) => void;
   /**
-   * When set (figure-px rect of the panel currently in editing mode), the
-   * select-mode backdrop carves an additional hole over the rect. This
-   * lets pointer events inside the rect reach PanelInteractionLayer's
-   * pan-drag area and the corner-resize handles, which would otherwise
-   * be eclipsed by the always-on backdrop (zIndex 3 above PIL's zIndex 2).
-   * Marquee selection and click-to-clear still work on the strips
-   * outside the editing panel.
-   */
-  editingPanelRect?: PanelRect;
-  /**
    * Scale-bar guided flow: called when the scale tool clicks an image panel
    * whose image is not yet calibrated. The parent opens the calibration modal
    * for that image and, on success, places the requested bar. When provided,
@@ -558,7 +548,6 @@ export function AnnotationInteractionLayer({
   onPanelDoubleClick,
   onPanelClick,
   onHoleClick,
-  editingPanelRect,
   onRequestCalibration,
 }: Props): JSX.Element {
   // Single-select id (null when 0 or > 1 selected). Reused throughout
@@ -1684,15 +1673,15 @@ export function AnnotationInteractionLayer({
           BEFORE anything is selected so the user can drag-select on an
           empty canvas.
 
-          The backdrop carves holes over (a) EVERY occupied panel, so
+          The backdrop carves holes over EVERY occupied panel, so
           GridCells's `<div draggable>` receives the mousedown that
-          starts a native HTML5 image move/swap, and (b) the editing
-          panel, so its corner-resize handles receive events. Empty
-          panels and gutters keep backdrop coverage (click forwards
-          through onPanelClick / onHoleClick).
+          starts a native HTML5 image move/swap. Empty panels and
+          gutters keep backdrop coverage (click forwards through
+          onPanelClick / onHoleClick). SelectedPanelHandles sits at a
+          higher zIndex, so corner handles win hits regardless.
 
-          When no holes exist (no panel occupied, none editing) the
-          backdrop is one full-coverage div with the legacy testid. */}
+          When no panel is occupied the backdrop is one full-coverage
+          div with the legacy testid. */}
       {(() => {
         if (activeTool !== "select") return null;
         const stripStyle = {
@@ -1724,14 +1713,6 @@ export function AnnotationInteractionLayer({
             y: rect.y * figToCssY,
             w: rect.w * figToCssX,
             h: rect.h * figToCssY,
-          });
-        }
-        if (editingPanelRect !== undefined) {
-          holes.push({
-            x: editingPanelRect.x * figToCssX,
-            y: editingPanelRect.y * figToCssY,
-            w: editingPanelRect.w * figToCssX,
-            h: editingPanelRect.h * figToCssY,
           });
         }
         if (holes.length === 0) {

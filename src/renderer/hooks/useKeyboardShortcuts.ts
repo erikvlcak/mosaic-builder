@@ -17,6 +17,8 @@ export interface ShortcutHandlers {
   /** Delete / Backspace with a placed panel selected and NO annotation
    *  selected: unplace the image back to the tray. */
   onUnplacePanel?: () => void;
+  /** Enter with a placed panel selected: enter Frame mode. */
+  onEnterFrame?: () => void;
   /** Cmd/Ctrl-Z. */
   onUndo?: () => void;
   /** Cmd/Ctrl-Shift-Z. */
@@ -89,6 +91,17 @@ export function useKeyboardShortcuts(h: ShortcutHandlers): void {
           const consumed = handlers.onDeleteAnnotation?.() === true;
           if (!consumed) handlers.onUnplacePanel?.();
         }
+      } else if (e.key === "Enter") {
+        // Don't hijack Enter from focusable controls (buttons, tray
+        // thumbnails) — their own activation semantics win.
+        const t = e.target;
+        if (
+          t instanceof HTMLElement &&
+          (t.tagName === "BUTTON" || t.tagName === "A" || t.tabIndex >= 0)
+        ) {
+          return;
+        }
+        if (handlers.onEnterFrame) handlers.onEnterFrame();
       } else if (e.key === "Escape") {
         handlers.onEscape();
       }
