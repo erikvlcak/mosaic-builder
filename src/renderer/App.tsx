@@ -85,6 +85,7 @@ import { APP_VERSION } from "./app-version";
 import { useToasts } from "./hooks/useToasts";
 import { ToastTray } from "./components/Toasts/ToastTray";
 import { useCanvasZoom } from "./hooks/useCanvasZoom";
+import { nextCmdHeld } from "./hooks/useTemporarySelect";
 import { ZoomControls } from "./components/Toolbar/ZoomControls";
 import { computeCanvasDims } from "./model/canvas-dims";
 
@@ -566,7 +567,7 @@ export function App(): JSX.Element {
   // image-pan). Release returns to the prior tool; a blur clears it defensively.
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent): void {
-      if (e.key === "Meta" || e.key === "Control") setCmdHeld(true);
+      setCmdHeld((prev) => nextCmdHeld(prev, e));
     }
     function onKeyUp(e: KeyboardEvent): void {
       if (e.key === "Meta" || e.key === "Control") setCmdHeld(false);
