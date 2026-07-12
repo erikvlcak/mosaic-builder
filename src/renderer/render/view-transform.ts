@@ -52,5 +52,8 @@ export function scrollForCursorZoom(args: {
   const fracY = (args.oldScrollTop + args.cursorY) / args.oldCssH;
   const scrollLeft = fracX * args.newCssW - args.cursorX;
   const scrollTop = fracY * args.newCssH - args.cursorY;
-  return { scrollLeft: Math.max(0, scrollLeft), scrollTop: Math.max(0, scrollTop) };
+  return {
+    scrollLeft: Math.max(0, scrollLeft),
+    scrollTop: Math.max(0, scrollTop),
+  };
 }

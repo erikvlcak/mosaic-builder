@@ -15,15 +15,15 @@ describe("nextCmdHeld", () => {
   });
 
   it("a chord (metaKey + z) cancels held", () => {
-    expect(
-      nextCmdHeld(true, { key: "z", metaKey: true, ctrlKey: false }),
-    ).toBe(false);
+    expect(nextCmdHeld(true, { key: "z", metaKey: true, ctrlKey: false })).toBe(
+      false,
+    );
   });
 
   it("a chord (metaKey + n) cancels held", () => {
-    expect(
-      nextCmdHeld(true, { key: "n", metaKey: true, ctrlKey: false }),
-    ).toBe(false);
+    expect(nextCmdHeld(true, { key: "n", metaKey: true, ctrlKey: false })).toBe(
+      false,
+    );
   });
 
   it("an unmodified key leaves held unchanged", () => {

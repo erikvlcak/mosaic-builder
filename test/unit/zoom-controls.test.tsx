@@ -35,7 +35,9 @@ describe("ZoomControls", () => {
 
   it("shows the current percent", () => {
     setup({ displayPct: 250 });
-    expect(screen.getByTestId<HTMLInputElement>("zoom-pct-input").value).toBe("250");
+    expect(screen.getByTestId<HTMLInputElement>("zoom-pct-input").value).toBe(
+      "250",
+    );
   });
 
   it("commits a typed percent on Enter", () => {

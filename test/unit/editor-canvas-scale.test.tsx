@@ -27,7 +27,12 @@ describe("EditorCanvas: editorScale plumbing", () => {
       dispose: vi.fn(),
     });
     render(
-      <EditorCanvas figure={FIG} images={new Map()} pool={new Map()} editorScale={4} />,
+      <EditorCanvas
+        figure={FIG}
+        images={new Map()}
+        pool={new Map()}
+        editorScale={4}
+      />,
     );
     expect(setEditorScale).toHaveBeenCalledWith(4);
   });

@@ -43,10 +43,8 @@ export function createEditorRenderer(
     // strokes stay crisp on Retina/HiDPI displays. Without this, the 800×600
     // logical canvas paints into 800×600 device pixels and the browser
     // upscales to 1600×1200 on a 2× screen — every glyph turns into 2× blocks.
-    //
-    // We keep the *drawing* coordinate system in figure-px (translate via
-    // ctx.scale(dpr, dpr) below) so annotations and exports don't have to
-    // know about DPR.
+    // The drawing coordinate system stays in figure-px (see the composed
+    // transform below) so annotations and exports don't have to know about DPR.
     const dpr =
       typeof window !== "undefined" && Number.isFinite(window.devicePixelRatio)
         ? Math.max(1, window.devicePixelRatio)

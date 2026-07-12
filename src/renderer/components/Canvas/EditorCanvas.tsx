@@ -15,7 +15,12 @@ interface Props {
   editorScale: number;
 }
 
-export function EditorCanvas({ figure, images, pool, editorScale }: Props): JSX.Element {
+export function EditorCanvas({
+  figure,
+  images,
+  pool,
+  editorScale,
+}: Props): JSX.Element {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const rendererRef = useRef<EditorRenderer | null>(null);
 
