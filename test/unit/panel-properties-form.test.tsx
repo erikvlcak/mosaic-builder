@@ -128,6 +128,7 @@ describe("PanelPropertiesForm", () => {
         letterOverride={undefined}
         dispatch={vi.fn()}
         onCalibrate={onCalibrate}
+        onCrop={() => {}}
         commit={{ markDirty: vi.fn(), flush: vi.fn() }}
       />,
     );

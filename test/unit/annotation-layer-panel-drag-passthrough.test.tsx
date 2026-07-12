@@ -31,8 +31,12 @@ import type { Figure } from "../../src/renderer/model/types";
 import { DEFAULT_GLOBAL_STYLE } from "../../src/renderer/model/global-style";
 import type { PanelRect } from "../../src/renderer/render/coords";
 import { initialDefaultSymbolStyle } from "../../src/renderer/model/default-symbol-style";
+import { initialDefaultTextStyle } from "../../src/renderer/model/default-text-style";
+import { initialDefaultScalebarStyle } from "../../src/renderer/model/default-scalebar-style";
 
 const DEFAULT_PICKER = initialDefaultSymbolStyle();
+const DEFAULT_TEXT = initialDefaultTextStyle();
+const DEFAULT_SCALEBAR = initialDefaultScalebarStyle();
 
 beforeAll(() => {
   if (typeof window !== "undefined" && !("PointerEvent" in window)) {
@@ -147,6 +151,9 @@ describe("AnnotationInteractionLayer: selection-driven backdrop carve", () => {
       <AnnotationInteractionLayer
         activeTool="select"
         defaultSymbolStyle={DEFAULT_PICKER}
+        defaultTextStyle={DEFAULT_TEXT}
+        defaultScalebarStyle={DEFAULT_SCALEBAR}
+        onDefaultScalebarStyleChange={vi.fn()}
         figure={FIG}
         panelRectsById={PANEL_RECTS}
         imagesById={new Map()}
@@ -177,6 +184,9 @@ describe("AnnotationInteractionLayer: selection-driven backdrop carve", () => {
       <AnnotationInteractionLayer
         activeTool="select"
         defaultSymbolStyle={DEFAULT_PICKER}
+        defaultTextStyle={DEFAULT_TEXT}
+        defaultScalebarStyle={DEFAULT_SCALEBAR}
+        onDefaultScalebarStyleChange={vi.fn()}
         figure={FIG}
         panelRectsById={PANEL_RECTS}
         imagesById={new Map()}
@@ -205,6 +215,9 @@ describe("AnnotationInteractionLayer: selection-driven backdrop carve", () => {
       <AnnotationInteractionLayer
         activeTool="select"
         defaultSymbolStyle={DEFAULT_PICKER}
+        defaultTextStyle={DEFAULT_TEXT}
+        defaultScalebarStyle={DEFAULT_SCALEBAR}
+        onDefaultScalebarStyleChange={vi.fn()}
         figure={FIG}
         panelRectsById={PANEL_RECTS}
         imagesById={new Map()}
