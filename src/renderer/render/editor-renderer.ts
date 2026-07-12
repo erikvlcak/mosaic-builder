@@ -74,11 +74,10 @@ export function createEditorRenderer(
     } else {
       ctx.scale(combined, combined);
     }
-    // Editor-only affordances: empty panels invite a drag, but only when the
-    // pool actually holds a decoded image to drag. Exports never see these.
+    // Editor-only affordances: empty panels invite a drag (shown from the
+    // first run, even before any image is imported). Exports never see these.
     drawFigure(ctx, figure, images, pool, {
       editorHints: true,
-      poolHasImages: images.size > 0,
       theme,
     });
   }

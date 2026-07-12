@@ -141,43 +141,42 @@ describe("editor-renderer: pool propagation", () => {
     expect(pool.get("img-cal")?.calibration?.pixelsPerUnit).toBe(6.45);
   });
 
-  it("passes editorHints on, with poolHasImages true when images exist", async () => {
+  it("passes editorHints on so empty panels get the drag caption, images or not", async () => {
     const r = createEditorRenderer(canvas);
+    r.setFigure(FIG);
+    await Promise.resolve();
+    await Promise.resolve();
+
+    const optsEmpty = (
+      drawFigureSpy.mock.calls.at(-1) as unknown as [
+        unknown,
+        Figure,
+        Map<string, ImageBitmap>,
+        Map<string, ImagePoolItem>,
+        { editorHints?: boolean } | undefined,
+      ]
+    )[4];
+    expect(optsEmpty?.editorHints).toBe(true);
+
+    // …and still on once images are loaded.
     r.setImages(
       new Map([
         ["img-cal", { width: 100, height: 100 } as unknown as ImageBitmap],
       ]),
     );
-    r.setFigure(FIG);
     await Promise.resolve();
     await Promise.resolve();
 
-    const [, , , , opts] = drawFigureSpy.mock.calls.at(-1) as unknown as [
-      unknown,
-      Figure,
-      Map<string, ImageBitmap>,
-      Map<string, ImagePoolItem>,
-      { editorHints?: boolean; poolHasImages?: boolean } | undefined,
-    ];
-    expect(opts?.editorHints).toBe(true);
-    expect(opts?.poolHasImages).toBe(true);
-  });
-
-  it("passes poolHasImages false when no images are loaded", async () => {
-    const r = createEditorRenderer(canvas);
-    r.setFigure(FIG);
-    await Promise.resolve();
-    await Promise.resolve();
-
-    const [, , , , opts] = drawFigureSpy.mock.calls.at(-1) as unknown as [
-      unknown,
-      Figure,
-      Map<string, ImageBitmap>,
-      Map<string, ImagePoolItem>,
-      { editorHints?: boolean; poolHasImages?: boolean } | undefined,
-    ];
-    expect(opts?.editorHints).toBe(true);
-    expect(opts?.poolHasImages).toBe(false);
+    const optsWithImages = (
+      drawFigureSpy.mock.calls.at(-1) as unknown as [
+        unknown,
+        Figure,
+        Map<string, ImageBitmap>,
+        Map<string, ImagePoolItem>,
+        { editorHints?: boolean } | undefined,
+      ]
+    )[4];
+    expect(optsWithImages?.editorHints).toBe(true);
   });
 
   it("defaults the pool to an empty Map before setPool is called (regression: prior bug behaviour)", async () => {

@@ -82,9 +82,6 @@ const PLACEHOLDER_CAPTION_DARK = "#7B8494";
 export interface DrawFigureOpts {
   /** Render editor-only affordances such as empty-panel drag captions. */
   editorHints?: boolean;
-  /** Whether the pool has any images — gates the "Drag an image here" caption
-   *  (no point inviting a drag when there's nothing to drag). */
-  poolHasImages?: boolean;
   /** Editor CHROME theme. Selects the empty-panel placeholder palette only —
    *  figure content (background, gutter, annotations) never reads this, so
    *  exports (which never pass it) stay byte-identical across themes. */
@@ -134,10 +131,10 @@ export function drawFigure(
         drawPlaceholder(ctx, rect, "(missing)", false, opts.theme);
       }
     } else {
-      // Empty panel: invite a drag, but only in the editor and only when the
-      // pool actually holds an image to drag in.
-      const showCaption =
-        opts.editorHints === true && opts.poolHasImages === true;
+      // Empty panel: invite a drag whenever we're in the editor. Shown even
+      // with an empty pool so the very first run tells the user what to do
+      // (exports never pass editorHints, so it stays out of output).
+      const showCaption = opts.editorHints === true;
       drawPlaceholder(ctx, rect, panel.label, showCaption, opts.theme);
     }
   }

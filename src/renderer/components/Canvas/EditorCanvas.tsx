@@ -58,13 +58,16 @@ export function EditorCanvas({
       ref={canvasRef}
       data-testid="editor-canvas"
       style={{
-        // CSS size is set imperatively by the renderer to figure-px, so the
-        // backing store can stay at figure-px × dpr for crisp text on HiDPI
-        // displays. We leave width/height OUT of the inline style so the
-        // renderer's pixel-perfect sizing wins; setting "width: 100%" here
-        // would force the browser to up- or down-sample.
+        // Fill the zoom-sized wrapper (App sizes it to zoom.cssW × cssH). The
+        // backing store stays at figure-px × editorScale × dpr for crisp,
+        // export-faithful pixels; this CSS size is only the DISPLAY size, so
+        // the browser scales that full-res bitmap down to the on-screen box.
+        // Without this the canvas would render at its intrinsic backing size
+        // (unaffected by zoom, doubled on HiDPI) and the zoom would appear to
+        // resize only the surrounding chrome, not the canvas.
         display: "block",
-        border: "1px solid var(--c-border)",
+        width: "100%",
+        height: "100%",
       }}
     />
   );

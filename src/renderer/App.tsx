@@ -1007,8 +1007,6 @@ export function App(): JSX.Element {
           style={{
             flex: 1,
             display: "flex",
-            justifyContent: "center",
-            alignItems: "flex-start",
             padding: 24,
             overflow: "auto",
             background: "var(--c-surface-sunken)",
@@ -1019,7 +1017,24 @@ export function App(): JSX.Element {
               position: "relative",
               width: zoom.cssW,
               height: zoom.cssH,
+              // Center the canvas with AUTO MARGINS, not flex justify/align.
+              // Two reasons: (1) flex would shrink this item's width to fit the
+              // pane when the zoomed canvas is wider than it — deforming the
+              // aspect ratio (height is explicit, width isn't). flexShrink:0
+              // stops that. (2) `justify-content:center` pushes an overflowing
+              // item's left/top edge OUTSIDE the scroll container where
+              // overflow:auto can't scroll to it; auto margins center when the
+              // content fits yet stay fully scroll-reachable when it overflows.
+              flexShrink: 0,
+              margin: "auto",
               boxShadow: "var(--sh-md)",
+              // Frame the canvas with an OUTLINE (not border) so it doesn't
+              // consume layout space: the wrapper stays exactly cssW × cssH,
+              // keeping the canvas and the GridCells / annotation overlays
+              // (sized off the same cssW/cssH) pixel-aligned. A border here
+              // would shrink the content box and drift the overlay by 1px.
+              outline: "1px solid var(--c-border)",
+              outlineOffset: "-1px",
             }}
           >
             <EditorCanvas

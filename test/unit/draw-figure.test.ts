@@ -185,14 +185,13 @@ describe("drawFigure", () => {
     expect(captions).toHaveLength(0);
   });
 
-  it("draws a 'Drag an image here' caption on empty panels only when editorHints + poolHasImages", () => {
+  it("draws a 'Drag an image here' caption on every empty panel when editorHints is on", () => {
     const ctx = makeRecorder();
     // FIG has one image panel (p1) + three placeholders. sample bitmap keeps
     // p1 an image; the three placeholders should get the caption.
     const bitmap = { width: 100, height: 100 } as unknown as ImageBitmap;
     drawFigure(ctx, FIG, new Map([["sample", bitmap]]), new Map(), {
       editorHints: true,
-      poolHasImages: true,
     });
     const captions = ctx.calls.filter(
       (c) => c.op === "fillText" && c.args[0] === "Drag an image here",
@@ -200,16 +199,16 @@ describe("drawFigure", () => {
     expect(captions).toHaveLength(3);
   });
 
-  it("omits the caption when the pool has no images even with editorHints on", () => {
+  it("shows the caption even with an empty pool (first-run guidance)", () => {
     const ctx = makeRecorder();
     drawFigure(ctx, FIG, new Map(), new Map(), {
       editorHints: true,
-      poolHasImages: false,
     });
     const captions = ctx.calls.filter(
       (c) => c.op === "fillText" && c.args[0] === "Drag an image here",
     );
-    expect(captions).toHaveLength(0);
+    // FIG's four panels are all placeholders when no bitmap is supplied.
+    expect(captions.length).toBeGreaterThan(0);
   });
 
   it("paints the gutter color over the full canvas before drawing panels", () => {

@@ -87,7 +87,8 @@ export function useCanvasZoom(args: {
   s.current = { view, sourceScale, spacebarHeld, modelW, modelH };
 
   // Fit mode: re-derive zoom to fit the container. Runs on mount, on resize,
-  // and whenever the model dims change while in fit mode.
+  // and whenever the model dims or sourceScale change while in fit mode
+  // (sourceScale is the fit ceiling, so a new large image must re-fit).
   useEffect(() => {
     const el = scrollRef.current;
     if (el === null) return;
@@ -98,6 +99,7 @@ export function useCanvasZoom(args: {
         el!.clientHeight,
         s.current.modelW,
         s.current.modelH,
+        s.current.sourceScale,
       );
       setView((prev) =>
         prev.mode === "fit" ? { zoom: z, mode: "fit" } : prev,
@@ -107,15 +109,21 @@ export function useCanvasZoom(args: {
     const ro = new ResizeObserver(applyFit);
     ro.observe(el);
     return () => ro.disconnect();
-  }, [scrollRef, modelW, modelH, view.mode]);
+  }, [scrollRef, modelW, modelH, sourceScale, view.mode]);
 
-  // Cursor-anchored canvas zoom on wheel — unless an inner layer (an editing
-  // panel while Space is held) already consumed it.
+  // Wheel routing — mirrors the platform convention every image/document app
+  // uses: a plain two-finger trackpad swipe (or mouse wheel) PANS; a pinch
+  // gesture ZOOMS. Browsers surface a pinch as a wheel event with `ctrlKey`
+  // set (the OS synthesises it), so that flag is the discriminator. For the
+  // pan case we simply DON'T preventDefault and let the overflow:auto
+  // container scroll natively — that pans both axes (deltaX + deltaY) for
+  // free, which is exactly the "move around freely" the trackpad should do.
   useEffect(() => {
     const el = scrollRef.current;
     if (el === null) return;
     function onWheel(e: WheelEvent): void {
       if (e.defaultPrevented) return; // panel-zoom consumed it (Space held)
+      if (!e.ctrlKey) return; // plain scroll → native pan (both axes)
       e.preventDefault();
       const cur = s.current;
       const oldCss = zoomToCssSize(cur.view.zoom, cur.modelW, cur.modelH);

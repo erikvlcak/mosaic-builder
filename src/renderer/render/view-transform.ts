@@ -19,11 +19,16 @@ export function fitZoom(
   containerH: number,
   modelW: number,
   modelH: number,
+  maxZoom = Infinity,
 ): number {
   // Guard against a zero/negative container (pre-layout, hidden tab): fall
   // back to 1 so the canvas is never sized to 0.
   if (containerW <= 0 || containerH <= 0) return 1;
-  return Math.min(containerW / modelW, containerH / modelH);
+  // "Fit" shrinks to fit but must not magnify past maxZoom — for an empty or
+  // small figure in a large pane, blowing a blank 800×600 canvas up to fill
+  // the viewport reads as "the canvas is huge and I can't zoom out". Callers
+  // pass sourceScale (display-100%) as the ceiling.
+  return Math.min(containerW / modelW, containerH / modelH, maxZoom);
 }
 
 export function zoomToCssSize(

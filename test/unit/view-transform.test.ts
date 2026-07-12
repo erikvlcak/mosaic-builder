@@ -37,6 +37,16 @@ describe("fitZoom", () => {
   it("never returns 0 or negative for a zero-sized container", () => {
     expect(fitZoom(0, 0, 800, 600)).toBeGreaterThan(0);
   });
+
+  it("never magnifies past maxZoom for content smaller than the container", () => {
+    // A large pane around an empty 800x600 figure (sourceScale 1) would
+    // otherwise fit at ~1.66 and blow the blank canvas up. Cap at 1.
+    expect(fitZoom(1400, 1000, 800, 600, 1)).toBeCloseTo(1, 6);
+    // Still shrinks to fit when the model is larger than the container.
+    expect(fitZoom(400, 600, 800, 600, 1)).toBeCloseTo(0.5, 6);
+    // A high-res figure (sourceScale 5) may fit-magnify up to display-100%.
+    expect(fitZoom(8000, 6000, 800, 600, 5)).toBeCloseTo(5, 6);
+  });
 });
 
 describe("zoomToCssSize", () => {
