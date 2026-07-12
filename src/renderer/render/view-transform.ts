@@ -8,8 +8,20 @@
 export const ZOOM_MIN = 0.1; // 10% of source-100%
 export const ZOOM_MAX = 8; // 800% of source-100%
 
-export function clampViewZoom(zoom: number, sourceScale: number): number {
-  const lo = ZOOM_MIN * sourceScale;
+export function clampViewZoom(
+  zoom: number,
+  sourceScale: number,
+  fitZoomFloor = Infinity,
+): number {
+  // The display-% floor scales with sourceScale, so a high-res image raises
+  // it to a zoom where the figure is still bigger than the pane — you hit the
+  // floor before the whole figure fits and "can't zoom out enough". Lower the
+  // floor to the fit zoom whenever that's smaller, so zoom-out can always
+  // reach a fully-visible figure. Guard fitZoomFloor > 0 (a zero/degenerate
+  // container must not collapse the floor to 0).
+  const displayFloor = ZOOM_MIN * sourceScale;
+  const lo =
+    fitZoomFloor > 0 ? Math.min(displayFloor, fitZoomFloor) : displayFloor;
   const hi = ZOOM_MAX * sourceScale;
   return Math.max(lo, Math.min(hi, zoom));
 }

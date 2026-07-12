@@ -23,6 +23,17 @@ describe("useCanvasZoom pure helpers", () => {
     expect(v.zoom).toBeCloseTo(2 / ZOOM_STEP, 6);
   });
 
+  it("zoomOut can descend below the display floor to reach the fit zoom", () => {
+    // sourceScale 13.5 → display floor 1.35. A single step from just above the
+    // fit floor (1.0 / 1.25 = 0.8) would clamp at 1.35 without a fit floor;
+    // passing fitZoomFloor 0.9 lets it descend and clamp at 0.9 instead.
+    const v = nextViewForZoomOut({ zoom: 1.0, mode: "free" }, 13.5, 0.9);
+    expect(v.zoom).toBeCloseTo(0.9, 6);
+    // Without the fit floor, the same step is clamped up to the display floor.
+    const clamped = nextViewForZoomOut({ zoom: 1.0, mode: "free" }, 13.5);
+    expect(clamped.zoom).toBeCloseTo(1.35, 6);
+  });
+
   it("actualSize sets zoom to sourceScale (display 100%)", () => {
     const v = nextViewForActualSize(SOURCE);
     expect(v).toEqual({ zoom: SOURCE, mode: "free" });

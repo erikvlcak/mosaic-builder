@@ -22,6 +22,17 @@ describe("clampViewZoom", () => {
     expect(clampViewZoom(1000, 5)).toBe(40);
     expect(clampViewZoom(5, 5)).toBe(5);
   });
+
+  it("lowers the floor to the fit zoom when fit is below the display floor", () => {
+    // High-res image: sourceScale 13.5 → display floor = 1.35. But the figure
+    // only fits at zoom 0.9 (fitZoomFloor) — the floor must drop to 0.9 so
+    // zoom-out can reach a fully-visible figure instead of stopping at 1.35.
+    expect(clampViewZoom(0.5, 13.5, 0.9)).toBe(0.9);
+    // Fit above the display floor: display floor still wins (don't raise it).
+    expect(clampViewZoom(0.5, 13.5, 5)).toBeCloseTo(1.35, 6);
+    // A zero/degenerate container must not collapse the floor to 0.
+    expect(clampViewZoom(0.5, 13.5, 0)).toBeCloseTo(1.35, 6);
+  });
 });
 
 describe("fitZoom", () => {

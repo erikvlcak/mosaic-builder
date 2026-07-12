@@ -19,15 +19,23 @@ export interface ViewTransform {
 export function nextViewForZoomIn(
   v: ViewTransform,
   sourceScale: number,
+  fitZoomFloor = Infinity,
 ): ViewTransform {
-  return { zoom: clampViewZoom(v.zoom * ZOOM_STEP, sourceScale), mode: "free" };
+  return {
+    zoom: clampViewZoom(v.zoom * ZOOM_STEP, sourceScale, fitZoomFloor),
+    mode: "free",
+  };
 }
 
 export function nextViewForZoomOut(
   v: ViewTransform,
   sourceScale: number,
+  fitZoomFloor = Infinity,
 ): ViewTransform {
-  return { zoom: clampViewZoom(v.zoom / ZOOM_STEP, sourceScale), mode: "free" };
+  return {
+    zoom: clampViewZoom(v.zoom / ZOOM_STEP, sourceScale, fitZoomFloor),
+    mode: "free",
+  };
 }
 
 export function nextViewForActualSize(sourceScale: number): ViewTransform {
@@ -37,9 +45,10 @@ export function nextViewForActualSize(sourceScale: number): ViewTransform {
 export function nextViewForPercent(
   pct: number,
   sourceScale: number,
+  fitZoomFloor = Infinity,
 ): ViewTransform {
   return {
-    zoom: clampViewZoom((pct / 100) * sourceScale, sourceScale),
+    zoom: clampViewZoom((pct / 100) * sourceScale, sourceScale, fitZoomFloor),
     mode: "free",
   };
 }
@@ -86,6 +95,25 @@ export function useCanvasZoom(args: {
   const s = useRef({ view, sourceScale, spacebarHeld, modelW, modelH });
   s.current = { view, sourceScale, spacebarHeld, modelW, modelH };
 
+  // The raw (uncapped) zoom at which the whole figure fits the pane. Used as
+  // the zoom-out FLOOR: for a high-res image the display-% floor sits above
+  // this, so without it zoom-out stops before the figure is fully visible.
+  // Kept fresh by the fit effect's ResizeObserver below and read by the
+  // zoom callbacks.
+  const fitFloorRef = useRef<number>(Infinity);
+  const recomputeFitFloor = useCallback((): number => {
+    const el = scrollRef.current;
+    if (el === null) return Infinity;
+    const f = fitZoom(
+      el.clientWidth,
+      el.clientHeight,
+      s.current.modelW,
+      s.current.modelH,
+    );
+    fitFloorRef.current = f;
+    return f;
+  }, [scrollRef]);
+
   // Fit mode: re-derive zoom to fit the container. Runs on mount, on resize,
   // and whenever the model dims or sourceScale change while in fit mode
   // (sourceScale is the fit ceiling, so a new large image must re-fit).
@@ -93,6 +121,9 @@ export function useCanvasZoom(args: {
     const el = scrollRef.current;
     if (el === null) return;
     function applyFit(): void {
+      // Keep the zoom-out floor current on every resize, even when we're not
+      // in fit mode (the user may be zoomed in and about to zoom back out).
+      recomputeFitFloor();
       if (s.current.view.mode !== "fit") return;
       const z = fitZoom(
         el!.clientWidth,
@@ -109,7 +140,7 @@ export function useCanvasZoom(args: {
     const ro = new ResizeObserver(applyFit);
     ro.observe(el);
     return () => ro.disconnect();
-  }, [scrollRef, modelW, modelH, sourceScale, view.mode]);
+  }, [scrollRef, modelW, modelH, sourceScale, view.mode, recomputeFitFloor]);
 
   // Wheel routing — mirrors the platform convention every image/document app
   // uses: a plain two-finger trackpad swipe (or mouse wheel) PANS; a pinch
@@ -128,7 +159,11 @@ export function useCanvasZoom(args: {
       const cur = s.current;
       const oldCss = zoomToCssSize(cur.view.zoom, cur.modelW, cur.modelH);
       const factor = Math.exp(-e.deltaY * 0.0015);
-      const nextZoom = clampViewZoom(cur.view.zoom * factor, cur.sourceScale);
+      const nextZoom = clampViewZoom(
+        cur.view.zoom * factor,
+        cur.sourceScale,
+        fitFloorRef.current,
+      );
       const newCss = zoomToCssSize(nextZoom, cur.modelW, cur.modelH);
       const rect = el!.getBoundingClientRect();
       const next = scrollForCursorZoom({
@@ -193,12 +228,18 @@ export function useCanvasZoom(args: {
   );
 
   const zoomIn = useCallback(
-    () => setView((v) => nextViewForZoomIn(v, s.current.sourceScale)),
-    [],
+    () =>
+      setView((v) =>
+        nextViewForZoomIn(v, s.current.sourceScale, recomputeFitFloor()),
+      ),
+    [recomputeFitFloor],
   );
   const zoomOut = useCallback(
-    () => setView((v) => nextViewForZoomOut(v, s.current.sourceScale)),
-    [],
+    () =>
+      setView((v) =>
+        nextViewForZoomOut(v, s.current.sourceScale, recomputeFitFloor()),
+      ),
+    [recomputeFitFloor],
   );
   const actualSize = useCallback(
     () => setView(nextViewForActualSize(s.current.sourceScale)),
@@ -209,8 +250,9 @@ export function useCanvasZoom(args: {
     [],
   );
   const setPercent = useCallback(
-    (pct: number) => setView(nextViewForPercent(pct, s.current.sourceScale)),
-    [],
+    (pct: number) =>
+      setView(nextViewForPercent(pct, s.current.sourceScale, recomputeFitFloor())),
+    [recomputeFitFloor],
   );
 
   return {
