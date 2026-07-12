@@ -143,11 +143,20 @@ boot possible.
 
 **No-flash boot sequence** (order matters):
 
-1. A tiny **inline script in `index.html`**, running before React and before
-   first paint, reads `localStorage.getItem("mosaic-theme")`, resolves it
-   against `matchMedia("(prefers-color-scheme: dark)")`, and stamps
-   `data-theme` on `<html>` immediately. React mounting is too late — anything
-   that waits for React guarantees a one-frame flash of the wrong theme.
+1. The app's Content-Security-Policy is `script-src 'self'` — it forbids
+   inline `<script>` in `index.html` (only `style-src` allows `'unsafe-inline'`;
+   scripts do not). So the classic "inline script in `<head>`" trick is out,
+   and we will **not** weaken the CSP. Instead, a synchronous
+   `applyStoredTheme()` call runs at the **very top of the renderer entry
+   module (`main.tsx`), before `createRoot`**, reading
+   `localStorage.getItem("mosaic-theme")`, resolving it against
+   `matchMedia("(prefers-color-scheme: dark)")`, and stamping `data-theme` on
+   `<html>`. This is CSP-safe (the bundle is `'self'`) and still beats first
+   meaningful paint: `index.html`'s `<body>` is just an empty
+   `<div id="root">`, so nothing user-visible paints until React renders, which
+   happens *after* the stamp. The only pre-React paintable surface is the
+   `body` background, and the module import order stamps `<html>` before that
+   matters.
 2. A `useTheme` hook owns the runtime: reads the same key, exposes `choice` +
    `setChoice`, writes `localStorage` on change, and re-stamps `<html>`.
 3. When `choice === "system"`, the hook subscribes to `matchMedia` `change`
@@ -159,7 +168,7 @@ boot possible.
 `DrawFigureOpts.theme`. One value, one path.
 
 ```
-index.html inline script ──stamps──► <html data-theme>  (CSS re-themes)
+main.tsx applyStoredTheme() ──stamps──► <html data-theme>  (CSS re-themes)
 
 useTheme() ──► choice / setChoice ──► localStorage + re-stamp <html>
      │
