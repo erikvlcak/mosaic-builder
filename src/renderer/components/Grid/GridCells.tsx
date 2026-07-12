@@ -10,12 +10,7 @@ import {
   selectedIdOf,
   editingIdOf,
 } from "../../model/panel-interaction";
-import {
-  DRAG_MIME,
-  parseDrag,
-  serializeDrag,
-  type DragPayload,
-} from "../../dnd/drag-payload";
+import { DRAG_MIME, parseDrag, type DragPayload } from "../../dnd/drag-payload";
 import { previewForDrop } from "../../dnd/preview-for-drop";
 
 export interface DropEvent {
@@ -327,17 +322,10 @@ export function GridCells({
           if (from === null) return;
           onDrop({ from, targetPanelId: panel.id });
         }
+        // Panels are draggable={false}; this never fires from a panel, but
+        // guard defensively so no panel drag can start.
         function onDragStart(e: React.DragEvent<HTMLDivElement>): void {
-          if (!occupied) {
-            e.preventDefault();
-            return;
-          }
-          e.dataTransfer.setData(
-            DRAG_MIME,
-            serializeDrag({ kind: "panel", panelId: panel.id }),
-          );
-          e.dataTransfer.effectAllowed = "move";
-          onDragSourceChange({ kind: "panel", panelId: panel.id });
+          e.preventDefault();
         }
         function onDragEnd(): void {
           onDragSourceChange(null);
@@ -364,15 +352,11 @@ export function GridCells({
         const isSelected = selectedId === panel.id;
         const isEditing = editingId === panel.id;
 
-        // Drag rules:
-        //   editing → never draggable (PanelInteractionLayer owns gestures)
-        //   selected → draggable iff occupied (drag-to-swap)
-        //   no-mode → never draggable; the annotation backdrop owns
-        //     pointerdown here so the user can rubber-band a marquee over
-        //     the panel's annotations. To move the image the user must
-        //     first single-click to select (green border + grab cursor),
-        //     which arms drag-to-swap on the next gesture.
-        const draggable = occupied && isSelected;
+        // Panels are never HTML5-draggable: a plain left-drag on the canvas
+        // always pans the view (useCanvasZoom), so a native dragstart here
+        // would collide with panning. Moving/swapping an image is done from
+        // the tray (drag a placed thumbnail onto a panel → SWAP_PANELS).
+        const draggable = false;
 
         // editing: no outline here — PanelInteractionLayer owns editing-mode chrome.
         // Hover outline switches to a "not allowed" treatment for invalid drops
@@ -394,16 +378,8 @@ export function GridCells({
                   ? "1px dashed var(--c-text-faint)"
                   : "1px dashed transparent";
 
-        // Cursor rules:
-        //   editing → default (PanelInteractionLayer sits on top with its own)
-        //   selected + occupied → grab (drag-to-swap is armed)
-        //   occupied unselected → default (annotation backdrop owns pointer)
-        //   empty → default
-        const cursor = isEditing
-          ? "default"
-          : isSelected && occupied
-            ? "grab"
-            : "default";
+        // Cursor is always default now — panels aren't grabbable (drag pans).
+        const cursor = "default";
 
         return (
           <div

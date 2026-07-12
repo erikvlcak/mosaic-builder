@@ -105,7 +105,7 @@ describe("GridCells — selected vs editing modes", () => {
     expect(el.getAttribute("draggable")).toBe("false");
   });
 
-  it("image panel is HTML5-draggable when it is in selected mode (drag-to-swap is armed)", () => {
+  it("image panel is NOT HTML5-draggable even in selected mode (drag == pan; move is tray-only)", () => {
     const s = stateWithImage();
     const p = s.panels[0]!;
     render(
@@ -130,7 +130,7 @@ describe("GridCells — selected vs editing modes", () => {
     );
     expect(
       screen.getByTestId(`panel-${p.row}-${p.col}`).getAttribute("draggable"),
-    ).toBe("true");
+    ).toBe("false");
   });
 
   it("image panel is NOT HTML5-draggable when it is in editing mode", () => {
@@ -161,7 +161,7 @@ describe("GridCells — selected vs editing modes", () => {
     ).toBe("false");
   });
 
-  it("selected image panel shows solid focus outline and grab cursor", () => {
+  it("selected image panel shows solid focus outline (no grab cursor — drag pans)", () => {
     const s = stateWithImage();
     const p = s.panels[0]!;
     render(
@@ -185,7 +185,7 @@ describe("GridCells — selected vs editing modes", () => {
       />,
     );
     const el = screen.getByTestId(`panel-${p.row}-${p.col}`);
-    expect(el.style.cursor).toBe("grab");
+    expect(el.style.cursor).toBe("default");
     // Selected outline is a solid accent stroke (unified selection chrome).
     expect(el.style.outline).toContain("solid");
     expect(el.style.outline).toContain("var(--c-accent)");
