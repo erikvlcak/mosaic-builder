@@ -950,6 +950,7 @@ export function App(): JSX.Element {
               figure={figure}
               images={bitmaps}
               pool={imagesByIdMemo}
+              editorScale={1}
             />
             <GridCells
               state={state}

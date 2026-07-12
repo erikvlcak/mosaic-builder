@@ -11,9 +11,11 @@ interface Props {
   images: Map<string, ImageBitmap>;
   /** Pool items keyed by image id. Required for scale-bar calibration. */
   pool: Map<string, ImagePoolItem>;
+  /** Full-resolution backing-store multiplier (= export sourceScale). */
+  editorScale: number;
 }
 
-export function EditorCanvas({ figure, images, pool }: Props): JSX.Element {
+export function EditorCanvas({ figure, images, pool, editorScale }: Props): JSX.Element {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const rendererRef = useRef<EditorRenderer | null>(null);
 
@@ -36,6 +38,9 @@ export function EditorCanvas({ figure, images, pool }: Props): JSX.Element {
   useEffect(() => {
     rendererRef.current?.setPool(pool);
   }, [pool]);
+  useEffect(() => {
+    rendererRef.current?.setEditorScale(editorScale);
+  }, [editorScale]);
 
   return (
     <canvas
