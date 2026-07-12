@@ -75,7 +75,7 @@ describe("dispatchDrop", () => {
     });
   });
 
-  it("tray drop with already-placed image is no-op", () => {
+  it("tray drop of a placed image onto a different EMPTY panel emits SWAP_PANELS (move)", () => {
     let s = initialFigureState();
     s = figureReducer(s, addToPool(IMG_A));
     const p1 = panelIdAt(s, 0, 0);
@@ -85,25 +85,31 @@ describe("dispatchDrop", () => {
       from: { kind: "tray", imageId: "a" },
       targetPanelId: p2,
     });
-    expect(action).toBe(null);
+    expect(action).toEqual({ type: "SWAP_PANELS", aPanelId: p1, bPanelId: p2 });
   });
 
-  it("panel → other panel emits SWAP_PANELS", () => {
-    const s = initialFigureState();
+  it("tray drop of a placed image onto a different OCCUPIED panel emits SWAP_PANELS (swap)", () => {
+    let s = initialFigureState();
+    s = figureReducer(s, addToPool(IMG_A));
+    s = figureReducer(s, addToPool(IMG_B));
     const p1 = panelIdAt(s, 0, 0);
-    const p2 = panelIdAt(s, 1, 1);
+    const p2 = panelIdAt(s, 0, 1);
+    s = figureReducer(s, placeIntoPanel("a", p1));
+    s = figureReducer(s, placeIntoPanel("b", p2));
     const action = dispatchDrop(s, {
-      from: { kind: "panel", panelId: p1 },
+      from: { kind: "tray", imageId: "a" },
       targetPanelId: p2,
     });
     expect(action).toEqual({ type: "SWAP_PANELS", aPanelId: p1, bPanelId: p2 });
   });
 
-  it("panel → same panel is no-op", () => {
-    const s = initialFigureState();
+  it("tray drop of a placed image onto its OWN panel is a no-op", () => {
+    let s = initialFigureState();
+    s = figureReducer(s, addToPool(IMG_A));
     const p1 = panelIdAt(s, 0, 0);
+    s = figureReducer(s, placeIntoPanel("a", p1));
     const action = dispatchDrop(s, {
-      from: { kind: "panel", panelId: p1 },
+      from: { kind: "tray", imageId: "a" },
       targetPanelId: p1,
     });
     expect(action).toBe(null);

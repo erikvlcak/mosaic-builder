@@ -19,15 +19,22 @@ export function dispatchDrop(
   const target = state.panels.find((p) => p.id === ev.targetPanelId);
   if (target === undefined) return null;
 
-  if (ev.from.kind === "panel") {
-    if (ev.from.panelId === ev.targetPanelId) return null;
-    return swapPanels(ev.from.panelId, ev.targetPanelId);
+  // Only tray drags exist now — panels are no longer draggable. (The
+  // DragPayload "panel" variant is retained for wire-format stability but
+  // is never produced by the UI.)
+  if (ev.from.kind !== "tray") return null;
+
+  const imageId = ev.from.imageId;
+  const sourcePanel = state.panels.find((p) => p.imageId === imageId);
+
+  // Already placed → this is a rearrange from the tray.
+  if (sourcePanel !== undefined) {
+    if (sourcePanel.id === ev.targetPanelId) return null; // dropped on itself
+    // SWAP_PANELS covers both cases: target empty → move; occupied → swap.
+    return swapPanels(sourcePanel.id, ev.targetPanelId);
   }
 
-  // Tray drop: refuse if the image is already placed somewhere.
-  const imageId = ev.from.imageId;
-  if (state.panels.some((p) => p.imageId === imageId)) return null;
-
+  // Not placed yet → place (empty target) or replace (occupied target).
   if (target.imageId !== undefined) {
     return replaceIntoPanel(imageId, ev.targetPanelId);
   }

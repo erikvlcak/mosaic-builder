@@ -24,24 +24,24 @@ export function previewForDrop(
   const target = state.panels.find((p) => p.id === hoverPanelId);
   if (target === undefined) return { valid: false };
 
-  if (source.kind === "panel") {
-    if (source.panelId === hoverPanelId) return { valid: false };
-    const sourcePanel = state.panels.find((p) => p.id === source.panelId);
-    if (sourcePanel === undefined) return { valid: false };
-    if (sourcePanel.imageId === undefined) return { valid: false };
-    const out: DropPreview = {
-      valid: true,
-      targetImageId: sourcePanel.imageId,
-    };
+  // Panels are no longer draggable; only tray payloads reach here. (The
+  // "panel" variant is retained for wire-format stability but never produced.)
+  if (source.kind !== "tray") return { valid: false };
+
+  const imageId = source.imageId;
+  const sourcePanel = state.panels.find((p) => p.imageId === imageId);
+
+  // Already placed → rearrange (move onto empty / swap onto occupied).
+  if (sourcePanel !== undefined) {
+    if (sourcePanel.id === hoverPanelId) return { valid: false }; // onto itself
+    const out: DropPreview = { valid: true, targetImageId: imageId };
     if (target.imageId !== undefined) {
-      out.sourceGhost = { panelId: source.panelId, imageId: target.imageId };
+      // Swap: the target's current image ghosts back into the source panel.
+      out.sourceGhost = { panelId: sourcePanel.id, imageId: target.imageId };
     }
     return out;
   }
 
-  const imageId = source.imageId;
-  if (state.panels.some((p) => p.imageId === imageId)) {
-    return { valid: false };
-  }
+  // Not placed yet → place / replace; the dragged image lands in the target.
   return { valid: true, targetImageId: imageId };
 }

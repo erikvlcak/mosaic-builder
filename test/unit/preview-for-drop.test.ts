@@ -67,56 +67,38 @@ describe("previewForDrop", () => {
     expect(r).toEqual({ valid: true, targetImageId: "b" });
   });
 
-  it("tray drag whose image is already placed → invalid", () => {
+  it("tray drag of a placed image onto its OWN panel → invalid", () => {
+    let s = initialFigureState();
+    s = figureReducer(s, addToPool(IMG_A));
+    const p1 = panelIdAt(s, 0, 0);
+    s = figureReducer(s, placeIntoPanel("a", p1));
+    const r = previewForDrop(s, { kind: "tray", imageId: "a" }, p1);
+    expect(r).toEqual({ valid: false });
+  });
+
+  it("tray drag of a placed image onto a different EMPTY panel → valid, no sourceGhost", () => {
     let s = initialFigureState();
     s = figureReducer(s, addToPool(IMG_A));
     const p1 = panelIdAt(s, 0, 0);
     const p2 = panelIdAt(s, 0, 1);
     s = figureReducer(s, placeIntoPanel("a", p1));
     const r = previewForDrop(s, { kind: "tray", imageId: "a" }, p2);
-    expect(r).toEqual({ valid: false });
-  });
-
-  it("panel onto same panel → invalid", () => {
-    let s = initialFigureState();
-    s = figureReducer(s, addToPool(IMG_A));
-    const p1 = panelIdAt(s, 0, 0);
-    s = figureReducer(s, placeIntoPanel("a", p1));
-    const r = previewForDrop(s, { kind: "panel", panelId: p1 }, p1);
-    expect(r).toEqual({ valid: false });
-  });
-
-  it("panel onto empty other panel → valid, no sourceGhost", () => {
-    let s = initialFigureState();
-    s = figureReducer(s, addToPool(IMG_A));
-    const p1 = panelIdAt(s, 0, 0);
-    const p2 = panelIdAt(s, 1, 1);
-    s = figureReducer(s, placeIntoPanel("a", p1));
-    const r = previewForDrop(s, { kind: "panel", panelId: p1 }, p2);
     expect(r).toEqual({ valid: true, targetImageId: "a" });
   });
 
-  it("panel↔panel swap → valid with sourceGhost from target", () => {
+  it("tray drag of a placed image onto a different OCCUPIED panel → valid with sourceGhost", () => {
     let s = initialFigureState();
     s = figureReducer(s, addToPool(IMG_A));
     s = figureReducer(s, addToPool(IMG_B));
     const p1 = panelIdAt(s, 0, 0);
-    const p2 = panelIdAt(s, 1, 1);
+    const p2 = panelIdAt(s, 0, 1);
     s = figureReducer(s, placeIntoPanel("a", p1));
     s = figureReducer(s, placeIntoPanel("b", p2));
-    const r = previewForDrop(s, { kind: "panel", panelId: p1 }, p2);
+    const r = previewForDrop(s, { kind: "tray", imageId: "a" }, p2);
     expect(r).toEqual({
       valid: true,
       targetImageId: "a",
       sourceGhost: { panelId: p1, imageId: "b" },
     });
-  });
-
-  it("drag from empty panel is invalid (defensive — UI shouldn't allow it)", () => {
-    const s = initialFigureState();
-    const p1 = panelIdAt(s, 0, 0);
-    const p2 = panelIdAt(s, 0, 1);
-    const r = previewForDrop(s, { kind: "panel", panelId: p1 }, p2);
-    expect(r).toEqual({ valid: false });
   });
 });
