@@ -19,7 +19,7 @@ function prefersDark(): boolean {
 export interface UseTheme {
   choice: ThemeChoice;
   effectiveTheme: EffectiveTheme;
-  setChoice(next: ThemeChoice): void;
+  setChoice: (next: ThemeChoice) => void;
 }
 
 export function useTheme(): UseTheme {

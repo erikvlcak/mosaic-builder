@@ -33,6 +33,7 @@ describe("EditorCanvas: editorScale plumbing", () => {
         images={new Map()}
         pool={new Map()}
         editorScale={4}
+        theme="light"
       />,
     );
     expect(setEditorScale).toHaveBeenCalledWith(4);

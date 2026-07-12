@@ -88,6 +88,8 @@ import { useCanvasZoom } from "./hooks/useCanvasZoom";
 import { nextCmdHeld } from "./hooks/useTemporarySelect";
 import { ZoomControls } from "./components/Toolbar/ZoomControls";
 import { computeCanvasDims } from "./model/canvas-dims";
+import { ThemeToggle } from "./components/Toolbar/ThemeToggle";
+import { useTheme } from "./theme/useTheme";
 
 const CANVAS_BG = "#FFFFFF";
 const FIGURE_PX_W = 800;
@@ -170,6 +172,12 @@ export function App(): JSX.Element {
     modelW: FIGURE_PX_W,
     modelH: FIGURE_PX_H,
   });
+
+  const {
+    choice: themeChoice,
+    effectiveTheme,
+    setChoice: setThemeChoice,
+  } = useTheme();
 
   // Unsaved-changes tracking. `savedStateRef` marks the last clean point (app
   // start / save / load / New); the document is dirty when the live state is a
@@ -897,6 +905,7 @@ export function App(): JSX.Element {
           </span>
         </div>
         <div className="app-bar-right">
+          <ThemeToggle choice={themeChoice} onChoice={setThemeChoice} />
           <ExportMenu
             figure={figure}
             exportScale={figureExport.exportScale}
@@ -1018,6 +1027,7 @@ export function App(): JSX.Element {
               images={bitmaps}
               pool={imagesByIdMemo}
               editorScale={sourceScale}
+              theme={effectiveTheme}
             />
             <GridCells
               state={state}

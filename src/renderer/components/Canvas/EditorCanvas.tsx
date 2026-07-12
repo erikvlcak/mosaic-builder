@@ -13,6 +13,8 @@ interface Props {
   pool: Map<string, ImagePoolItem>;
   /** Full-resolution backing-store multiplier (= export sourceScale). */
   editorScale: number;
+  /** Editor chrome theme — threaded to the renderer's placeholder palette. */
+  theme: "light" | "dark";
 }
 
 export function EditorCanvas({
@@ -20,6 +22,7 @@ export function EditorCanvas({
   images,
   pool,
   editorScale,
+  theme,
 }: Props): JSX.Element {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const rendererRef = useRef<EditorRenderer | null>(null);
@@ -46,6 +49,9 @@ export function EditorCanvas({
   useEffect(() => {
     rendererRef.current?.setEditorScale(editorScale);
   }, [editorScale]);
+  useEffect(() => {
+    rendererRef.current?.setTheme(theme);
+  }, [theme]);
 
   return (
     <canvas
@@ -58,7 +64,7 @@ export function EditorCanvas({
         // renderer's pixel-perfect sizing wins; setting "width: 100%" here
         // would force the browser to up- or down-sample.
         display: "block",
-        border: "1px solid #DDD",
+        border: "1px solid var(--c-border)",
       }}
     />
   );
