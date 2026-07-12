@@ -175,16 +175,20 @@ Owns the imperative browser wiring:
 - A `wheel` listener bound `{ passive: false }` on the scroll container.
   **Plain wheel → cursor-anchored canvas zoom** (`e.preventDefault()`) — no
   modifier, matching the "scroll to zoom the whole canvas" mental model
-  (Google-Maps/Miro idiom). The hand-off to panel-zoom is **automatic via
-  `defaultPrevented`**: `PanelInteractionLayer` is a child DOM node inside the
-  scroll container and its own wheel listener already calls `preventDefault()`
-  (but not `stopPropagation`), so it fires **first** in bubble order. The
-  container listener therefore begins with `if (e.defaultPrevented) return;` —
-  when the cursor is over an editing panel, that panel has already consumed
-  the wheel, and the canvas-zoom listener is a no-op. Everywhere else, nothing
-  consumed it, so the canvas zooms. No cursor hit-testing, no modifier — the
-  DOM bubble order does the routing.
+  (Google-Maps/Miro idiom). The routing to *image* zoom is driven by
+  **`spacebarHeld`** (see Interaction design): the panel's own wheel listener
+  is gated to only consume the event while space is held; otherwise it lets
+  the event bubble and the container's canvas-zoom listener begins with
+  `if (e.defaultPrevented) return;`. So default wheel zooms the canvas
+  everywhere (even over an active panel); space+wheel over an active panel
+  zooms that image.
+- A **drag-to-pan-view** pointer handler on the scroll container (new — see
+  Pan). Press-drag translates `scrollLeft/scrollTop`. Gated to *not* run while
+  `spacebarHeld` (space redirects the drag to the active image's pan).
 - The cursor-anchored scroll adjustment (via `scrollForCursorZoom`).
+
+Reads `spacebarHeld` (lifted in `App.tsx`) so its wheel/drag handlers know
+whether the gesture targets the canvas (default) or the active image (space).
 
 Returns `{ view, cssW, cssH, sourceScale, setPercent, zoomIn, zoomOut, fit,
 actualSize }`.
@@ -219,47 +223,75 @@ anticipates ("No editorScale yet — that lands in M5", line 16):
 - Reset `view` to `{ zoom: 1, mode: "fit" }` in `onNew` / `onOpenProject`
   (alongside the existing `setPanelInteraction(null)` resets), because `view`
   is session UI state that `RESET_TO_STATE` does not touch.
+- Pass `spacebarHeld` to `useCanvasZoom` and `PanelInteractionLayer`; retarget
+  temporary-select from space to Cmd/Ctrl-hold (see Interaction design).
 
-**That is the entire coordinate-plumbing change** — the ratio math inside
-every interaction layer is already correct.
+**The coordinate-plumbing change is minimal** — the ratio math inside every
+interaction layer is already correct; only `cssW/cssH` become variable and
+the panel layer gains a `spacebarHeld` gate.
 
-## Interaction design (conflicts resolved deliberately)
+## Interaction design (the gesture model)
 
-### Wheel — plain wheel = canvas zoom; double-click a panel for panel zoom
+One consistent rule governs the whole canvas:
 
-`PanelInteractionLayer` (the layer that owns per-panel wheel pan/zoom) only
-mounts when a panel is in **editing** mode — i.e. after a **double-click**
-(`editingIdOf(panelInteraction) !== null`, App.tsx). When an image is merely
-present, single-clicked (`selected`), or unfocused, **no** panel wheel handler
-exists. So the wheel is free everywhere except over a double-click-activated
-panel — the two gestures are separated by **interaction state**, not a
-keyboard modifier:
+> **Default gestures operate on the canvas/view. Hold Space to redirect the
+> same gestures to the active (double-clicked) image.**
 
-- **Plain wheel** anywhere on the canvas → **canvas zoom** (cursor-anchored).
-- **Double-click a panel**, then **plain wheel** over it → **panel zoom**
-  (unchanged from today).
+This is deliberately the **inverse** of a modifier-to-zoom-canvas scheme: the
+common case (navigate the whole figure) needs no key, and stepping into an
+image's own pan/zoom is the explicit, held-key action.
 
-The routing is automatic via `defaultPrevented` (see `useCanvasZoom` above):
-the editing panel's inner wheel listener consumes the event first, so the
-container's canvas-zoom listener no-ops over it and zooms everywhere else. No
-modifier key, no manual hit-testing.
+### The gesture table
 
-### Pan — native scrollbars + two-finger trackpad drag
+| Context | Gesture | Effect |
+| --- | --- | --- |
+| Anywhere on canvas | plain wheel | **Zoom the canvas** (cursor-anchored) |
+| Anywhere on canvas | press-drag | **Pan the view** |
+| Anywhere on canvas | scrollbars / two-finger trackpad drag | **Pan the view** |
+| Panel in editing mode + **hold Space** | plain wheel | **Zoom the active image** in its frame |
+| Panel in editing mode + **hold Space** | press-drag | **Pan the active image** in its frame |
+| Creation tool active + **hold Cmd/Ctrl** | (temporary) | **Switch to Select** |
+| unchanged | Shift-click | merge-cell toggle / anno multi-select / snap-disable |
 
-The canvas `<section>` already has `overflow: auto` (App.tsx ~line 937). When
-the CSS box exceeds the viewport, scrollbars appear and pan the view; a
-**two-finger trackpad drag** also scrolls it natively. Note that plain
-scroll-**wheel** now **zooms** (see Wheel above), so it does not double as a
-pan gesture — panning is scrollbars + trackpad. This is the Google-Maps/Miro
-idiom (wheel zooms, drag pans) and matches the user's mental model.
+### Space = "operate on the active image"
 
-**Zero conflict** with the existing **space-hold = temporary-select** binding,
-which stays 100% as-is. Cursor-anchored zoom sets `scrollLeft/scrollTop` so the
-point under the cursor stays fixed.
+Today `spacebarHeld` drives temporary-select. It is **repurposed** to mean
+"redirect canvas gestures to the active image":
 
-(Space-drag-to-pan is intentionally **not** added, to avoid rebinding
-space-hold. A mouse-only user pans via scrollbars; if wheel-pan is later
-wanted, a modifier-wheel pan is the documented future enhancement.)
+- **Default (no space):** wheel zooms the canvas; press-drag pans the view —
+  **even when the cursor is over an active (editing) panel.** To make this
+  true, `PanelInteractionLayer`'s own wheel/pointer handlers are **gated on
+  `spacebarHeld`**: without space, the panel layer does not `preventDefault`
+  the wheel and does not `setPointerCapture` the drag, so both bubble to the
+  canvas-level handlers.
+- **Space held (over an active panel):** wheel zooms *that image*; press-drag
+  pans *that image* — today's `PanelInteractionLayer` behavior, now
+  space-gated. The `SELECT MODE` chip logic that keyed off `spacebarHeld` is
+  removed (temporary-select moves to Cmd/Ctrl, below).
+
+`spacebarHeld` stays lifted in `App.tsx` (its keydown/keyup/blur effect is
+unchanged) and is passed to both `useCanvasZoom` and `PanelInteractionLayer`.
+
+### Temporary-select → Cmd/Ctrl-hold
+
+Temporary-select (switch to Select while a creation tool is active, so you can
+click a panel without placing an annotation) moves from **space** to
+**Cmd/Ctrl-hold** — the Illustrator/Figma convention. `effectiveTool` becomes
+`(cmdOrCtrlHeld && activeTool !== "select") ? "select" : activeTool`. This has
+**no collision**: Shift is already taken (merge/multi-select/snap), and the
+Cmd/Ctrl **zoom shortcuts are `Cmd`+*key* presses**, not Cmd-hold-then-click,
+so a held Cmd with no key-press unambiguously means temporary-select. The
+`SELECT MODE (release …)` chip updates to say `⌘`/`Ctrl` instead of `␣`.
+
+### Drag-to-pan-view (new handler)
+
+Default press-drag must pan the *view*, which today has no handler — the
+`overflow: auto` container only pans via scrollbars/trackpad. Add a pointer
+drag handler (in `useCanvasZoom`, on the scroll container) that, on
+`pointerdown`+drag (not while `spacebarHeld`), sets
+`scrollLeft -= dx; scrollTop -= dy`. Because `PanelInteractionLayer` no longer
+captures the pointer without space, a drag that starts over an active panel
+bubbles to this handler and pans the view. Cursor shows `grab`/`grabbing`.
 
 ### Controls & keyboard shortcuts
 
@@ -310,6 +342,28 @@ the CSS box, then set `scrollLeft/scrollTop` on the `overflow: auto` container
 so that same model-px stays under the cursor after. Implemented in
 `scrollForCursorZoom` (pure, unit-tested).
 
+### Trap C — `PanelInteractionLayer` must yield the gesture without space
+
+Today the panel layer unconditionally `preventDefault`s the wheel and
+`setPointerCapture`s the drag. For default gestures to reach the canvas, the
+panel layer's wheel and pointer handlers must **early-return when
+`spacebarHeld` is false** (so the wheel bubbles un-prevented and the pointer
+is never captured). Care: `setPointerCapture` on pointerdown is the point of
+no return — the gate must be checked *before* capture. The panel's pan-drag
+math (`figurePxW / cssW`) already self-corrects for canvas zoom, so no change
+is needed there beyond the space gate. **Test obligation:** without space, a
+drag starting over an active panel pans the *view*; with space, it pans the
+*image* (Trap C test below).
+
+### Image-pan delta scales with canvas zoom (no change needed)
+
+When space-panning an active image while the canvas is zoomed, the drag delta
+is `(clientΔ) · (figurePxW / cssW)`. As `cssW = 800·viewZoom` grows, the same
+screen movement yields a *smaller* figure-space delta — which is correct: at
+high canvas zoom one screen-pixel is a smaller fraction of the figure. The
+existing ratio already handles this; it is called out only so the plan does
+not "fix" it.
+
 ### Edge cases
 
 - **Fit mode + container resize** → `ResizeObserver` re-derives `fitZoom`.
@@ -358,10 +412,16 @@ Written test-first; each increment lands green
    for annotation placement **and** a marquee drag.
 5. **No-dirty test (acceptance #3)** — zoom/pan produces no `FigureState`
    reference change, no dirty flag; the `.mosaic` round-trips identical bytes.
-6. **Wheel hand-off test** — a plain wheel over empty canvas zooms the canvas;
-   a plain wheel over a panel in **editing** mode zooms the panel and does
-   **not** change `view.zoom` (asserts the `defaultPrevented` routing).
-7. **Visual check in the running Electron app** — `playwright-core`
+6. **Gesture-routing test (space model)** — over a panel in **editing** mode:
+   plain wheel zooms the **canvas** (`view.zoom` changes, panel transform
+   does not); **space+wheel** zooms the **image** (panel transform changes,
+   `view.zoom` does not). Likewise plain press-drag pans the **view**
+   (`scrollLeft/Top` change) while **space+drag** pans the **image** (panel
+   `panX/panY` change). Asserts Trap C's space-gating.
+7. **Temporary-select-on-Cmd test** — with a creation tool active, holding
+   Cmd/Ctrl yields `effectiveTool === "select"`; releasing returns to the
+   tool. Holding **space** does **not** trigger temporary-select anymore.
+8. **Visual check in the running Electron app** — `playwright-core`
    `_electron.launch`, stub `dialog.showOpenDialog` →
    `resources/fixtures/sample.png`, screenshot **fit / 100% / panned** states.
 
@@ -383,9 +443,9 @@ Written test-first; each increment lands green
 **New**
 
 1. `src/renderer/render/view-transform.ts` — pure zoom/fit/scroll math.
-2. `src/renderer/hooks/useCanvasZoom.ts` — `ResizeObserver`, plain-wheel
-   listener (with `defaultPrevented` hand-off to panel-zoom), cursor-anchored
-   scroll.
+2. `src/renderer/hooks/useCanvasZoom.ts` — `ResizeObserver`, space-gated
+   plain-wheel canvas-zoom listener, drag-to-pan-view pointer handler,
+   cursor-anchored scroll. Reads `spacebarHeld`.
 3. `src/renderer/components/Toolbar/ZoomControls.tsx` — presentational
    controls.
 4. `test/unit/view-transform.test.ts` and additions to renderer / app tests
@@ -397,18 +457,25 @@ Written test-first; each increment lands green
    backing store; compose `editorScale·dpr` transform; stop setting
    `canvas.style` size.
 6. `src/renderer/components/Canvas/EditorCanvas.tsx` — plumb `editorScale`.
-7. `src/renderer/App.tsx` — `view` state via `useCanvasZoom`; wrapper `<div>`
+7. `src/renderer/components/Grid/PanelInteractionLayer.tsx` — accept a
+   `spacebarHeld` prop; **early-return** from the wheel listener and from
+   `onPointerDown` (before `setPointerCapture`) when space is not held, so the
+   default gesture bubbles to the canvas handlers. Pan-drag math unchanged.
+8. `src/renderer/App.tsx` — `view` state via `useCanvasZoom`; wrapper `<div>`
    sized to `cssW/cssH`; pass `cssW/cssH` (variable) and `editorScale` down;
    keep `figurePxW/figurePxH` = 800/600; reset `view` on New/Open; mount
-   `ZoomControls` in the tool-ribbon.
-8. `src/renderer/hooks/useKeyboardShortcuts.ts` — add `Cmd/Ctrl` +
+   `ZoomControls`; pass `spacebarHeld` to `useCanvasZoom` and
+   `PanelInteractionLayer`; change `effectiveTool` to gate temporary-select on
+   Cmd/Ctrl-hold instead of space; update the `SELECT MODE` chip label +
+   trigger.
+9. `src/renderer/hooks/useKeyboardShortcuts.ts` — add `Cmd/Ctrl` +
    `=`/`-`/`0`/`1` (guarded so they don't collide with existing bindings).
 
 ## Out of scope
 
-- **Space-drag-to-pan** — deferred to avoid rebinding space-hold
-  (temporary-select).
 - **Zoom-to-selected-panel** — nice fast-follow; not in this pass.
-- **Changing the per-panel wheel pan/zoom gesture** — left exactly as-is.
 - **Any change to the model figure-px space, `.mosaic` schema, or export
   pipeline** — explicitly none; that is the design's safety property.
+- **The per-panel pan/zoom *math*** — unchanged; only its *trigger* changes
+  (now space-gated) and it now composes with canvas zoom via the existing
+  `cssW` ratio.
