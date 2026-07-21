@@ -63,7 +63,11 @@ const PLACEHOLDER_FILL = "#EEEEEE";
 const PLACEHOLDER_STROKE = "#CCCCCC";
 const PLACEHOLDER_LABEL = "#666666";
 const PLACEHOLDER_CAPTION = "#9AA0A8";
-const DRAG_HINT_TEXT = "Drag an image here";
+const DRAG_HINT_TEXT = "Drag an image here or click to browse";
+const DRAG_HINT_TEXT_SHORT = "Drag or click to add";
+const CAPTION_MIN_W = 96;
+const CAPTION_MIN_H = 64;
+const CAPTION_FULL_MIN_W = 240;
 
 // Dark-theme editor chrome for empty panels. Chrome only — never exported.
 // A lifted charcoal reads as an empty slot against the dark surround without
@@ -214,6 +218,17 @@ function drawPanelImage(
   ctx.restore();
 }
 
+/**
+ * Tiers are ordered, not independent: a panel too small in EITHER axis is
+ * rejected first, so a wide-but-short panel can't match on width alone and
+ * then overflow its own height. 13px text needs roughly 240px to fit the
+ * full string.
+ */
+function captionFor(rect: PanelRect): string | null {
+  if (rect.w < CAPTION_MIN_W || rect.h < CAPTION_MIN_H) return null;
+  return rect.w >= CAPTION_FULL_MIN_W ? DRAG_HINT_TEXT : DRAG_HINT_TEXT_SHORT;
+}
+
 function drawPlaceholder(
   ctx: DrawCtx,
   rect: PanelRect,
@@ -229,17 +244,18 @@ function drawPlaceholder(
 
   const cx = rect.x + rect.w / 2;
   const cy = rect.y + rect.h / 2;
+  const caption = showCaption ? captionFor(rect) : null;
   ctx.fillStyle = dark ? PLACEHOLDER_LABEL_DARK : PLACEHOLDER_LABEL;
   ctx.font = "bold 24px system-ui, sans-serif";
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   // Nudge the letter up a touch when a caption sits below it so the pair stays
   // visually centered; keep it dead-center when there's no caption.
-  ctx.fillText(label, cx, showCaption ? cy - 14 : cy);
+  ctx.fillText(label, cx, caption !== null ? cy - 14 : cy);
 
-  if (showCaption) {
+  if (caption !== null) {
     ctx.fillStyle = dark ? PLACEHOLDER_CAPTION_DARK : PLACEHOLDER_CAPTION;
     ctx.font = "13px system-ui, sans-serif";
-    ctx.fillText(DRAG_HINT_TEXT, cx, cy + 14);
+    ctx.fillText(caption, cx, cy + 14);
   }
 }

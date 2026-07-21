@@ -176,39 +176,96 @@ describe("drawFigure", () => {
     expect(labels.length).toBe(4);
   });
 
-  it("draws no 'Drag an image here' caption by default (export path)", () => {
+  const FULL_CAPTION = "Drag an image here or click to browse";
+  const SHORT_CAPTION = "Drag or click to add";
+
+  /** 1x1 grid with no gutter, so the single panel IS the whole canvas. */
+  function onePanelFig(widthPx: number, heightPx: number): Figure {
+    return {
+      canvas: { widthPx, heightPx, background: "#FFF" },
+      grid: { rows: 1, cols: 1, gutterPx: 0, gutterColor: "#FFF" },
+      panels: [
+        {
+          panelId: "p1",
+          row: 0,
+          col: 0,
+          kind: "placeholder",
+          label: "A",
+          rowSpan: 1,
+          colSpan: 1,
+        },
+      ],
+      annotations: [],
+      globalStyle: DEFAULT_GLOBAL_STYLE,
+    };
+  }
+
+  function captionsDrawn(ctx: { calls: Call[] }): string[] {
+    return ctx.calls
+      .filter(
+        (c) =>
+          c.op === "fillText" &&
+          (c.args[0] === FULL_CAPTION || c.args[0] === SHORT_CAPTION),
+      )
+      .map((c) => String(c.args[0]));
+  }
+
+  it("draws no caption at all on the export path (no editorHints)", () => {
     const ctx = makeRecorder();
-    drawFigure(ctx, FIG, new Map());
-    const captions = ctx.calls.filter(
-      (c) => c.op === "fillText" && c.args[0] === "Drag an image here",
-    );
-    expect(captions).toHaveLength(0);
+    drawFigure(ctx, onePanelFig(400, 200), new Map());
+    expect(captionsDrawn(ctx)).toEqual([]);
   });
 
-  it("draws a 'Drag an image here' caption on every empty panel when editorHints is on", () => {
+  it("draws the full caption on a wide panel when editorHints is on", () => {
     const ctx = makeRecorder();
-    // FIG has one image panel (p1) + three placeholders. sample bitmap keeps
-    // p1 an image; the three placeholders should get the caption.
-    const bitmap = { width: 100, height: 100 } as unknown as ImageBitmap;
-    drawFigure(ctx, FIG, new Map([["sample", bitmap]]), new Map(), {
+    drawFigure(ctx, onePanelFig(400, 200), new Map(), new Map(), {
       editorHints: true,
     });
-    const captions = ctx.calls.filter(
-      (c) => c.op === "fillText" && c.args[0] === "Drag an image here",
-    );
-    expect(captions).toHaveLength(3);
+    expect(captionsDrawn(ctx)).toEqual([FULL_CAPTION]);
   });
 
-  it("shows the caption even with an empty pool (first-run guidance)", () => {
+  it("falls back to the short caption on a mid-width panel", () => {
     const ctx = makeRecorder();
-    drawFigure(ctx, FIG, new Map(), new Map(), {
+    drawFigure(ctx, onePanelFig(160, 120), new Map(), new Map(), {
       editorHints: true,
     });
-    const captions = ctx.calls.filter(
-      (c) => c.op === "fillText" && c.args[0] === "Drag an image here",
+    expect(captionsDrawn(ctx)).toEqual([SHORT_CAPTION]);
+  });
+
+  it("draws no caption when the panel is too narrow", () => {
+    const ctx = makeRecorder();
+    drawFigure(ctx, onePanelFig(80, 200), new Map(), new Map(), {
+      editorHints: true,
+    });
+    expect(captionsDrawn(ctx)).toEqual([]);
+  });
+
+  it("draws no caption on a wide-but-short panel (height tier is checked first)", () => {
+    const ctx = makeRecorder();
+    drawFigure(ctx, onePanelFig(400, 50), new Map(), new Map(), {
+      editorHints: true,
+    });
+    expect(captionsDrawn(ctx)).toEqual([]);
+  });
+
+  it("still shows the caption with an empty pool (first-run guidance)", () => {
+    const ctx = makeRecorder();
+    drawFigure(ctx, onePanelFig(400, 200), new Map(), new Map(), {
+      editorHints: true,
+    });
+    expect(captionsDrawn(ctx).length).toBeGreaterThan(0);
+  });
+
+  it("keeps the letter dead-centre when no caption is drawn", () => {
+    const ctx = makeRecorder();
+    // 400x50: caption suppressed, so the letter must NOT carry the -14 nudge.
+    drawFigure(ctx, onePanelFig(400, 50), new Map(), new Map(), {
+      editorHints: true,
+    });
+    const letter = ctx.calls.find(
+      (c) => c.op === "fillText" && c.args[0] === "A",
     );
-    // FIG's four panels are all placeholders when no bitmap is supplied.
-    expect(captions.length).toBeGreaterThan(0);
+    expect(letter?.args[2]).toBe(25);
   });
 
   it("paints the gutter color over the full canvas before drawing panels", () => {
