@@ -31,6 +31,12 @@
   --c-focus-stroke: #1f7a4d;
   --c-hover-stroke: #6e8bff;
 
+  /* Browse-zone hover sits ON TOP of the canvas-painted empty-panel caption,
+     so it must stay translucent — `--c-accent-soft` is opaque in this theme
+     and would blot the caption out. */
+  --c-browse-fill: rgba(46, 91, 255, 0.05);
+  --c-browse-stroke: rgba(46, 91, 255, 0.32);
+
   --c-on-accent: #ffffff;
   --c-toast-info-text: #1a327f;
   --c-toast-success-text: #134b30;
@@ -87,6 +93,9 @@
     --c-focus-stroke: #4ec98a;
     --c-hover-stroke: #7089ff;
 
+    --c-browse-fill: rgba(145, 170, 255, 0.07);
+    --c-browse-stroke: rgba(145, 170, 255, 0.28);
+
     --c-on-accent: #ffffff;
     --c-toast-info-text: #c7d3ff;
     --c-toast-success-text: #b7ecce;
@@ -132,6 +141,9 @@
   --c-select-stroke: #5b7dff;
   --c-focus-stroke: #4ec98a;
   --c-hover-stroke: #7089ff;
+
+  --c-browse-fill: rgba(145, 170, 255, 0.07);
+  --c-browse-stroke: rgba(145, 170, 255, 0.28);
 
   --c-on-accent: #ffffff;
   --c-toast-info-text: #c7d3ff;
@@ -890,7 +902,10 @@ body {
 .panel-browse-zone {
   padding: 0;
   background: transparent;
-  border: 1px solid transparent;
+  /* Dashed at rest too, so hover only animates color — a solid→dashed swap
+     would flicker. Dashed reads as "drop/insert target", matching the
+     grid-hole and empty-panel placeholder strokes. */
+  border: 1px dashed transparent;
   border-radius: var(--r-md);
   cursor: pointer;
   pointer-events: auto;
@@ -899,8 +914,8 @@ body {
     border-color 80ms ease;
 }
 .panel-browse-zone:hover {
-  background: var(--c-accent-soft);
-  border-color: var(--c-accent);
+  background: var(--c-browse-fill);
+  border-color: var(--c-browse-stroke);
 }
 .panel-browse-zone:focus-visible {
   outline: 2px solid var(--c-accent);
