@@ -885,6 +885,28 @@ body {
   outline-offset: 1px;
 }
 
+/* Invisible until hovered: the canvas-painted caption is the visible
+   affordance, this is its hit target. */
+.panel-browse-zone {
+  padding: 0;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--r-md);
+  cursor: pointer;
+  pointer-events: auto;
+  transition:
+    background 80ms ease,
+    border-color 80ms ease;
+}
+.panel-browse-zone:hover {
+  background: var(--c-accent-soft);
+  border-color: var(--c-accent);
+}
+.panel-browse-zone:focus-visible {
+  outline: 2px solid var(--c-accent);
+  outline-offset: 1px;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

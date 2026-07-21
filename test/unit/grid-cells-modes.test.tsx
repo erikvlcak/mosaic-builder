@@ -51,10 +51,12 @@ function renderGrid(opts: {
   state: FigureState;
   onPanelClick: ReturnType<typeof vi.fn>;
   onPanelDoubleClick: ReturnType<typeof vi.fn>;
+  onPanelBrowseClick: ReturnType<typeof vi.fn>;
 } {
   const state = stateWithImage();
   const onPanelClick = vi.fn(opts.onPanelClick);
   const onPanelDoubleClick = vi.fn(opts.onPanelDoubleClick);
+  const onPanelBrowseClick = vi.fn();
   render(
     <GridCells
       state={state}
@@ -73,9 +75,10 @@ function renderGrid(opts: {
       onPanelClick={onPanelClick}
       onPanelDoubleClick={onPanelDoubleClick}
       onHoleClick={vi.fn()}
+      onPanelBrowseClick={onPanelBrowseClick}
     />,
   );
-  return { state, onPanelClick, onPanelDoubleClick };
+  return { state, onPanelClick, onPanelDoubleClick, onPanelBrowseClick };
 }
 
 describe("GridCells — selected vs editing modes", () => {
@@ -470,5 +473,99 @@ describe("GridCells — track-resize handles (spec 11)", () => {
     expect(call[0]).toBe("col");
     expect(call[1]).toBe(0);
     expect(typeof call[2]).toBe("number");
+  });
+});
+
+describe("GridCells — empty-panel browse zone", () => {
+  it("renders a browse zone on empty panels only", () => {
+    const { state } = renderGrid({ interaction: null });
+    const occupied = state.panels.find((p) => p.imageId !== undefined)!;
+    const empty = state.panels.find((p) => p.imageId === undefined)!;
+    expect(
+      screen.queryByTestId(`browse-zone-${occupied.row}-${occupied.col}`),
+    ).toBeNull();
+    expect(
+      screen.getByTestId(`browse-zone-${empty.row}-${empty.col}`),
+    ).toBeTruthy();
+  });
+
+  it("clicking the browse zone calls onPanelBrowseClick and not onPanelClick", () => {
+    const { state, onPanelBrowseClick, onPanelClick } = renderGrid({
+      interaction: null,
+    });
+    const empty = state.panels.find((p) => p.imageId === undefined)!;
+    fireEvent.click(
+      screen.getByTestId(`browse-zone-${empty.row}-${empty.col}`),
+    );
+    expect(onPanelBrowseClick).toHaveBeenCalledWith(empty.id);
+    expect(onPanelClick).not.toHaveBeenCalled();
+  });
+
+  it("stamps the browse zone data-interactive so the pan owner skips it", () => {
+    const { state } = renderGrid({ interaction: null });
+    const empty = state.panels.find((p) => p.imageId === undefined)!;
+    const el = screen.getByTestId(`browse-zone-${empty.row}-${empty.col}`);
+    expect(el.getAttribute("data-interactive")).toBe("browse");
+    expect(el.tagName).toBe("BUTTON");
+  });
+
+  it("centres the zone inside its panel at 70% x 60%", () => {
+    // 2x2 grid over 800x600 with the default gutter; assert the zone's box is
+    // centred within the panel rather than hard-coding gutter arithmetic.
+    const { state } = renderGrid({ interaction: null });
+    const empty = state.panels.find((p) => p.imageId === undefined)!;
+    const zone = screen.getByTestId(`browse-zone-${empty.row}-${empty.col}`);
+    const panel = screen.getByTestId(`panel-${empty.row}-${empty.col}`);
+    const px = (v: string): number => Number(v.replace("px", ""));
+    const panelW = px(panel.style.width);
+    const panelH = px(panel.style.height);
+    expect(px(zone.style.width)).toBeCloseTo(Math.min(panelW * 0.7, 280), 5);
+    expect(px(zone.style.height)).toBeCloseTo(Math.min(panelH * 0.6, 120), 5);
+    // Offsets are panel-relative, so left == (panelW - zoneW) / 2.
+    expect(px(zone.style.left)).toBeCloseTo(
+      (panelW - px(zone.style.width)) / 2,
+      5,
+    );
+    expect(px(zone.style.top)).toBeCloseTo(
+      (panelH - px(zone.style.height)) / 2,
+      5,
+    );
+  });
+
+  it("renders no browse zone on a hidden panel", () => {
+    const base = stateWithImage();
+    const hiddenTarget = base.panels.find((p) => p.imageId === undefined)!;
+    const state: FigureState = {
+      ...base,
+      panels: base.panels.map((p) =>
+        p.id === hiddenTarget.id ? { ...p, hidden: true } : p,
+      ),
+    };
+    render(
+      <GridCells
+        state={state}
+        figurePxW={800}
+        figurePxH={600}
+        cssW={800}
+        cssH={600}
+        onDrop={vi.fn()}
+        hoverPanelId={null}
+        onHoverPanelChange={vi.fn()}
+        dragSource={null}
+        onDragSourceChange={vi.fn()}
+        selection={new Set<string>()}
+        onCellShiftClick={vi.fn()}
+        panelInteraction={null}
+        onPanelClick={vi.fn()}
+        onPanelDoubleClick={vi.fn()}
+        onHoleClick={vi.fn()}
+        onPanelBrowseClick={vi.fn()}
+      />,
+    );
+    expect(
+      screen.queryByTestId(
+        `browse-zone-${hiddenTarget.row}-${hiddenTarget.col}`,
+      ),
+    ).toBeNull();
   });
 });

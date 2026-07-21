@@ -2,7 +2,11 @@ import * as React from "react";
 import { useRef } from "react";
 import type { FigureState } from "../../model/figure-state";
 import { cellKey } from "../../model/figure-state";
-import { computeGridLayout, computeCellRect } from "../../render/coords";
+import {
+  computeGridLayout,
+  computeCellRect,
+  browseZoneRect,
+} from "../../render/coords";
 import { rectsFromUniform } from "../../model/grid-layout";
 import { cellsWithoutPanel } from "../../model/panels";
 import {
@@ -50,6 +54,8 @@ interface Props {
   onHoleClick: (row: number, col: number) => void;
   /** Click on the crop badge of a panel that has a non-default crop. */
   onPanelCropBadgeClick?: (panelId: string) => void;
+  /** Click on an empty panel's centred browse target — opens the picker. */
+  onPanelBrowseClick?: (panelId: string) => void;
   /**
    * Spec 11: dispatched when the user drags a track gutter handle. weight is
    * the new value of `colWeights[index]` (or rowWeights). Only emitted in
@@ -81,6 +87,7 @@ function GridCellsImpl({
   onPanelDoubleClick,
   onHoleClick,
   onPanelCropBadgeClick,
+  onPanelBrowseClick,
   onTrackWeightChange,
 }: Props): JSX.Element {
   // Image currently being dragged (visual dim on its source panel only).
@@ -301,6 +308,7 @@ function GridCellsImpl({
         if (r === undefined) return null;
         const occupied = panel.imageId !== undefined;
         const isHidden = panel.hidden === true;
+        const browseZone = browseZoneRect(r);
 
         function onDragOver(e: React.DragEvent<HTMLDivElement>): void {
           if (!e.dataTransfer.types.includes(DRAG_MIME)) return;
@@ -465,6 +473,30 @@ function GridCellsImpl({
               >
                 ✂
               </button>
+            )}
+            {!occupied && !isHidden && onPanelBrowseClick !== undefined && (
+              <button
+                type="button"
+                className="panel-browse-zone"
+                // Stamped interactive so useViewportGestures never starts a
+                // background pan here; Space+drag and middle-drag still pan.
+                data-interactive="browse"
+                data-testid={`browse-zone-${panel.row}-${panel.col}`}
+                aria-label={`Add image to panel at row ${panel.row + 1}, column ${panel.col + 1}`}
+                title="Click to browse for an image"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onPanelBrowseClick(panel.id);
+                }}
+                style={{
+                  position: "absolute",
+                  // Panel-relative: the parent div is already offset by r.
+                  left: (browseZone.x - r.x) * sx,
+                  top: (browseZone.y - r.y) * sy,
+                  width: browseZone.w * sx,
+                  height: browseZone.h * sy,
+                }}
+              />
             )}
           </div>
         );
