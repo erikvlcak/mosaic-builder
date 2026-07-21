@@ -7,6 +7,7 @@ import {
   snapTransform,
   panForCursorZoom,
   clamp,
+  browseZoneRect,
 } from "../../src/renderer/render/coords";
 import { DEFAULT_TRANSFORM } from "../../src/renderer/model/panels";
 
@@ -173,5 +174,38 @@ describe("panForCursorZoom", () => {
     const out = panForCursorZoom(t, 10, 0, 2);
     expect(out.panX).toBe(-10);
     expect(out.panY).toBe(0);
+  });
+});
+
+describe("browseZoneRect — empty-panel click-to-browse hit target", () => {
+  it("centres a 70% x 60% box inside a typical panel", () => {
+    const z = browseZoneRect({ x: 10, y: 20, w: 200, h: 150 });
+    expect(z).toEqual({ x: 40, y: 50, w: 140, h: 90 });
+  });
+
+  it("caps width at 280 and height at 120 on an oversized panel", () => {
+    const z = browseZoneRect({ x: 0, y: 0, w: 1000, h: 800 });
+    expect(z).toEqual({ x: 360, y: 340, w: 280, h: 120 });
+  });
+
+  it("stays proportional on a small panel (no minimum size)", () => {
+    const z = browseZoneRect({ x: 5, y: 7, w: 60, h: 40 });
+    expect(z).toEqual({ x: 14, y: 15, w: 42, h: 24 });
+  });
+
+  it("is always fully contained by its panel", () => {
+    const panels = [
+      { x: 0, y: 0, w: 10, h: 10 },
+      { x: 3, y: 9, w: 137, h: 401 },
+      { x: 0, y: 0, w: 4000, h: 4000 },
+      { x: 250, y: 250, w: 1, h: 1 },
+    ];
+    for (const p of panels) {
+      const z = browseZoneRect(p);
+      expect(z.x).toBeGreaterThanOrEqual(p.x);
+      expect(z.y).toBeGreaterThanOrEqual(p.y);
+      expect(z.x + z.w).toBeLessThanOrEqual(p.x + p.w);
+      expect(z.y + z.h).toBeLessThanOrEqual(p.y + p.h);
+    }
   });
 });

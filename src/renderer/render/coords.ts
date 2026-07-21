@@ -159,6 +159,31 @@ export function computePanelRects(figure: Figure): PanelRect[] {
   );
 }
 
+const BROWSE_ZONE_W_RATIO = 0.7;
+const BROWSE_ZONE_H_RATIO = 0.6;
+const BROWSE_ZONE_MAX_W = 280;
+const BROWSE_ZONE_MAX_H = 120;
+
+/**
+ * Hit rectangle for the click-to-browse affordance on an empty panel.
+ * Proportional so it tracks panel size, but capped so a full-bleed panel
+ * still leaves a wide border where a click selects and a drag pans.
+ *
+ * Single source of truth: GridCells positions its <button> from this, and
+ * AnnotationInteractionLayer carves the matching backdrop hole from it. If
+ * the two ever disagreed the button would silently stop receiving clicks.
+ */
+export function browseZoneRect(rect: PanelRect): PanelRect {
+  const w = Math.min(rect.w * BROWSE_ZONE_W_RATIO, BROWSE_ZONE_MAX_W);
+  const h = Math.min(rect.h * BROWSE_ZONE_H_RATIO, BROWSE_ZONE_MAX_H);
+  return {
+    x: rect.x + (rect.w - w) / 2,
+    y: rect.y + (rect.h - h) / 2,
+    w,
+    h,
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Per-panel transform math (M5). All pure; no DOM, no canvas, no React.
 // All dimensions are in figure-canvas pixels unless noted otherwise.
