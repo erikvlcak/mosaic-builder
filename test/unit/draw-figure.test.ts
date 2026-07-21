@@ -268,6 +268,23 @@ describe("drawFigure", () => {
     expect(letter?.args[2]).toBe(25);
   });
 
+  it("nudges the letter up and the caption down when a caption IS drawn", () => {
+    const ctx = makeRecorder();
+    // 400x200: full caption tier, so cx=200, cy=100. Letter carries the -14
+    // nudge (y=86); caption sits at cy+14 (y=114).
+    drawFigure(ctx, onePanelFig(400, 200), new Map(), new Map(), {
+      editorHints: true,
+    });
+    const letter = ctx.calls.find(
+      (c) => c.op === "fillText" && c.args[0] === "A",
+    );
+    expect(letter?.args[2]).toBe(86);
+    const caption = ctx.calls.find(
+      (c) => c.op === "fillText" && c.args[0] === FULL_CAPTION,
+    );
+    expect(caption?.args[2]).toBe(114);
+  });
+
   it("paints the gutter color over the full canvas before drawing panels", () => {
     // Snapshot fillStyle at each fillRect call so we can verify the color
     // used per call — the simple recorder above only tracks op + args.

@@ -489,12 +489,15 @@ function GridCellsImpl({
                 aria-label={`Add image to panel at row ${panel.row + 1}, column ${panel.col + 1}`}
                 title="Click to browse for an image"
                 onClick={(e) => {
+                  // stopPropagation must run before the spaceHeld check —
+                  // otherwise a suppressed Space+click still bubbles to the
+                  // panel div's onClick and selects the panel underneath.
+                  e.stopPropagation();
                   // Space = hand tool: yield to the viewport pan owner. A
                   // Space+drag that starts and ends inside this button still
                   // fires a terminal click; without this guard the picker
                   // would open on top of the pan the user actually asked for.
                   if (spaceHeld) return;
-                  e.stopPropagation();
                   onPanelBrowseClick(panel.id);
                 }}
                 style={{

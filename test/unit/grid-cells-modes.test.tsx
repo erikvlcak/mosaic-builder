@@ -1,11 +1,13 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, createEvent } from "@testing-library/react";
 import { GridCells } from "../../src/renderer/components/Grid/GridCells";
 import { initialFigureState } from "../../src/renderer/model/figure-state";
 import type { FigureState } from "../../src/renderer/model/figure-state";
 import type { PanelInteraction } from "../../src/renderer/model/panel-interaction";
 import { InteractionProvider } from "../../src/renderer/interaction/InteractionContext";
+import { uniformLayoutFor } from "../../src/renderer/model/grid-layout";
+import { DRAG_MIME, serializeDrag } from "../../src/renderer/dnd/drag-payload";
 
 function stateWithImage(): FigureState {
   // Default initialFigureState gives a 2x2 grid of empty panels. Place an
@@ -41,6 +43,22 @@ function stateWithImage(): FigureState {
           }
         : p,
     ),
+  };
+}
+
+/**
+ * A single full-bleed panel (not the default 2x2 grid) so the browse zone's
+ * 70%/60% ratio actually exceeds the 280/120 figure-px caps — needed to tell
+ * cap-then-scale apart from scale-then-cap (see the 2x-scale test below).
+ */
+function singlePanelState(): FigureState {
+  const s = initialFigureState();
+  return {
+    ...s,
+    rows: 1,
+    cols: 1,
+    panels: [{ id: s.panels[0]!.id, row: 0, col: 0, rowSpan: 1, colSpan: 1 }],
+    layout: uniformLayoutFor(1, 1),
   };
 }
 
@@ -509,8 +527,10 @@ describe("GridCells — empty-panel browse zone", () => {
   it("does not call onPanelBrowseClick when Space is held (pan owns the gesture)", () => {
     // Space+drag always pans the viewport (the One Rule's escape hatch); a
     // pan that starts and ends inside this button still fires a terminal
-    // click, and that click must not also open the file picker.
-    const { state, onPanelBrowseClick } = renderGrid({
+    // click, and that click must not also open the file picker or bubble to
+    // panel selection (pre-branch behavior: Space+click on an empty panel
+    // did nothing, so a suppressed browse click must stay fully suppressed).
+    const { state, onPanelBrowseClick, onPanelClick } = renderGrid({
       interaction: null,
       spaceHeld: true,
     });
@@ -519,6 +539,7 @@ describe("GridCells — empty-panel browse zone", () => {
       screen.getByTestId(`browse-zone-${empty.row}-${empty.col}`),
     );
     expect(onPanelBrowseClick).not.toHaveBeenCalled();
+    expect(onPanelClick).not.toHaveBeenCalled();
   });
 
   it("still calls onPanelBrowseClick on a plain click when Space is not held", () => {
@@ -564,6 +585,43 @@ describe("GridCells — empty-panel browse zone", () => {
     );
   });
 
+  it("caps in figure-px THEN scales: at 2x CSS scale the capped width is 560, not 280", () => {
+    // Cap-then-scale and scale-then-cap agree at scale 1 whenever the cap
+    // doesn't bind (the 2x2 case above never hits the width cap: panel
+    // figure-px width is 382, so 70% = 267.4 < 280). A single full-bleed
+    // panel at 800x600 figure-px is wide enough (776 figure-px) that 70%
+    // (543.2) exceeds the 280 cap, so this case can actually distinguish
+    // the two orderings: cap-then-scale gives 280 * 2 = 560; scale-then-cap
+    // would give 280 unscaled.
+    const state = singlePanelState();
+    render(
+      <GridCells
+        state={state}
+        figurePxW={800}
+        figurePxH={600}
+        cssW={1600}
+        cssH={1200}
+        onDrop={vi.fn()}
+        hoverPanelId={null}
+        onHoverPanelChange={vi.fn()}
+        dragSource={null}
+        onDragSourceChange={vi.fn()}
+        selection={new Set<string>()}
+        onCellShiftClick={vi.fn()}
+        panelInteraction={null}
+        onPanelClick={vi.fn()}
+        onPanelDoubleClick={vi.fn()}
+        onHoleClick={vi.fn()}
+        onPanelBrowseClick={vi.fn()}
+      />,
+    );
+    const empty = state.panels[0]!;
+    const zone = screen.getByTestId(`browse-zone-${empty.row}-${empty.col}`);
+    const px = (v: string): number => Number(v.replace("px", ""));
+    expect(px(zone.style.width)).toBeCloseTo(560, 5);
+    expect(px(zone.style.height)).toBeCloseTo(240, 5);
+  });
+
   it("renders no browse zone on a hidden panel", () => {
     const base = stateWithImage();
     const hiddenTarget = base.panels.find((p) => p.imageId === undefined)!;
@@ -599,5 +657,61 @@ describe("GridCells — empty-panel browse zone", () => {
         `browse-zone-${hiddenTarget.row}-${hiddenTarget.col}`,
       ),
     ).toBeNull();
+  });
+
+  it("a drop over the browse zone still reaches the panel's onDrop handler by bubbling", () => {
+    // The button sets no drag handlers and does not stopPropagation on drag
+    // events (only on click), so dragover/drop must bubble untouched to the
+    // panel div underneath — this is what keeps drop-to-centre working.
+    const state = stateWithImage();
+    const empty = state.panels.find((p) => p.imageId === undefined)!;
+    const onDrop = vi.fn();
+    render(
+      <GridCells
+        state={state}
+        figurePxW={800}
+        figurePxH={600}
+        cssW={800}
+        cssH={600}
+        onDrop={onDrop}
+        hoverPanelId={null}
+        onHoverPanelChange={vi.fn()}
+        dragSource={null}
+        onDragSourceChange={vi.fn()}
+        selection={new Set<string>()}
+        onCellShiftClick={vi.fn()}
+        panelInteraction={null}
+        onPanelClick={vi.fn()}
+        onPanelDoubleClick={vi.fn()}
+        onHoleClick={vi.fn()}
+        onPanelBrowseClick={vi.fn()}
+      />,
+    );
+    const zone = screen.getByTestId(`browse-zone-${empty.row}-${empty.col}`);
+    const payload = serializeDrag({ kind: "tray", imageId: "img1" });
+    const dataTransfer = {
+      types: [DRAG_MIME],
+      getData: (mime: string) => (mime === DRAG_MIME ? payload : ""),
+      setData: () => {},
+      dropEffect: "none",
+      effectAllowed: "all",
+    };
+
+    const dragOverEvent = createEvent.dragOver(zone);
+    Object.defineProperty(dragOverEvent, "dataTransfer", {
+      get: () => dataTransfer,
+    });
+    fireEvent(zone, dragOverEvent);
+
+    const dropEvent = createEvent.drop(zone);
+    Object.defineProperty(dropEvent, "dataTransfer", {
+      get: () => dataTransfer,
+    });
+    fireEvent(zone, dropEvent);
+
+    expect(onDrop).toHaveBeenCalledWith({
+      from: { kind: "tray", imageId: "img1" },
+      targetPanelId: empty.id,
+    });
   });
 });
