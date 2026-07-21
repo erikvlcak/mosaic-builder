@@ -245,17 +245,22 @@ function drawPlaceholder(
   const cx = rect.x + rect.w / 2;
   const cy = rect.y + rect.h / 2;
   const caption = showCaption ? captionFor(rect) : null;
+  // `deriveFigure` gives every placeholder an EMPTY label — the visible A/B/C
+  // comes from the letter-annotation layer, anchored top-left, not from here.
+  // So in practice the caption is the only text drawn, and splitting the pair
+  // around the center would leave it hanging 14px low inside the browse zone.
+  // Only offset the two when a label is genuinely present ("(missing)", or a
+  // hand-built fixture).
+  const pairs = caption !== null && label !== "";
   ctx.fillStyle = dark ? PLACEHOLDER_LABEL_DARK : PLACEHOLDER_LABEL;
   ctx.font = "bold 24px system-ui, sans-serif";
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
-  // Nudge the letter up a touch when a caption sits below it so the pair stays
-  // visually centered; keep it dead-center when there's no caption.
-  ctx.fillText(label, cx, caption !== null ? cy - 14 : cy);
+  ctx.fillText(label, cx, pairs ? cy - 14 : cy);
 
   if (caption !== null) {
     ctx.fillStyle = dark ? PLACEHOLDER_CAPTION_DARK : PLACEHOLDER_CAPTION;
     ctx.font = "13px system-ui, sans-serif";
-    ctx.fillText(caption, cx, cy + 14);
+    ctx.fillText(caption, cx, pairs ? cy + 14 : cy);
   }
 }

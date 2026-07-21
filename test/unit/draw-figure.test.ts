@@ -179,8 +179,12 @@ describe("drawFigure", () => {
   const FULL_CAPTION = "Drag an image here or click to browse";
   const SHORT_CAPTION = "Drag or click to add";
 
-  /** 1x1 grid with no gutter, so the single panel IS the whole canvas. */
-  function onePanelFig(widthPx: number, heightPx: number): Figure {
+  /**
+   * 1x1 grid with no gutter, so the single panel IS the whole canvas.
+   * `label` defaults to "A" for readable assertions; pass "" to reproduce
+   * what `deriveFigure` actually emits for placeholders in production.
+   */
+  function onePanelFig(widthPx: number, heightPx: number, label = "A"): Figure {
     return {
       canvas: { widthPx, heightPx, background: "#FFF" },
       grid: { rows: 1, cols: 1, gutterPx: 0, gutterColor: "#FFF" },
@@ -190,7 +194,7 @@ describe("drawFigure", () => {
           row: 0,
           col: 0,
           kind: "placeholder",
-          label: "A",
+          label,
           rowSpan: 1,
           colSpan: 1,
         },
@@ -283,6 +287,20 @@ describe("drawFigure", () => {
       (c) => c.op === "fillText" && c.args[0] === FULL_CAPTION,
     );
     expect(caption?.args[2]).toBe(114);
+  });
+
+  it("centres the caption when the label is empty (the production case)", () => {
+    // deriveFigure gives every placeholder label: "" — the visible A/B/C is the
+    // letter-annotation layer, not this label. With no label to pair with, the
+    // caption must sit dead-centre (cy=100), not 14px low inside the browse zone.
+    const ctx = makeRecorder();
+    drawFigure(ctx, onePanelFig(400, 200, ""), new Map(), new Map(), {
+      editorHints: true,
+    });
+    const caption = ctx.calls.find(
+      (c) => c.op === "fillText" && c.args[0] === FULL_CAPTION,
+    );
+    expect(caption?.args[2]).toBe(100);
   });
 
   it("paints the gutter color over the full canvas before drawing panels", () => {
