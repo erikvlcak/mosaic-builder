@@ -18,6 +18,7 @@ import {
 } from "../../src/renderer/model/figure-state";
 import {
   addToPool,
+  importImages,
   placeIntoPanel,
   swapPanels,
   replaceIntoPanel,
@@ -1882,5 +1883,117 @@ describe("layout housekeeping across grid mutations", () => {
     if (merged === undefined) return;
     const sUnmerged = figureReducer(sMerged, unmergePanelAction(merged.id));
     expect(sUnmerged.layout.kind).toBe("uniform");
+  });
+});
+
+describe("IMPORT_IMAGES — batch import as one undoable transition", () => {
+  const IMG_C: ImagePoolItem = {
+    id: "c",
+    filename: "c.png",
+    filePath: "/x/c.png",
+    mime: "image/png",
+    width: 100,
+    height: 100,
+    bitDepth: 8,
+  };
+
+  beforeEach(() => {
+    __resetPanelIdsForTests();
+  });
+
+  it("adds every item to the pool when no start panel is given", () => {
+    const s = initialFigureState();
+    const next = figureReducer(s, importImages([IMG_A, IMG_B]));
+    expect(next.pool.map((p) => p.id)).toEqual(["a", "b"]);
+    expect(next.panels.every((p) => p.imageId === undefined)).toBe(true);
+  });
+
+  it("fills forward from the start panel in row-major order", () => {
+    // initialFigureState is a 2x2 grid: panels are [0,0] [0,1] [1,0] [1,1].
+    const s = initialFigureState();
+    const start = s.panels[1]!; // row 0, col 1
+    const next = figureReducer(
+      s,
+      importImages([IMG_A, IMG_B, IMG_C], start.id),
+    );
+    expect(next.panels[1]!.imageId).toBe("a");
+    expect(next.panels[2]!.imageId).toBe("b");
+    expect(next.panels[3]!.imageId).toBe("c");
+    expect(next.panels[0]!.imageId).toBeUndefined();
+  });
+
+  it("does not wrap around — leftovers stay unplaced in the pool", () => {
+    const s = initialFigureState();
+    const start = s.panels[3]!; // last panel of the 2x2 grid
+    const next = figureReducer(
+      s,
+      importImages([IMG_A, IMG_B, IMG_C], start.id),
+    );
+    expect(next.panels[3]!.imageId).toBe("a");
+    expect(next.panels[0]!.imageId).toBeUndefined();
+    // All three are in the pool; only one is placed.
+    expect(next.pool.map((p) => p.id)).toEqual(["a", "b", "c"]);
+    const placed = next.panels.filter((p) => p.imageId !== undefined);
+    expect(placed).toHaveLength(1);
+  });
+
+  it("skips hidden panels when filling forward", () => {
+    const s0 = initialFigureState();
+    const s = figureReducer(s0, setPanelHidden(s0.panels[1]!.id, true));
+    const start = s.panels[0]!;
+    const next = figureReducer(s, importImages([IMG_A, IMG_B], start.id));
+    expect(next.panels[0]!.imageId).toBe("a");
+    expect(next.panels[1]!.imageId).toBeUndefined();
+    expect(next.panels[2]!.imageId).toBe("b");
+  });
+
+  it("skips already-occupied panels when filling forward", () => {
+    const s0 = withPool(IMG_A);
+    const s = figureReducer(s0, placeIntoPanel("a", s0.panels[1]!.id));
+    const start = s.panels[0]!;
+    const next = figureReducer(s, importImages([IMG_B, IMG_C], start.id));
+    expect(next.panels[0]!.imageId).toBe("b");
+    expect(next.panels[1]!.imageId).toBe("a");
+    expect(next.panels[2]!.imageId).toBe("c");
+  });
+
+  it("adds to the pool but places nothing when the start panel is occupied", () => {
+    const s0 = withPool(IMG_A);
+    const s = figureReducer(s0, placeIntoPanel("a", s0.panels[0]!.id));
+    const next = figureReducer(s, importImages([IMG_B], s.panels[0]!.id));
+    expect(next.pool.map((p) => p.id)).toEqual(["a", "b"]);
+    expect(next.panels[1]!.imageId).toBeUndefined();
+  });
+
+  it("adds to the pool but places nothing when the start panel is hidden", () => {
+    const s0 = initialFigureState();
+    const s = figureReducer(s0, setPanelHidden(s0.panels[0]!.id, true));
+    const next = figureReducer(s, importImages([IMG_A], s.panels[0]!.id));
+    expect(next.pool.map((p) => p.id)).toEqual(["a"]);
+    expect(next.panels.every((p) => p.imageId === undefined)).toBe(true);
+  });
+
+  it("adds to the pool but places nothing for an unknown start panel id", () => {
+    const s = initialFigureState();
+    const next = figureReducer(s, importImages([IMG_A], "no-such-panel"));
+    expect(next.pool.map((p) => p.id)).toEqual(["a"]);
+    expect(next.panels.every((p) => p.imageId === undefined)).toBe(true);
+  });
+
+  it("returns the same state reference for an empty item list", () => {
+    const s = initialFigureState();
+    expect(figureReducer(s, importImages([]))).toBe(s);
+    expect(figureReducer(s, importImages([], s.panels[0]!.id))).toBe(s);
+  });
+
+  it("returns the same state reference when every id is already pooled", () => {
+    const s = withPool(IMG_A, IMG_B);
+    expect(figureReducer(s, importImages([IMG_A, IMG_B]))).toBe(s);
+  });
+
+  it("adds only the ids that are new", () => {
+    const s = withPool(IMG_A);
+    const next = figureReducer(s, importImages([IMG_A, IMG_B]));
+    expect(next.pool.map((p) => p.id)).toEqual(["a", "b"]);
   });
 });

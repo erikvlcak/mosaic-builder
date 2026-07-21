@@ -293,6 +293,7 @@ describe("TRANSIENT_ACTIONS categorization is exhaustive", () => {
   const CATEGORIZATION: Record<FigureAction["type"], "transient" | "history"> =
     {
       ADD_TO_POOL: "history",
+      IMPORT_IMAGES: "history",
       PLACE_INTO_PANEL: "history",
       SWAP_PANELS: "history",
       REPLACE_INTO_PANEL: "history",

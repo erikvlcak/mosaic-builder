@@ -50,6 +50,7 @@ export interface RelinkPatch {
 
 export type FigureAction =
   | { type: "ADD_TO_POOL"; item: ImagePoolItem }
+  | { type: "IMPORT_IMAGES"; items: ImagePoolItem[]; startPanelId?: string }
   | { type: "PLACE_INTO_PANEL"; imageId: string; panelId: string }
   | { type: "SWAP_PANELS"; aPanelId: string; bPanelId: string }
   | { type: "REPLACE_INTO_PANEL"; imageId: string; panelId: string }
@@ -121,6 +122,14 @@ export type FigureAction =
 export const addToPool = (item: ImagePoolItem): FigureAction => ({
   type: "ADD_TO_POOL",
   item,
+});
+export const importImages = (
+  items: ImagePoolItem[],
+  startPanelId?: string,
+): FigureAction => ({
+  type: "IMPORT_IMAGES",
+  items,
+  ...(startPanelId !== undefined ? { startPanelId } : {}),
 });
 export const placeIntoPanel = (
   imageId: string,
@@ -384,6 +393,41 @@ export function figureReducer(s: FigureState, a: FigureAction): FigureState {
     case "ADD_TO_POOL": {
       if (s.pool.some((p) => p.id === a.item.id)) return s;
       return { ...s, pool: [...s.pool, a.item] };
+    }
+
+    case "IMPORT_IMAGES": {
+      if (a.items.length === 0) return s;
+      const pooled = new Set(s.pool.map((p) => p.id));
+      // Only fresh ids get placed: an id already in the pool may already be
+      // on a panel, and an image may occupy at most one panel.
+      const fresh = a.items.filter((it) => !pooled.has(it.id));
+      if (fresh.length === 0) return s;
+      const pool = [...s.pool, ...fresh];
+
+      if (a.startPanelId === undefined) return { ...s, pool };
+      const start = findPanelById(s.panels, a.startPanelId);
+      if (start === undefined) return { ...s, pool };
+      if (start.imageId !== undefined || start.hidden === true) {
+        return { ...s, pool };
+      }
+
+      // Fill forward only, never wrapping back to earlier empties. Sorted by
+      // (row, col) rather than trusting `s.panels` order so the fill order
+      // always matches the row-major auto-letter order shown on the canvas.
+      const candidates = s.panels
+        .filter((p) => p.imageId === undefined && p.hidden !== true)
+        .sort((x, y) => x.row - y.row || x.col - y.col)
+        .filter(
+          (p) =>
+            p.row > start.row || (p.row === start.row && p.col >= start.col),
+        );
+
+      let panels = s.panels;
+      const n = Math.min(fresh.length, candidates.length);
+      for (let i = 0; i < n; i++) {
+        panels = setPanelImage(panels, candidates[i]!.id, fresh[i]!.id);
+      }
+      return { ...s, pool, panels };
     }
 
     case "RELINK_POOL_IMAGE": {
