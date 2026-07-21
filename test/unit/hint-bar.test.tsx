@@ -33,7 +33,8 @@ describe("hintFor — one hint per interaction state (spec Part 3 table)", () =>
     {
       name: "empty panel selected",
       ctx: { ...BASE, selection: "empty-panel" },
-      expected: "Drag an image here from the tray · ⇧Click cells to merge",
+      expected:
+        "Drag an image here from the tray · Click the centre to browse · ⇧Click cells to merge",
     },
     {
       name: "frame mode",

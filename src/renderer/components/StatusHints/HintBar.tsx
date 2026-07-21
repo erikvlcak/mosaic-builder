@@ -24,7 +24,7 @@ export function hintFor(ctx: HintContext): string {
     return "Drag image to another panel to move or swap · Double-click to frame · ⌫ remove · ⇧Click cells to merge";
   }
   if (ctx.selection === "empty-panel") {
-    return "Drag an image here from the tray · ⇧Click cells to merge";
+    return "Drag an image here from the tray · Click the centre to browse · ⇧Click cells to merge";
   }
   return "Click a panel to select · Double-click to frame · Scroll to pan · ⌘Scroll to zoom";
 }
