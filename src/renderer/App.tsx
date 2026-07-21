@@ -103,6 +103,7 @@ import { ZoomControls } from "./components/Toolbar/ZoomControls";
 import { computeCanvasDims, placedPoolImages } from "./model/canvas-dims";
 import { ThemeToggle } from "./components/Toolbar/ThemeToggle";
 import { useTheme } from "./theme/useTheme";
+import { basename } from "./basename";
 
 const CANVAS_BG = "#FFFFFF";
 const FIGURE_PX_W = 800;
@@ -110,11 +111,6 @@ const FIGURE_PX_H = 600;
 // Matches the interaction layer's Z_SCALEBAR — scale bars sit above other
 // annotations so they can't be hidden behind them.
 const Z_SCALEBAR = 10;
-
-function basename(p: string): string {
-  const ix = Math.max(p.lastIndexOf("/"), p.lastIndexOf("\\"));
-  return ix >= 0 ? p.slice(ix + 1) : p;
-}
 
 export function App(): JSX.Element {
   const [state, dispatch, history] = useHistoryReducer(initialFigureState());
