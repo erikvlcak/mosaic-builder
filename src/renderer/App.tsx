@@ -43,7 +43,7 @@ import {
   initialDefaultScalebarStyle,
 } from "./model/default-scalebar-style";
 import {
-  addToPool,
+  importImages,
   resizeGrid,
   setGutterPx,
   setGutterColor,
@@ -72,10 +72,10 @@ import { useHistoryReducer } from "./state/use-history-reducer";
 import { isDirty } from "./state/dirty";
 import { applyLoadedProject } from "./state/load-project";
 import { emptySelection, singleSelectedId } from "./state/anno-selection";
-import { newImageId, type ImagePoolItem } from "./model/pool";
+import type { ImagePoolItem } from "./model/pool";
 import { deriveFigure } from "./model/figure-derivations";
 import { computePanelRects, type PanelRect } from "./render/coords";
-import { decodeImageBytes } from "./image/decode-bytes";
+import { decodePickedFiles } from "./image/decode-picked-files";
 import { dispatchDrop } from "./dnd/dispatch-drop";
 import { canMergeSelection } from "./model/merge";
 import { useMergeSelection } from "./hooks/useMergeSelection";
@@ -274,60 +274,61 @@ export function App(): JSX.Element {
     [state.panels],
   );
 
-  const onAddImagesClick = useCallback(async (): Promise<void> => {
-    let result;
-    try {
-      result = await window.api.openImages();
-    } catch (err) {
-      toasts.push({
-        kind: "error",
-        message: err instanceof Error ? err.message : String(err),
-      });
-      return;
-    }
-    if (result.canceled) return;
-    const failures: string[] = [];
-    for (const f of result.files) {
-      let decoded;
+  // Shared by the tray button and the empty-panel browse zone. `startPanelId`
+  // is undefined for the tray button (pool-only import).
+  const importFromPicker = useCallback(
+    async (startPanelId?: string): Promise<boolean> => {
+      let result;
       try {
-        decoded = await decodeImageBytes(f.bytes, f.mime);
-      } catch {
-        // Collect failures and surface them as ONE toast after the loop, so a
-        // batch of 20 corrupt files doesn't push 20 toasts past the viewport.
-        failures.push(basename(f.filePath));
-        continue;
+        result = await window.api.openImages();
+      } catch (err) {
+        toasts.push({
+          kind: "error",
+          message: err instanceof Error ? err.message : String(err),
+        });
+        return false;
       }
-      const { bitmap, bitDepth, calibration } = decoded;
-      const item: ImagePoolItem = {
-        id: newImageId(),
-        filename: basename(f.filePath),
-        filePath: f.filePath,
-        mime: f.mime,
-        width: bitmap.width,
-        height: bitmap.height,
-        bitDepth,
-        ...(calibration !== undefined ? { calibration } : {}),
-      };
-      setBitmaps((prev) => {
-        const next = new Map(prev);
-        next.set(item.id, bitmap);
-        return next;
-      });
-      dispatch(addToPool(item));
-    }
-    if (failures.length > 0) {
-      const total = result.files.length;
-      const list = failures.slice(0, 3).join(", ");
-      const more = failures.length > 3 ? ` +${failures.length - 3} more` : "";
-      toasts.push({
-        kind: "error",
-        message:
-          failures.length === 1
-            ? `Failed to decode ${failures[0]!}`
-            : `${failures.length} of ${total} images failed to decode: ${list}${more}`,
-      });
-    }
-  }, [dispatch, toasts]);
+      if (result.canceled) return false;
+
+      const {
+        items,
+        bitmaps: decoded,
+        failures,
+      } = await decodePickedFiles(result.files);
+
+      if (decoded.size > 0) {
+        setBitmaps((prev) => {
+          const next = new Map(prev);
+          for (const [id, bm] of decoded) next.set(id, bm);
+          return next;
+        });
+      }
+      if (items.length > 0) {
+        dispatch(importImages(items, startPanelId));
+      }
+
+      if (failures.length > 0) {
+        // ONE toast for the batch — 20 corrupt files must not push 20 toasts
+        // past the viewport.
+        const total = result.files.length;
+        const list = failures.slice(0, 3).join(", ");
+        const more = failures.length > 3 ? ` +${failures.length - 3} more` : "";
+        toasts.push({
+          kind: "error",
+          message:
+            failures.length === 1
+              ? `Failed to decode ${failures[0]!}`
+              : `${failures.length} of ${total} images failed to decode: ${list}${more}`,
+        });
+      }
+      return items.length > 0;
+    },
+    [dispatch, toasts],
+  );
+
+  const onAddImagesClick = useCallback(async (): Promise<void> => {
+    await importFromPicker();
+  }, [importFromPicker]);
 
   const onRemoveImage = useCallback(
     (imageId: string): void => {
@@ -505,6 +506,29 @@ export function App(): JSX.Element {
       setPanelInteraction({ mode: "selected", panelId });
     },
     [panelInteraction, selectedThumbId, dispatch],
+  );
+
+  // Click on an empty panel's browse zone. An armed tray thumbnail wins:
+  // the user has already said "place THIS", so popping an OS dialog would
+  // contradict them.
+  const onPanelBrowseClick = useCallback(
+    (panelId: string): void => {
+      const panel = stateRef.current.panels.find((p) => p.id === panelId);
+      if (panel === undefined || panel.imageId !== undefined) return;
+      if (panel.hidden === true) return;
+
+      if (selectedThumbId !== null) {
+        dispatch(placeIntoPanel(selectedThumbId, panelId));
+        setSelectedThumbId(null);
+        setPanelInteraction({ mode: "selected", panelId });
+        return;
+      }
+
+      void importFromPicker(panelId).then((placed) => {
+        if (placed) setPanelInteraction({ mode: "selected", panelId });
+      });
+    },
+    [dispatch, importFromPicker, selectedThumbId],
   );
 
   const onPanelDoubleClick = useCallback((panelId: string) => {
@@ -1208,6 +1232,7 @@ export function App(): JSX.Element {
                   onPanelDoubleClick={onPanelDoubleClick}
                   onHoleClick={onHoleClick}
                   onPanelCropBadgeClick={setCroppingPanelId}
+                  onPanelBrowseClick={onPanelBrowseClick}
                   onTrackWeightChange={onTrackWeightChange}
                 />
                 {frameTarget !== null && (
