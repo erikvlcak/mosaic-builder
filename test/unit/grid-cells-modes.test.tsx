@@ -5,6 +5,7 @@ import { GridCells } from "../../src/renderer/components/Grid/GridCells";
 import { initialFigureState } from "../../src/renderer/model/figure-state";
 import type { FigureState } from "../../src/renderer/model/figure-state";
 import type { PanelInteraction } from "../../src/renderer/model/panel-interaction";
+import { InteractionProvider } from "../../src/renderer/interaction/InteractionContext";
 
 function stateWithImage(): FigureState {
   // Default initialFigureState gives a 2x2 grid of empty panels. Place an
@@ -47,6 +48,8 @@ function renderGrid(opts: {
   interaction: PanelInteraction;
   onPanelClick?: (id: string) => void;
   onPanelDoubleClick?: (id: string) => void;
+  /** Default false matches SpaceHeldContext's un-provided default. */
+  spaceHeld?: boolean;
 }): {
   state: FigureState;
   onPanelClick: ReturnType<typeof vi.fn>;
@@ -58,25 +61,27 @@ function renderGrid(opts: {
   const onPanelDoubleClick = vi.fn(opts.onPanelDoubleClick);
   const onPanelBrowseClick = vi.fn();
   render(
-    <GridCells
-      state={state}
-      figurePxW={800}
-      figurePxH={600}
-      cssW={800}
-      cssH={600}
-      onDrop={vi.fn()}
-      hoverPanelId={null}
-      onHoverPanelChange={vi.fn()}
-      dragSource={null}
-      onDragSourceChange={vi.fn()}
-      selection={new Set<string>()}
-      onCellShiftClick={vi.fn()}
-      panelInteraction={opts.interaction}
-      onPanelClick={onPanelClick}
-      onPanelDoubleClick={onPanelDoubleClick}
-      onHoleClick={vi.fn()}
-      onPanelBrowseClick={onPanelBrowseClick}
-    />,
+    <InteractionProvider spaceHeld={opts.spaceHeld ?? false}>
+      <GridCells
+        state={state}
+        figurePxW={800}
+        figurePxH={600}
+        cssW={800}
+        cssH={600}
+        onDrop={vi.fn()}
+        hoverPanelId={null}
+        onHoverPanelChange={vi.fn()}
+        dragSource={null}
+        onDragSourceChange={vi.fn()}
+        selection={new Set<string>()}
+        onCellShiftClick={vi.fn()}
+        panelInteraction={opts.interaction}
+        onPanelClick={onPanelClick}
+        onPanelDoubleClick={onPanelDoubleClick}
+        onHoleClick={vi.fn()}
+        onPanelBrowseClick={onPanelBrowseClick}
+      />
+    </InteractionProvider>,
   );
   return { state, onPanelClick, onPanelDoubleClick, onPanelBrowseClick };
 }
@@ -499,6 +504,33 @@ describe("GridCells — empty-panel browse zone", () => {
     );
     expect(onPanelBrowseClick).toHaveBeenCalledWith(empty.id);
     expect(onPanelClick).not.toHaveBeenCalled();
+  });
+
+  it("does not call onPanelBrowseClick when Space is held (pan owns the gesture)", () => {
+    // Space+drag always pans the viewport (the One Rule's escape hatch); a
+    // pan that starts and ends inside this button still fires a terminal
+    // click, and that click must not also open the file picker.
+    const { state, onPanelBrowseClick } = renderGrid({
+      interaction: null,
+      spaceHeld: true,
+    });
+    const empty = state.panels.find((p) => p.imageId === undefined)!;
+    fireEvent.click(
+      screen.getByTestId(`browse-zone-${empty.row}-${empty.col}`),
+    );
+    expect(onPanelBrowseClick).not.toHaveBeenCalled();
+  });
+
+  it("still calls onPanelBrowseClick on a plain click when Space is not held", () => {
+    const { state, onPanelBrowseClick } = renderGrid({
+      interaction: null,
+      spaceHeld: false,
+    });
+    const empty = state.panels.find((p) => p.imageId === undefined)!;
+    fireEvent.click(
+      screen.getByTestId(`browse-zone-${empty.row}-${empty.col}`),
+    );
+    expect(onPanelBrowseClick).toHaveBeenCalledWith(empty.id);
   });
 
   it("stamps the browse zone data-interactive so the pan owner skips it", () => {

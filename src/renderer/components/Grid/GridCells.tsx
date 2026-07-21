@@ -90,6 +90,10 @@ function GridCellsImpl({
   onPanelBrowseClick,
   onTrackWeightChange,
 }: Props): JSX.Element {
+  // Read here (not inside the browse-zone button below) because hooks can't
+  // live inside the state.panels.map callback.
+  const spaceHeld = useSpaceHeld();
+
   // Image currently being dragged (visual dim on its source panel only).
   const draggingImageId =
     dragSource !== null && dragSource.kind === "tray"
@@ -485,6 +489,11 @@ function GridCellsImpl({
                 aria-label={`Add image to panel at row ${panel.row + 1}, column ${panel.col + 1}`}
                 title="Click to browse for an image"
                 onClick={(e) => {
+                  // Space = hand tool: yield to the viewport pan owner. A
+                  // Space+drag that starts and ends inside this button still
+                  // fires a terminal click; without this guard the picker
+                  // would open on top of the pan the user actually asked for.
+                  if (spaceHeld) return;
                   e.stopPropagation();
                   onPanelBrowseClick(panel.id);
                 }}
