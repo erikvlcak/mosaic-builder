@@ -148,16 +148,19 @@ describe("AnnotationInteractionLayer: occupied-panel backdrop carve", () => {
     }
   });
 
-  it("still covers empty panels so clicks clear/forward and drags pan the view", () => {
+  it("still covers empty panels outside the browse zone so clicks clear/forward and drags pan the view", () => {
     renderLayer(FIG);
-    const bCenter = { x: RECT_B.x + RECT_B.w / 2, y: RECT_B.y + RECT_B.h / 2 };
+    // RECT_B's exact center now sits inside its own browse-zone hole (by
+    // design, see annotation-layer-browse-zone-passthrough.test.tsx); probe
+    // a corner instead, which stays outside that zone regardless of size.
+    const bCorner = { x: RECT_B.x + 2, y: RECT_B.y + 2 };
     const covered = backdropStrips().some((s) =>
-      pointInside(bCenter, rectFromStyle(s)),
+      pointInside(bCorner, rectFromStyle(s)),
     );
     expect(covered).toBe(true);
   });
 
-  it("with no occupied panels, the single full-coverage backdrop remains", () => {
+  it("empty-only figure renders backdrop strips around the browse zones", () => {
     const emptyFig: Figure = {
       ...FIG,
       panels: [
@@ -166,6 +169,11 @@ describe("AnnotationInteractionLayer: occupied-panel backdrop carve", () => {
       ],
     };
     renderLayer(emptyFig);
-    expect(screen.getByTestId("annotation-backdrop")).toBeTruthy();
+    // Two empty panels now carve two browse-zone holes, so the backdrop is
+    // strips. What still matters is that coverage exists outside the zones.
+    expect(screen.queryByTestId("annotation-backdrop")).toBeNull();
+    expect(
+      screen.getAllByTestId(/^annotation-backdrop-strip-/).length,
+    ).toBeGreaterThan(0);
   });
 });

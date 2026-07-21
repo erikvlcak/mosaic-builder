@@ -44,6 +44,7 @@ import {
   figureToSource,
   computeGridLayout,
   computeCellRect,
+  browseZoneRect,
   type PanelRect,
 } from "../../render/coords";
 import { snapDelta, type Guideline, type SnapRect } from "../../render/snap";
@@ -1742,6 +1743,22 @@ export function AnnotationInteractionLayer({
             y: rect.y * figToCssY,
             w: rect.w * figToCssX,
             h: rect.h * figToCssY,
+          });
+        }
+        // Empty panels keep backdrop coverage EXCEPT over their browse zone,
+        // whose <button> in GridCells must receive the click that opens the
+        // file picker. Hidden panels never reach here — deriveFigure filters
+        // them out of figure.panels entirely.
+        for (const p of figure.panels) {
+          if (p.kind !== "placeholder" || p.panelId === undefined) continue;
+          const rect = panelRectsById.get(p.panelId);
+          if (rect === undefined) continue;
+          const bz = browseZoneRect(rect);
+          holes.push({
+            x: bz.x * figToCssX,
+            y: bz.y * figToCssY,
+            w: bz.w * figToCssX,
+            h: bz.h * figToCssY,
           });
         }
         if (holes.length === 0) {

@@ -86,6 +86,19 @@ const PANEL_RECTS: Map<string, PanelRect> = new Map([
   ["panel-A", { x: 0, y: 0, w: 100, h: 200 }],
 ]);
 
+/**
+ * Empty panels now carve browse-zone holes, so the backdrop renders as
+ * strips instead of one full-coverage div. Every strip carries identical
+ * handlers and the click position comes from clientX/clientY, not from
+ * which strip was hit — so any strip is a valid target.
+ */
+function anyBackdrop(): HTMLElement {
+  const single = screen.queryByTestId("annotation-backdrop");
+  if (single !== null) return single;
+  const strips = screen.getAllByTestId(/^annotation-backdrop-strip-/);
+  return strips[0]!;
+}
+
 function setup(): {
   onPanelClick: ReturnType<typeof vi.fn>;
   onHoleClick: ReturnType<typeof vi.fn>;
@@ -133,7 +146,7 @@ function setup(): {
 describe("AnnotationInteractionLayer: hole click passthrough", () => {
   it("forwards a backdrop click over a hole to onHoleClick(row, col)", () => {
     const { onPanelClick, onHoleClick } = setup();
-    const backdrop = screen.getByTestId("annotation-backdrop");
+    const backdrop = anyBackdrop();
 
     // Click at (150, 100): right half → col 1, which is the hole.
     fireEvent.pointerDown(backdrop, {
@@ -156,7 +169,7 @@ describe("AnnotationInteractionLayer: hole click passthrough", () => {
 
   it("does not fire onHoleClick when clicking a covered panel cell", () => {
     const { onPanelClick, onHoleClick } = setup();
-    const backdrop = screen.getByTestId("annotation-backdrop");
+    const backdrop = anyBackdrop();
 
     // Click at (50, 100): left half → col 0, the panel.
     fireEvent.pointerDown(backdrop, {
@@ -178,7 +191,7 @@ describe("AnnotationInteractionLayer: hole click passthrough", () => {
 
   it("does not fire onHoleClick when the pointer moved past the marquee threshold (drag, not click)", () => {
     const { onHoleClick } = setup();
-    const backdrop = screen.getByTestId("annotation-backdrop");
+    const backdrop = anyBackdrop();
 
     fireEvent.pointerDown(backdrop, {
       pointerId: 1,
