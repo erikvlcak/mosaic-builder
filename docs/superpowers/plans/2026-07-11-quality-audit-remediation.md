@@ -353,7 +353,7 @@ Ranked by risk; add opportunistically as the phases above touch each area:
 2. `CropImageModal.tsx` (645 lines) — `resizeCrop` + aspect-lock re-solve
    math; currently manual-QA only.
 3. `tiff-worker-host.ts` — `onerror` rejects all pending + singleton respawn
-   + concurrent `reqId` matching.
+   - concurrent `reqId` matching.
 4. `main/index.ts` IPC registration — smoke-test handlers with mocked
    `ipcMain`.
 5. `CalibrationModal.tsx` — two-click calibration math regression test.
@@ -456,29 +456,29 @@ Explicitly investigated and ruled out during the audit:
 
 ## Appendix B — Finding-to-phase index
 
-| # | Finding | Severity | Phase |
-|---|---------|----------|-------|
-| 1 | Resize drags evict undo history (missing transient actions) | Critical | 1.1 |
-| 2 | Redo bakes uncommitted transient state into history | Critical | 1.2 |
-| 3 | Unsupported TIFFs silently decode to black | Critical | 3.1 |
-| 4 | `relPath` never written on Windows | Critical | 2.1 |
-| 5 | Relinks not persisted into state | Critical | 2.2 |
-| 6 | No unsaved-changes guard (New/Open/close) | Major | 2.3 |
-| 7 | Shared field-commit merges unrelated undo steps | Major | 1.3 |
-| 8 | Tool switch discards typed annotation text | Major | 4.1 |
-| 9 | Export tests never execute; CI runs no tests | Major | 5.1/5.2 |
-| 10 | Electron EOL | Major | 6.1 |
-| 11 | PDF alpha flatten missing | Major | 3.4 |
-| 12 | Grid ops leak dangling annotations into saves | Major | 2.5 |
-| 13 | Non-atomic project save | Major | 2.4 |
-| 14 | EXIF orientation ignored | Major | 3.3 |
-| 15 | 32-bit TIFF blank + mislabeled | Major | 3.2 |
-| 16 | `UPDATE_ANNOTATION` panelId:undefined gap | Minor | 2.6 |
-| 17 | Scalebar picker missing `px` unit | Minor | 4.2 |
-| 18 | Unbounded toast stacking | Minor | 4.3 |
-| 19 | `REMOVE_FROM_POOL` dead / no pool removal UX | Minor | 4.4 |
-| 20 | Tests not typechecked | Minor | 5.3 |
-| 21 | Fixtures shipped in asar / dup icons | Minor | 6.3 |
-| 22 | Dead code (load-image, ExportButton, hardcoded, scripts) | Minor | 6.4 |
-| 23 | Stale/duplicated docs | Minor | 6.5 |
-| 24 | `whenReady` unhandled rejection | Minor | 2.7 |
+| #   | Finding                                                     | Severity | Phase   |
+| --- | ----------------------------------------------------------- | -------- | ------- |
+| 1   | Resize drags evict undo history (missing transient actions) | Critical | 1.1     |
+| 2   | Redo bakes uncommitted transient state into history         | Critical | 1.2     |
+| 3   | Unsupported TIFFs silently decode to black                  | Critical | 3.1     |
+| 4   | `relPath` never written on Windows                          | Critical | 2.1     |
+| 5   | Relinks not persisted into state                            | Critical | 2.2     |
+| 6   | No unsaved-changes guard (New/Open/close)                   | Major    | 2.3     |
+| 7   | Shared field-commit merges unrelated undo steps             | Major    | 1.3     |
+| 8   | Tool switch discards typed annotation text                  | Major    | 4.1     |
+| 9   | Export tests never execute; CI runs no tests                | Major    | 5.1/5.2 |
+| 10  | Electron EOL                                                | Major    | 6.1     |
+| 11  | PDF alpha flatten missing                                   | Major    | 3.4     |
+| 12  | Grid ops leak dangling annotations into saves               | Major    | 2.5     |
+| 13  | Non-atomic project save                                     | Major    | 2.4     |
+| 14  | EXIF orientation ignored                                    | Major    | 3.3     |
+| 15  | 32-bit TIFF blank + mislabeled                              | Major    | 3.2     |
+| 16  | `UPDATE_ANNOTATION` panelId:undefined gap                   | Minor    | 2.6     |
+| 17  | Scalebar picker missing `px` unit                           | Minor    | 4.2     |
+| 18  | Unbounded toast stacking                                    | Minor    | 4.3     |
+| 19  | `REMOVE_FROM_POOL` dead / no pool removal UX                | Minor    | 4.4     |
+| 20  | Tests not typechecked                                       | Minor    | 5.3     |
+| 21  | Fixtures shipped in asar / dup icons                        | Minor    | 6.3     |
+| 22  | Dead code (load-image, ExportButton, hardcoded, scripts)    | Minor    | 6.4     |
+| 23  | Stale/duplicated docs                                       | Minor    | 6.5     |
+| 24  | `whenReady` unhandled rejection                             | Minor    | 2.7     |

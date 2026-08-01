@@ -35,12 +35,14 @@ The `DragPayload` `{ kind: "panel"; panelId }` variant (`src/renderer/dnd/drag-p
 ## Task 1: Tray drag moves/swaps placed images (`dispatchDrop` + `previewForDrop`)
 
 **Files:**
+
 - Modify: `src/renderer/dnd/dispatch-drop.ts`
 - Modify: `src/renderer/dnd/preview-for-drop.ts`
 - Test: `test/unit/dispatch-drop.test.ts`
 - Test: `test/unit/preview-for-drop.test.ts`
 
 **Interfaces:**
+
 - Consumes: `swapPanels(aPanelId, bPanelId)`, `placeIntoPanel(imageId, panelId)`, `replaceIntoPanel(imageId, panelId)` from `src/renderer/model/figure-actions.ts` (all already imported in `dispatch-drop.ts`). `SWAP_PANELS` already handles both move (empty target) and swap (occupied target) and relocates image-bound annotations.
 - Produces: `dispatchDrop(state, ev)` returns a `FigureAction | null`; `previewForDrop(state, source, hoverPanelId)` returns `DropPreview` (`{ valid: false } | { valid: true; targetImageId: string; sourceGhost?: { panelId: string; imageId: string } }`). Both consumed by `GridCells` and `App`. Signatures unchanged.
 
@@ -49,45 +51,45 @@ The `DragPayload` `{ kind: "panel"; panelId }` variant (`src/renderer/dnd/drag-p
 Replace the `"tray drop with already-placed image is no-op"` test and the two `"panel → ..."` tests in `test/unit/dispatch-drop.test.ts` (lines 78–110) with the block below. Keep the two existing tray tests (lines 46–76) as-is.
 
 ```typescript
-  it("tray drop of a placed image onto a different EMPTY panel emits SWAP_PANELS (move)", () => {
-    let s = initialFigureState();
-    s = figureReducer(s, addToPool(IMG_A));
-    const p1 = panelIdAt(s, 0, 0);
-    const p2 = panelIdAt(s, 0, 1);
-    s = figureReducer(s, placeIntoPanel("a", p1));
-    const action = dispatchDrop(s, {
-      from: { kind: "tray", imageId: "a" },
-      targetPanelId: p2,
-    });
-    expect(action).toEqual({ type: "SWAP_PANELS", aPanelId: p1, bPanelId: p2 });
+it("tray drop of a placed image onto a different EMPTY panel emits SWAP_PANELS (move)", () => {
+  let s = initialFigureState();
+  s = figureReducer(s, addToPool(IMG_A));
+  const p1 = panelIdAt(s, 0, 0);
+  const p2 = panelIdAt(s, 0, 1);
+  s = figureReducer(s, placeIntoPanel("a", p1));
+  const action = dispatchDrop(s, {
+    from: { kind: "tray", imageId: "a" },
+    targetPanelId: p2,
   });
+  expect(action).toEqual({ type: "SWAP_PANELS", aPanelId: p1, bPanelId: p2 });
+});
 
-  it("tray drop of a placed image onto a different OCCUPIED panel emits SWAP_PANELS (swap)", () => {
-    let s = initialFigureState();
-    s = figureReducer(s, addToPool(IMG_A));
-    s = figureReducer(s, addToPool(IMG_B));
-    const p1 = panelIdAt(s, 0, 0);
-    const p2 = panelIdAt(s, 0, 1);
-    s = figureReducer(s, placeIntoPanel("a", p1));
-    s = figureReducer(s, placeIntoPanel("b", p2));
-    const action = dispatchDrop(s, {
-      from: { kind: "tray", imageId: "a" },
-      targetPanelId: p2,
-    });
-    expect(action).toEqual({ type: "SWAP_PANELS", aPanelId: p1, bPanelId: p2 });
+it("tray drop of a placed image onto a different OCCUPIED panel emits SWAP_PANELS (swap)", () => {
+  let s = initialFigureState();
+  s = figureReducer(s, addToPool(IMG_A));
+  s = figureReducer(s, addToPool(IMG_B));
+  const p1 = panelIdAt(s, 0, 0);
+  const p2 = panelIdAt(s, 0, 1);
+  s = figureReducer(s, placeIntoPanel("a", p1));
+  s = figureReducer(s, placeIntoPanel("b", p2));
+  const action = dispatchDrop(s, {
+    from: { kind: "tray", imageId: "a" },
+    targetPanelId: p2,
   });
+  expect(action).toEqual({ type: "SWAP_PANELS", aPanelId: p1, bPanelId: p2 });
+});
 
-  it("tray drop of a placed image onto its OWN panel is a no-op", () => {
-    let s = initialFigureState();
-    s = figureReducer(s, addToPool(IMG_A));
-    const p1 = panelIdAt(s, 0, 0);
-    s = figureReducer(s, placeIntoPanel("a", p1));
-    const action = dispatchDrop(s, {
-      from: { kind: "tray", imageId: "a" },
-      targetPanelId: p1,
-    });
-    expect(action).toBe(null);
+it("tray drop of a placed image onto its OWN panel is a no-op", () => {
+  let s = initialFigureState();
+  s = figureReducer(s, addToPool(IMG_A));
+  const p1 = panelIdAt(s, 0, 0);
+  s = figureReducer(s, placeIntoPanel("a", p1));
+  const action = dispatchDrop(s, {
+    from: { kind: "tray", imageId: "a" },
+    targetPanelId: p1,
   });
+  expect(action).toBe(null);
+});
 ```
 
 - [ ] **Step 2: Run the dispatch-drop tests to verify the new ones fail**
@@ -142,40 +144,40 @@ Expected: PASS (all 5 tests).
 In `test/unit/preview-for-drop.test.ts`, replace the `"tray drag whose image is already placed → invalid"` test (lines 70–78) and the three `"panel ..."` tests (lines 80–121) with the block below. Keep the first three tests (lines 46–68).
 
 ```typescript
-  it("tray drag of a placed image onto its OWN panel → invalid", () => {
-    let s = initialFigureState();
-    s = figureReducer(s, addToPool(IMG_A));
-    const p1 = panelIdAt(s, 0, 0);
-    s = figureReducer(s, placeIntoPanel("a", p1));
-    const r = previewForDrop(s, { kind: "tray", imageId: "a" }, p1);
-    expect(r).toEqual({ valid: false });
-  });
+it("tray drag of a placed image onto its OWN panel → invalid", () => {
+  let s = initialFigureState();
+  s = figureReducer(s, addToPool(IMG_A));
+  const p1 = panelIdAt(s, 0, 0);
+  s = figureReducer(s, placeIntoPanel("a", p1));
+  const r = previewForDrop(s, { kind: "tray", imageId: "a" }, p1);
+  expect(r).toEqual({ valid: false });
+});
 
-  it("tray drag of a placed image onto a different EMPTY panel → valid, no sourceGhost", () => {
-    let s = initialFigureState();
-    s = figureReducer(s, addToPool(IMG_A));
-    const p1 = panelIdAt(s, 0, 0);
-    const p2 = panelIdAt(s, 0, 1);
-    s = figureReducer(s, placeIntoPanel("a", p1));
-    const r = previewForDrop(s, { kind: "tray", imageId: "a" }, p2);
-    expect(r).toEqual({ valid: true, targetImageId: "a" });
-  });
+it("tray drag of a placed image onto a different EMPTY panel → valid, no sourceGhost", () => {
+  let s = initialFigureState();
+  s = figureReducer(s, addToPool(IMG_A));
+  const p1 = panelIdAt(s, 0, 0);
+  const p2 = panelIdAt(s, 0, 1);
+  s = figureReducer(s, placeIntoPanel("a", p1));
+  const r = previewForDrop(s, { kind: "tray", imageId: "a" }, p2);
+  expect(r).toEqual({ valid: true, targetImageId: "a" });
+});
 
-  it("tray drag of a placed image onto a different OCCUPIED panel → valid with sourceGhost", () => {
-    let s = initialFigureState();
-    s = figureReducer(s, addToPool(IMG_A));
-    s = figureReducer(s, addToPool(IMG_B));
-    const p1 = panelIdAt(s, 0, 0);
-    const p2 = panelIdAt(s, 0, 1);
-    s = figureReducer(s, placeIntoPanel("a", p1));
-    s = figureReducer(s, placeIntoPanel("b", p2));
-    const r = previewForDrop(s, { kind: "tray", imageId: "a" }, p2);
-    expect(r).toEqual({
-      valid: true,
-      targetImageId: "a",
-      sourceGhost: { panelId: p1, imageId: "b" },
-    });
+it("tray drag of a placed image onto a different OCCUPIED panel → valid with sourceGhost", () => {
+  let s = initialFigureState();
+  s = figureReducer(s, addToPool(IMG_A));
+  s = figureReducer(s, addToPool(IMG_B));
+  const p1 = panelIdAt(s, 0, 0);
+  const p2 = panelIdAt(s, 0, 1);
+  s = figureReducer(s, placeIntoPanel("a", p1));
+  s = figureReducer(s, placeIntoPanel("b", p2));
+  const r = previewForDrop(s, { kind: "tray", imageId: "a" }, p2);
+  expect(r).toEqual({
+    valid: true,
+    targetImageId: "a",
+    sourceGhost: { panelId: p1, imageId: "b" },
   });
+});
 ```
 
 - [ ] **Step 6: Run the preview-for-drop tests to verify the new ones fail**
@@ -243,10 +245,12 @@ git commit -m "feat(dnd): tray drag of a placed image moves/swaps via SWAP_PANEL
 ## Task 2: Panels are never draggable (`GridCells`)
 
 **Files:**
+
 - Modify: `src/renderer/components/Grid/GridCells.tsx:330-341` (remove `onDragStart` panel payload), `:375` (`draggable`), `:397-406` (`cursor`), `:411-412` (JSX)
 - Test: `test/unit/grid-cells-modes.test.tsx:108-134` and `:164-...`
 
 **Interfaces:**
+
 - Consumes: nothing new.
 - Produces: `GridCells` panels render `draggable={false}` in every mode. Selection/edit-mode click behavior is unchanged.
 
@@ -255,41 +259,53 @@ git commit -m "feat(dnd): tray drag of a placed image moves/swaps via SWAP_PANEL
 In `test/unit/grid-cells-modes.test.tsx`, change the test at line 108 so a selected image panel is NOT draggable. Replace its title and its final assertion:
 
 Replace the test title:
+
 ```
   it("image panel is HTML5-draggable when it is in selected mode (drag-to-swap is armed)", () => {
 ```
+
 with:
+
 ```
   it("image panel is NOT HTML5-draggable even in selected mode (drag == pan; move is tray-only)", () => {
 ```
 
 And replace that same test's closing assertion:
+
 ```typescript
-    expect(
-      screen.getByTestId(`panel-${p.row}-${p.col}`).getAttribute("draggable"),
-    ).toBe("true");
+expect(
+  screen.getByTestId(`panel-${p.row}-${p.col}`).getAttribute("draggable"),
+).toBe("true");
 ```
+
 with:
+
 ```typescript
-    expect(
-      screen.getByTestId(`panel-${p.row}-${p.col}`).getAttribute("draggable"),
-    ).toBe("false");
+expect(
+  screen.getByTestId(`panel-${p.row}-${p.col}`).getAttribute("draggable"),
+).toBe("false");
 ```
 
 - [ ] **Step 2: Update the "grab cursor" assertion**
 
 The test at line 164 (`"selected image panel shows solid focus outline and grab cursor"`) asserts a grab cursor that no longer exists. Change its title to:
+
 ```
   it("selected image panel shows solid focus outline (no grab cursor — drag pans)", () => {
 ```
+
 Then, in that test's body, replace this exact assertion line:
+
 ```typescript
-    expect(el.style.cursor).toBe("grab");
+expect(el.style.cursor).toBe("grab");
 ```
+
 with:
+
 ```typescript
-    expect(el.style.cursor).toBe("default");
+expect(el.style.cursor).toBe("default");
 ```
+
 Leave the two following outline assertions (`toContain("solid")` and `toContain("var(--c-accent)")`) unchanged.
 
 - [ ] **Step 3: Run the grid-cells-modes tests to verify they fail**
@@ -302,23 +318,25 @@ Expected: FAIL — the two edited tests fail (panel is still `draggable="true"` 
 In `src/renderer/components/Grid/GridCells.tsx`, replace the `draggable` computation (line 375 and its preceding comment block, lines 367–375):
 
 ```typescript
-        // Drag rules:
-        //   editing → never draggable (PanelInteractionLayer owns gestures)
-        //   selected → draggable iff occupied (drag-to-swap)
-        //   no-mode → never draggable; the annotation backdrop owns
-        //     pointerdown here so the user can rubber-band a marquee over
-        //     the panel's annotations. To move the image the user must
-        //     first single-click to select (green border + grab cursor),
-        //     which arms drag-to-swap on the next gesture.
-        const draggable = occupied && isSelected;
+// Drag rules:
+//   editing → never draggable (PanelInteractionLayer owns gestures)
+//   selected → draggable iff occupied (drag-to-swap)
+//   no-mode → never draggable; the annotation backdrop owns
+//     pointerdown here so the user can rubber-band a marquee over
+//     the panel's annotations. To move the image the user must
+//     first single-click to select (green border + grab cursor),
+//     which arms drag-to-swap on the next gesture.
+const draggable = occupied && isSelected;
 ```
+
 with:
+
 ```typescript
-        // Panels are never HTML5-draggable: a plain left-drag on the canvas
-        // always pans the view (useCanvasZoom), so a native dragstart here
-        // would collide with panning. Moving/swapping an image is done from
-        // the tray (drag a placed thumbnail onto a panel → SWAP_PANELS).
-        const draggable = false;
+// Panels are never HTML5-draggable: a plain left-drag on the canvas
+// always pans the view (useCanvasZoom), so a native dragstart here
+// would collide with panning. Moving/swapping an image is done from
+// the tray (drag a placed thumbnail onto a panel → SWAP_PANELS).
+const draggable = false;
 ```
 
 - [ ] **Step 5: Remove the grab cursor**
@@ -326,21 +344,23 @@ with:
 Replace the cursor computation (lines 397–406):
 
 ```typescript
-        // Cursor rules:
-        //   editing → default (PanelInteractionLayer sits on top with its own)
-        //   selected + occupied → grab (drag-to-swap is armed)
-        //   occupied unselected → default (annotation backdrop owns pointer)
-        //   empty → default
-        const cursor = isEditing
-          ? "default"
-          : isSelected && occupied
-            ? "grab"
-            : "default";
+// Cursor rules:
+//   editing → default (PanelInteractionLayer sits on top with its own)
+//   selected + occupied → grab (drag-to-swap is armed)
+//   occupied unselected → default (annotation backdrop owns pointer)
+//   empty → default
+const cursor = isEditing
+  ? "default"
+  : isSelected && occupied
+    ? "grab"
+    : "default";
 ```
+
 with:
+
 ```typescript
-        // Cursor is always default now — panels aren't grabbable (drag pans).
-        const cursor = "default";
+// Cursor is always default now — panels aren't grabbable (drag pans).
+const cursor = "default";
 ```
 
 - [ ] **Step 6: Neutralize the panel `onDragStart`**
@@ -348,26 +368,28 @@ with:
 Panels render `draggable={false}`, so `onDragStart` can no longer fire from a panel. Remove the panel-payload body so no `kind: "panel"` payload is ever produced. Replace `onDragStart` (lines 330–341):
 
 ```typescript
-        function onDragStart(e: React.DragEvent<HTMLDivElement>): void {
-          if (!occupied) {
-            e.preventDefault();
-            return;
-          }
-          e.dataTransfer.setData(
-            DRAG_MIME,
-            serializeDrag({ kind: "panel", panelId: panel.id }),
-          );
-          e.dataTransfer.effectAllowed = "move";
-          onDragSourceChange({ kind: "panel", panelId: panel.id });
-        }
+function onDragStart(e: React.DragEvent<HTMLDivElement>): void {
+  if (!occupied) {
+    e.preventDefault();
+    return;
+  }
+  e.dataTransfer.setData(
+    DRAG_MIME,
+    serializeDrag({ kind: "panel", panelId: panel.id }),
+  );
+  e.dataTransfer.effectAllowed = "move";
+  onDragSourceChange({ kind: "panel", panelId: panel.id });
+}
 ```
+
 with:
+
 ```typescript
-        // Panels are draggable={false}; this never fires from a panel, but
-        // guard defensively so no panel drag can start.
-        function onDragStart(e: React.DragEvent<HTMLDivElement>): void {
-          e.preventDefault();
-        }
+// Panels are draggable={false}; this never fires from a panel, but
+// guard defensively so no panel drag can start.
+function onDragStart(e: React.DragEvent<HTMLDivElement>): void {
+  e.preventDefault();
+}
 ```
 
 - [ ] **Step 7: Remove now-unused imports if any**
@@ -396,11 +418,13 @@ git commit -m "feat(canvas): panels never draggable so left-drag always pans"
 ## Task 3: Placed thumbnails become draggable (`Thumbnail` + CSS)
 
 **Files:**
+
 - Modify: `src/renderer/components/Sidebar/Thumbnail.tsx:66-89`
 - Modify: `src/renderer/styles.css:718-721` (`.thumb--placed` cursor)
 - Test: `test/unit/thumbnail.test.tsx`
 
 **Interfaces:**
+
 - Consumes: `serializeDrag`, `DRAG_MIME` (already imported in `Thumbnail.tsx`).
 - Produces: a placed `Thumbnail` renders `draggable` and, on `dragStart`, emits `{ kind: "tray", imageId }` via `dataTransfer` and `onDragSourceChange`. `dispatchDrop` (Task 1) routes that to a move/swap.
 
@@ -453,74 +477,85 @@ Expected: FAIL — placed thumbnails are currently `draggable={false}` and `onDr
 In `src/renderer/components/Sidebar/Thumbnail.tsx`, replace the `onDragStart` guard (lines 66–77):
 
 ```typescript
-  function onDragStart(e: React.DragEvent<HTMLDivElement>): void {
-    if (placed) {
-      e.preventDefault();
-      return;
-    }
-    e.dataTransfer.setData(
-      DRAG_MIME,
-      serializeDrag({ kind: "tray", imageId: item.id }),
-    );
-    e.dataTransfer.effectAllowed = "move";
-    onDragSourceChange?.({ kind: "tray", imageId: item.id });
+function onDragStart(e: React.DragEvent<HTMLDivElement>): void {
+  if (placed) {
+    e.preventDefault();
+    return;
   }
+  e.dataTransfer.setData(
+    DRAG_MIME,
+    serializeDrag({ kind: "tray", imageId: item.id }),
+  );
+  e.dataTransfer.effectAllowed = "move";
+  onDragSourceChange?.({ kind: "tray", imageId: item.id });
+}
 ```
+
 with:
+
 ```typescript
-  // Both unplaced and placed thumbnails drag the SAME tray payload. dispatchDrop
-  // routes by whether the image is already placed: unplaced → place/replace,
-  // placed → move/swap (SWAP_PANELS). This is the only way to move a placed
-  // image now that panels aren't draggable.
-  function onDragStart(e: React.DragEvent<HTMLDivElement>): void {
-    e.dataTransfer.setData(
-      DRAG_MIME,
-      serializeDrag({ kind: "tray", imageId: item.id }),
-    );
-    e.dataTransfer.effectAllowed = "move";
-    onDragSourceChange?.({ kind: "tray", imageId: item.id });
-  }
+// Both unplaced and placed thumbnails drag the SAME tray payload. dispatchDrop
+// routes by whether the image is already placed: unplaced → place/replace,
+// placed → move/swap (SWAP_PANELS). This is the only way to move a placed
+// image now that panels aren't draggable.
+function onDragStart(e: React.DragEvent<HTMLDivElement>): void {
+  e.dataTransfer.setData(
+    DRAG_MIME,
+    serializeDrag({ kind: "tray", imageId: item.id }),
+  );
+  e.dataTransfer.effectAllowed = "move";
+  onDragSourceChange?.({ kind: "tray", imageId: item.id });
+}
 ```
 
 - [ ] **Step 4: Set `draggable` true for all thumbnails**
 
 In the same file, change the wrapper `<div>` prop (line 89) from:
+
 ```typescript
       draggable={!placed}
 ```
+
 to:
+
 ```typescript
-      draggable
+draggable;
 ```
 
 - [ ] **Step 5: Update the `clickable` comment (placed thumbs are no longer fully inert)**
 
 Replace the comment above `clickable` (lines 82–84):
+
 ```typescript
-  // Unplaced thumbnails double as click-to-place candidates AND keyboard
-  // entry points: click arms placement, Enter places into the first empty
-  // panel. Placed thumbnails are inert (they can't be re-dragged or placed).
-  const clickable = !placed && onSelectForPlace !== undefined;
+// Unplaced thumbnails double as click-to-place candidates AND keyboard
+// entry points: click arms placement, Enter places into the first empty
+// panel. Placed thumbnails are inert (they can't be re-dragged or placed).
+const clickable = !placed && onSelectForPlace !== undefined;
 ```
+
 with:
+
 ```typescript
-  // Unplaced thumbnails double as click-to-place candidates AND keyboard
-  // entry points: click arms placement, Enter places into the first empty
-  // panel. Placed thumbnails are NOT click-to-place, but they ARE draggable
-  // (drag onto a panel to move/swap the placed image).
-  const clickable = !placed && onSelectForPlace !== undefined;
+// Unplaced thumbnails double as click-to-place candidates AND keyboard
+// entry points: click arms placement, Enter places into the first empty
+// panel. Placed thumbnails are NOT click-to-place, but they ARE draggable
+// (drag onto a panel to move/swap the placed image).
+const clickable = !placed && onSelectForPlace !== undefined;
 ```
 
 - [ ] **Step 6: Give placed thumbnails a grab cursor**
 
 In `src/renderer/styles.css`, replace the `.thumb--placed` rule (lines 718–721):
+
 ```css
 .thumb--placed {
   /* "Placed" reads as done (check badge), not disabled — keep full contrast. */
   cursor: default;
 }
 ```
+
 with:
+
 ```css
 .thumb--placed {
   /* "Placed" reads as done (check badge), not disabled — keep full contrast.
@@ -581,6 +616,7 @@ Record the before/after scroll offsets and panel image ids as evidence.
 git add -A
 git commit -m "test: update remaining tests for tray-only image move"
 ```
+
 (Skip if nothing else changed.)
 
 ---

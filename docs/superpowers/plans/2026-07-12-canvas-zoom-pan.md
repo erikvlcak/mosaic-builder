@@ -52,12 +52,15 @@
 ## Task 1: Pure view-transform math
 
 **Files:**
+
 - Create: `src/renderer/render/view-transform.ts`
 - Test: `test/unit/view-transform.test.ts`
 
 **Interfaces:**
+
 - Consumes: nothing (leaf module).
 - Produces:
+
   - `export const ZOOM_MIN = 0.1`
   - `export const ZOOM_MAX = 8`
   - `export function clampViewZoom(zoom: number, sourceScale: number): number`
@@ -218,7 +221,10 @@ export function scrollForCursorZoom(args: {
   const fracY = (args.oldScrollTop + args.cursorY) / args.oldCssH;
   const scrollLeft = fracX * args.newCssW - args.cursorX;
   const scrollTop = fracY * args.newCssH - args.cursorY;
-  return { scrollLeft: Math.max(0, scrollLeft), scrollTop: Math.max(0, scrollTop) };
+  return {
+    scrollLeft: Math.max(0, scrollLeft),
+    scrollTop: Math.max(0, scrollTop),
+  };
 }
 ```
 
@@ -244,12 +250,15 @@ git commit -m "feat(zoom): pure view-transform math (clamp/fit/cssSize/cursor-sc
 ## Task 2: Editor renderer honors `editorScale`
 
 **Files:**
+
 - Modify: `src/renderer/render/editor-renderer.ts`
 - Test: `test/unit/editor-renderer.test.ts` (add a describe block)
 
 **Interfaces:**
+
 - Consumes: nothing new (leaf render change).
 - Produces:
+
   - `EditorRenderer` gains `setEditorScale(scale: number): void`.
   - Backing store becomes `round(figure.canvas.widthPx · editorScale · dpr)` × `round(figure.canvas.heightPx · editorScale · dpr)`.
   - The single ctx transform is `setTransform(editorScale·dpr, 0, 0, editorScale·dpr, 0, 0)`.
@@ -378,37 +387,37 @@ export interface EditorRenderer {
 Add a module-level `editorScale` alongside the other closure vars:
 
 ```ts
-  let pool: Map<string, ImagePoolItem> = new Map();
-  let editorScale = 1;
-  let rafHandle: number | null = null;
+let pool: Map<string, ImagePoolItem> = new Map();
+let editorScale = 1;
+let rafHandle: number | null = null;
 ```
 
 Replace the sizing/transform block inside `paint()` (the `targetW`/`targetH`/`canvas.style.*`/`setTransform` section) with:
 
 ```ts
-    const dpr =
-      typeof window !== "undefined" && Number.isFinite(window.devicePixelRatio)
-        ? Math.max(1, window.devicePixelRatio)
-        : 1;
-    // Two independent multipliers stack on the backing store: editorScale
-    // (full source resolution, from the pool) and dpr (HiDPI). Both are also
-    // composed into the single ctx transform so drawFigure still paints in
-    // the 800x600 model coordinate system and never learns about zoom.
-    const combined = editorScale * dpr;
-    const targetW = Math.round(figure.canvas.widthPx * combined);
-    const targetH = Math.round(figure.canvas.heightPx * combined);
-    if (canvas.width !== targetW) canvas.width = targetW;
-    if (canvas.height !== targetH) canvas.height = targetH;
-    // CSS size is owned by the wrapper <div> (App.tsx), driven by the view
-    // zoom. The renderer no longer sets canvas.style.* — doing so would fight
-    // the zoom's CSS box.
-    const ctx = canvas.getContext("2d");
-    if (ctx === null) return;
-    if (typeof ctx.setTransform === "function") {
-      ctx.setTransform(combined, 0, 0, combined, 0, 0);
-    } else {
-      ctx.scale(combined, combined);
-    }
+const dpr =
+  typeof window !== "undefined" && Number.isFinite(window.devicePixelRatio)
+    ? Math.max(1, window.devicePixelRatio)
+    : 1;
+// Two independent multipliers stack on the backing store: editorScale
+// (full source resolution, from the pool) and dpr (HiDPI). Both are also
+// composed into the single ctx transform so drawFigure still paints in
+// the 800x600 model coordinate system and never learns about zoom.
+const combined = editorScale * dpr;
+const targetW = Math.round(figure.canvas.widthPx * combined);
+const targetH = Math.round(figure.canvas.heightPx * combined);
+if (canvas.width !== targetW) canvas.width = targetW;
+if (canvas.height !== targetH) canvas.height = targetH;
+// CSS size is owned by the wrapper <div> (App.tsx), driven by the view
+// zoom. The renderer no longer sets canvas.style.* — doing so would fight
+// the zoom's CSS box.
+const ctx = canvas.getContext("2d");
+if (ctx === null) return;
+if (typeof ctx.setTransform === "function") {
+  ctx.setTransform(combined, 0, 0, combined, 0, 0);
+} else {
+  ctx.scale(combined, combined);
+}
 ```
 
 Add the setter to the returned object (after `setPool`):
@@ -442,10 +451,12 @@ git commit -m "feat(zoom): editor renderer honors editorScale (full-res backing 
 ## Task 3: EditorCanvas plumbs `editorScale`
 
 **Files:**
+
 - Modify: `src/renderer/components/Canvas/EditorCanvas.tsx`
 - Test: covered by Task 2's renderer test + Task 6's integration; add a focused prop test here.
 
 **Interfaces:**
+
 - Consumes: `EditorRenderer.setEditorScale` (Task 2).
 - Produces: `EditorCanvas` gains an `editorScale: number` prop, forwarded to the renderer via `setEditorScale` in an effect.
 
@@ -483,7 +494,12 @@ describe("EditorCanvas: editorScale plumbing", () => {
       dispose: vi.fn(),
     });
     render(
-      <EditorCanvas figure={FIG} images={new Map()} pool={new Map()} editorScale={4} />,
+      <EditorCanvas
+        figure={FIG}
+        images={new Map()}
+        pool={new Map()}
+        editorScale={4}
+      />,
     );
     expect(setEditorScale).toHaveBeenCalledWith(4);
   });
@@ -517,9 +533,9 @@ export function EditorCanvas({ figure, images, pool, editorScale }: Props): JSX.
 ```
 
 ```tsx
-  useEffect(() => {
-    rendererRef.current?.setEditorScale(editorScale);
-  }, [editorScale]);
+useEffect(() => {
+  rendererRef.current?.setEditorScale(editorScale);
+}, [editorScale]);
 ```
 
 - [ ] **Step 4: Run test to verify it passes**
@@ -544,12 +560,15 @@ git commit -m "feat(zoom): EditorCanvas forwards editorScale to the renderer"
 ## Task 4: ZoomControls component
 
 **Files:**
+
 - Create: `src/renderer/components/Toolbar/ZoomControls.tsx`
 - Test: `test/unit/zoom-controls.test.tsx`
 
 **Interfaces:**
+
 - Consumes: nothing (presentational).
 - Produces:
+
   - `export interface ZoomControlsProps { displayPct: number; onFit: () => void; onActualSize: () => void; onZoomIn: () => void; onZoomOut: () => void; onSetPercent: (pct: number) => void; isFit: boolean; }`
   - `export function ZoomControls(props: ZoomControlsProps): JSX.Element`
   - Renders buttons with `data-testid`: `zoom-fit`, `zoom-actual`, `zoom-in`, `zoom-out`, and an input `zoom-pct-input`.
@@ -596,7 +615,9 @@ describe("ZoomControls", () => {
 
   it("shows the current percent", () => {
     setup({ displayPct: 250 });
-    expect(screen.getByTestId<HTMLInputElement>("zoom-pct-input").value).toBe("250");
+    expect(screen.getByTestId<HTMLInputElement>("zoom-pct-input").value).toBe(
+      "250",
+    );
   });
 
   it("commits a typed percent on Enter", () => {
@@ -741,10 +762,12 @@ git commit -m "feat(zoom): ZoomControls presentational component"
 ## Task 5: `PanelInteractionLayer` yields gestures unless Space is held
 
 **Files:**
+
 - Modify: `src/renderer/components/Grid/PanelInteractionLayer.tsx`
 - Test: `test/unit/panel-interaction-space-gate.test.tsx`
 
 **Interfaces:**
+
 - Consumes: nothing new.
 - Produces: `PanelInteractionLayer` gains a required prop `spacebarHeld: boolean`. When `false`: the wheel listener returns WITHOUT `preventDefault`, and `onPointerDown` returns BEFORE `setPointerCapture` (so drags bubble to the canvas). Corner-handle resize is unaffected (it has its own `stopPropagation`).
 
@@ -787,14 +810,22 @@ afterEach(() => cleanup());
 describe("PanelInteractionLayer space gate", () => {
   it("does NOT preventDefault the wheel when space is not held", () => {
     const { el } = renderLayer(false);
-    const ev = new WheelEvent("wheel", { deltaY: 100, cancelable: true, bubbles: true });
+    const ev = new WheelEvent("wheel", {
+      deltaY: 100,
+      cancelable: true,
+      bubbles: true,
+    });
     el.dispatchEvent(ev);
     expect(ev.defaultPrevented).toBe(false);
   });
 
   it("DOES preventDefault the wheel when space is held", () => {
     const { el } = renderLayer(true);
-    const ev = new WheelEvent("wheel", { deltaY: 100, cancelable: true, bubbles: true });
+    const ev = new WheelEvent("wheel", {
+      deltaY: 100,
+      cancelable: true,
+      bubbles: true,
+    });
     el.dispatchEvent(ev);
     expect(ev.defaultPrevented).toBe(true);
   });
@@ -802,9 +833,14 @@ describe("PanelInteractionLayer space gate", () => {
   it("does NOT capture the pointer / dispatch a pan on pointerdown when space is not held", () => {
     const { el, dispatch } = renderLayer(false);
     const capture = vi.fn();
-    (el as unknown as { setPointerCapture: unknown }).setPointerCapture = capture;
+    (el as unknown as { setPointerCapture: unknown }).setPointerCapture =
+      capture;
     el.dispatchEvent(
-      new PointerEvent("pointerdown", { button: 0, pointerId: 1, bubbles: true }),
+      new PointerEvent("pointerdown", {
+        button: 0,
+        pointerId: 1,
+        bubbles: true,
+      }),
     );
     expect(capture).not.toHaveBeenCalled();
   });
@@ -812,9 +848,14 @@ describe("PanelInteractionLayer space gate", () => {
   it("DOES capture the pointer on pointerdown when space is held", () => {
     const { el } = renderLayer(true);
     const capture = vi.fn();
-    (el as unknown as { setPointerCapture: unknown }).setPointerCapture = capture;
+    (el as unknown as { setPointerCapture: unknown }).setPointerCapture =
+      capture;
     el.dispatchEvent(
-      new PointerEvent("pointerdown", { button: 0, pointerId: 1, bubbles: true }),
+      new PointerEvent("pointerdown", {
+        button: 0,
+        pointerId: 1,
+        bubbles: true,
+      }),
     );
     expect(capture).toHaveBeenCalledWith(1);
   });
@@ -833,10 +874,10 @@ Edit `src/renderer/components/Grid/PanelInteractionLayer.tsx`.
 Add to `Props` (after `cssH: number;`):
 
 ```ts
-  /** When false, this layer yields wheel + drag to the canvas-level handlers
-   *  so default gestures operate on the whole canvas. Space redirects them
-   *  back to this panel's image. */
-  spacebarHeld: boolean;
+/** When false, this layer yields wheel + drag to the canvas-level handlers
+ *  so default gestures operate on the whole canvas. Space redirects them
+ *  back to this panel's image. */
+spacebarHeld: boolean;
 ```
 
 Add `spacebarHeld` to the destructured params and to BOTH the `stateRef.current` object literals (the wheel listener reads it via `stateRef`):
@@ -891,10 +932,12 @@ git commit -m "feat(zoom): panel layer yields wheel/drag to canvas unless Space 
 ## Task 6: `useCanvasZoom` hook (view state + browser wiring)
 
 **Files:**
+
 - Create: `src/renderer/hooks/useCanvasZoom.ts`
 - Test: `test/unit/use-canvas-zoom.test.ts`
 
 **Interfaces:**
+
 - Consumes: `view-transform.ts` (Task 1); `computeCanvasDims` from `model/canvas-dims.ts`.
 - Produces:
   - `export interface CanvasZoom { view: { zoom: number; mode: "fit" | "free" }; cssW: number; cssH: number; sourceScale: number; displayPct: number; isFit: boolean; setPercent: (pct: number) => void; zoomIn: () => void; zoomOut: () => void; fit: () => void; actualSize: () => void; }`
@@ -951,7 +994,12 @@ describe("useCanvasZoom pure helpers", () => {
   });
 
   it("deriveCss returns model*zoom and the display percent", () => {
-    const d = deriveCss({ zoom: SOURCE, mode: "free" }, SOURCE, MODEL.w, MODEL.h);
+    const d = deriveCss(
+      { zoom: SOURCE, mode: "free" },
+      SOURCE,
+      MODEL.w,
+      MODEL.h,
+    );
     expect(d.cssW).toBe(800 * SOURCE);
     expect(d.cssH).toBe(600 * SOURCE);
     expect(d.displayPct).toBe(100); // zoom === sourceScale
@@ -987,11 +1035,17 @@ export interface ViewTransform {
 
 // --- Pure state transitions (unit-tested; no DOM) ---------------------------
 
-export function nextViewForZoomIn(v: ViewTransform, sourceScale: number): ViewTransform {
+export function nextViewForZoomIn(
+  v: ViewTransform,
+  sourceScale: number,
+): ViewTransform {
   return { zoom: clampViewZoom(v.zoom * ZOOM_STEP, sourceScale), mode: "free" };
 }
 
-export function nextViewForZoomOut(v: ViewTransform, sourceScale: number): ViewTransform {
+export function nextViewForZoomOut(
+  v: ViewTransform,
+  sourceScale: number,
+): ViewTransform {
   return { zoom: clampViewZoom(v.zoom / ZOOM_STEP, sourceScale), mode: "free" };
 }
 
@@ -999,8 +1053,14 @@ export function nextViewForActualSize(sourceScale: number): ViewTransform {
   return { zoom: sourceScale, mode: "free" };
 }
 
-export function nextViewForPercent(pct: number, sourceScale: number): ViewTransform {
-  return { zoom: clampViewZoom((pct / 100) * sourceScale, sourceScale), mode: "free" };
+export function nextViewForPercent(
+  pct: number,
+  sourceScale: number,
+): ViewTransform {
+  return {
+    zoom: clampViewZoom((pct / 100) * sourceScale, sourceScale),
+    mode: "free",
+  };
 }
 
 export function deriveCss(
@@ -1052,8 +1112,15 @@ export function useCanvasZoom(args: {
     if (el === null) return;
     function applyFit(): void {
       if (s.current.view.mode !== "fit") return;
-      const z = fitZoom(el!.clientWidth, el!.clientHeight, s.current.modelW, s.current.modelH);
-      setView((prev) => (prev.mode === "fit" ? { zoom: z, mode: "fit" } : prev));
+      const z = fitZoom(
+        el!.clientWidth,
+        el!.clientHeight,
+        s.current.modelW,
+        s.current.modelH,
+      );
+      setView((prev) =>
+        prev.mode === "fit" ? { zoom: z, mode: "fit" } : prev,
+      );
     }
     applyFit();
     const ro = new ResizeObserver(applyFit);
@@ -1101,7 +1168,12 @@ export function useCanvasZoom(args: {
     function onDown(e: PointerEvent): void {
       if (e.button !== 0) return;
       if (s.current.spacebarHeld) return; // Space → image pan on the panel layer
-      drag = { x: e.clientX, y: e.clientY, sl: el!.scrollLeft, st: el!.scrollTop };
+      drag = {
+        x: e.clientX,
+        y: e.clientY,
+        sl: el!.scrollLeft,
+        st: el!.scrollTop,
+      };
     }
     function onMove(e: PointerEvent): void {
       if (drag === null) return;
@@ -1121,7 +1193,12 @@ export function useCanvasZoom(args: {
     };
   }, [scrollRef]);
 
-  const { cssW, cssH, displayPct } = deriveCss(view, sourceScale, modelW, modelH);
+  const { cssW, cssH, displayPct } = deriveCss(
+    view,
+    sourceScale,
+    modelW,
+    modelH,
+  );
 
   const zoomIn = useCallback(
     () => setView((v) => nextViewForZoomIn(v, s.current.sourceScale)),
@@ -1135,7 +1212,10 @@ export function useCanvasZoom(args: {
     () => setView(nextViewForActualSize(s.current.sourceScale)),
     [],
   );
-  const fit = useCallback(() => setView((v) => ({ zoom: v.zoom, mode: "fit" })), []);
+  const fit = useCallback(
+    () => setView((v) => ({ zoom: v.zoom, mode: "fit" })),
+    [],
+  );
   const setPercent = useCallback(
     (pct: number) => setView(nextViewForPercent(pct, s.current.sourceScale)),
     [],
@@ -1180,10 +1260,12 @@ git commit -m "feat(zoom): useCanvasZoom hook (view state, wheel-zoom, drag-pan,
 ## Task 7: Wire zoom into App.tsx
 
 **Files:**
+
 - Modify: `src/renderer/App.tsx`
 - Test: manual/typecheck this task; behavior covered by Tasks 8–9. Add one focused no-dirty assertion.
 
 **Interfaces:**
+
 - Consumes: `useCanvasZoom` (Task 6), `ZoomControls` (Task 4), `computeCanvasDims` (`model/canvas-dims.ts`).
 - Produces: App renders at variable zoom; `figurePxW/figurePxH` stay 800/600; `editorScale` = capped `sourceScale`; `spacebarHeld` flows to `useCanvasZoom` + `PanelInteractionLayer`; temporary-select on Cmd/Ctrl-hold.
 
@@ -1207,7 +1289,12 @@ Compute `sourceScale` from the SAME inputs the export path uses (memoized). The 
 
 ```tsx
 const sourceScale = useMemo(() => {
-  const dims = computeCanvasDims(state.pool, state.rows, state.cols, state.gutterPx);
+  const dims = computeCanvasDims(
+    state.pool,
+    state.rows,
+    state.cols,
+    state.gutterPx,
+  );
   // sourceScale drives BOTH the editor backing store and the zoom % mapping.
   // Match computeExportScale: the larger per-axis ratio, floored at 1.
   return Math.max(1, dims.widthPx / FIGURE_PX_W, dims.heightPx / FIGURE_PX_H);
@@ -1275,7 +1362,9 @@ useEffect(() => {
   function onKeyUp(e: KeyboardEvent): void {
     if (e.key === "Meta" || e.key === "Control") setCmdHeld(false);
   }
-  function onBlur(): void { setCmdHeld(false); }
+  function onBlur(): void {
+    setCmdHeld(false);
+  }
   window.addEventListener("keydown", onKeyDown);
   window.addEventListener("keyup", onKeyUp);
   window.addEventListener("blur", onBlur);
@@ -1296,16 +1385,18 @@ const effectiveTool: Tool = cmdHeld ? "select" : activeTool;
 Update the SELECT MODE chip (lines ~1039–1048) to key off `cmdHeld` and say `⌘`/Ctrl:
 
 ```tsx
-{cmdHeld && activeTool !== "select" && (
-  <div
-    data-testid="select-mode-chip"
-    className="select-mode-chip"
-    role="status"
-    aria-live="polite"
-  >
-    SELECT MODE (release ⌘)
-  </div>
-)}
+{
+  cmdHeld && activeTool !== "select" && (
+    <div
+      data-testid="select-mode-chip"
+      className="select-mode-chip"
+      role="status"
+      aria-live="polite"
+    >
+      SELECT MODE (release ⌘)
+    </div>
+  );
+}
 ```
 
 Note: the existing `spacebarHeld` keydown effect calls `e.preventDefault()` on Space and sets `spacebarHeld` — keep it (Space now means image-ops, still needs the state). Its `isFormElementFocused` guard stays.
@@ -1361,10 +1452,12 @@ git commit -m "feat(zoom): wire canvas zoom/pan into App (view box, controls, cm
 ## Task 8: Zoom keyboard shortcuts
 
 **Files:**
+
 - Modify: `src/renderer/hooks/useKeyboardShortcuts.ts`
 - Test: `test/unit/keyboard-shortcuts-zoom.test.ts`
 
 **Interfaces:**
+
 - Consumes: nothing new.
 - Produces: `ShortcutHandlers` gains optional `onZoomIn?`, `onZoomOut?`, `onZoomFit?`, `onZoomActual?`. Bindings: `Cmd/Ctrl` + `=`/`+` → zoomIn; `Cmd/Ctrl` + `-` → zoomOut; `Cmd/Ctrl` + `0` → fit; `Cmd/Ctrl` + `1` → actual. All call `preventDefault` and skip typing targets.
 
@@ -1381,7 +1474,12 @@ import { useKeyboardShortcuts } from "../../src/renderer/hooks/useKeyboardShortc
 afterEach(() => cleanup());
 
 function press(key: string, opts: Partial<KeyboardEventInit> = {}) {
-  const e = new KeyboardEvent("keydown", { key, metaKey: true, cancelable: true, ...opts });
+  const e = new KeyboardEvent("keydown", {
+    key,
+    metaKey: true,
+    cancelable: true,
+    ...opts,
+  });
   window.dispatchEvent(e);
   return e;
 }
@@ -1406,7 +1504,9 @@ describe("zoom keyboard shortcuts", () => {
   it("Cmd-0 fits, Cmd-1 actual size", () => {
     const onZoomFit = vi.fn();
     const onZoomActual = vi.fn();
-    renderHook(() => useKeyboardShortcuts({ ...noop, onZoomFit, onZoomActual }));
+    renderHook(() =>
+      useKeyboardShortcuts({ ...noop, onZoomFit, onZoomActual }),
+    );
     press("0");
     press("1");
     expect(onZoomFit).toHaveBeenCalledOnce();
@@ -1448,31 +1548,43 @@ Add to `ShortcutHandlers`:
 Add a modifier branch INSIDE `onKey`, right after the `isModZ` block (so it runs before the "no modifier" guard at `if (e.metaKey || e.ctrlKey || e.altKey) return;`):
 
 ```ts
-      const mod = (e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey;
-      if (mod && (e.key === "=" || e.key === "+")) {
-        if (handlers.onZoomIn) { e.preventDefault(); handlers.onZoomIn(); }
-        return;
-      }
-      if (mod && e.key === "-") {
-        if (handlers.onZoomOut) { e.preventDefault(); handlers.onZoomOut(); }
-        return;
-      }
-      if (mod && e.key === "0") {
-        if (handlers.onZoomFit) { e.preventDefault(); handlers.onZoomFit(); }
-        return;
-      }
-      if (mod && e.key === "1") {
-        if (handlers.onZoomActual) { e.preventDefault(); handlers.onZoomActual(); }
-        return;
-      }
+const mod = (e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey;
+if (mod && (e.key === "=" || e.key === "+")) {
+  if (handlers.onZoomIn) {
+    e.preventDefault();
+    handlers.onZoomIn();
+  }
+  return;
+}
+if (mod && e.key === "-") {
+  if (handlers.onZoomOut) {
+    e.preventDefault();
+    handlers.onZoomOut();
+  }
+  return;
+}
+if (mod && e.key === "0") {
+  if (handlers.onZoomFit) {
+    e.preventDefault();
+    handlers.onZoomFit();
+  }
+  return;
+}
+if (mod && e.key === "1") {
+  if (handlers.onZoomActual) {
+    e.preventDefault();
+    handlers.onZoomActual();
+  }
+  return;
+}
 ```
 
 Guard against typing targets: these should also `if (isTypingTarget(e.target)) return;` first — mirror the `isModZ` block, which checks `isTypingTarget` before acting. Add that check at the top of each branch or once before the four branches:
 
 ```ts
-      if (mod && ["=", "+", "-", "0", "1"].includes(e.key)) {
-        if (isTypingTarget(e.target)) return;
-      }
+if (mod && ["=", "+", "-", "0", "1"].includes(e.key)) {
+  if (isTypingTarget(e.target)) return;
+}
 ```
 
 - [ ] **Step 4: Run test to verify it passes**
@@ -1508,10 +1620,12 @@ git commit -m "feat(zoom): Cmd/Ctrl +/-/0/1 zoom shortcuts"
 ## Task 9: Invariance guarantees (export + no-dirty) and visual verification
 
 **Files:**
+
 - Test: `test/unit/zoom-export-invariance.test.ts`, `test/unit/zoom-no-dirty.test.ts`
 - Visual: run the Electron app.
 
 **Interfaces:**
+
 - Consumes: `computeExportScale` (`render/export-scale.ts`), `isDirty` (`state/dirty.ts`), `useCanvasZoom` (Task 6).
 - Produces: proof that the view cannot reach exports or `FigureState`.
 
@@ -1614,11 +1728,13 @@ pnpm build
 ```
 
 Then drive with playwright-core `_electron.launch`, stubbing `dialog.showOpenDialog` to return `resources/fixtures/sample.png` (follow the existing e2e/screenshot harness if the repo has one under `test/` or `scripts/`; otherwise write a throwaway node script). Capture three screenshots:
+
 1. **Fit** — the whole figure visible, matching today's default framing.
 2. **100%** (`Cmd-1`) — zoom to actual pixels; confirm in-panel detail is sharp for a source image larger than 800×600 (not the downsampled preview).
 3. **Panned** — after zooming past the viewport, scroll/drag and confirm the view pans and a click still lands on the correct feature.
 
 Manually confirm:
+
 - Plain wheel zooms the whole canvas (cursor stays anchored).
 - Double-click a panel, hold **Space**, wheel → zooms that image; Space+drag → pans that image.
 - With a creation tool active, holding **Cmd/Ctrl** shows the SELECT MODE chip and lets you click a panel without placing an annotation.
@@ -1636,6 +1752,7 @@ git commit -m "chore(zoom): visual-verification polish"
 ## Self-Review
 
 **Spec coverage:**
+
 - Three-resolution model → Tasks 2 (backing store), 6/7 (CSS view), Global Constraints (frozen model). ✓
 - Fit default → Task 6 (`view` initial `mode: "fit"`), Task 7 (reset on New/Open). ✓
 - 100% = source pixels → Task 6 (`nextViewForActualSize` = sourceScale), Task 2 (full-res backing store). ✓
@@ -1652,6 +1769,7 @@ git commit -m "chore(zoom): visual-verification polish"
 **Placeholder scan:** No TBD/TODO. Every code step shows real code. Visual-verification (Task 9 step 7) is inherently manual but has explicit, concrete steps. ✓
 
 **Type consistency:**
+
 - `EditorRenderer.setEditorScale(scale: number)` — defined Task 2, consumed Task 3. ✓
 - `editorScale` prop on `EditorCanvas` — Task 3, passed Task 7. ✓
 - `spacebarHeld` prop on `PanelInteractionLayer` — Task 5, passed Task 7. ✓

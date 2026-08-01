@@ -15,10 +15,10 @@ restraint over novelty; output at home next to ImageJ/GraphPad, not Vercel.
 ## Critique summary
 
 Nielsen heuristic score: **26/40 (Acceptable — significant improvements
-needed)**. Weakest: *Match with real world* (CSS jargon), *Consistency*
-(duplicated panel controls, mixed selection colors), *Recognition over
-recall* (shift-click merge, double-click edit, drag-to-unplace all
-invisible), *Help* (tooltips only). Cognitive-load checklist: 5/8 failures
+needed)**. Weakest: _Match with real world_ (CSS jargon), _Consistency_
+(duplicated panel controls, mixed selection colors), _Recognition over
+recall_ (shift-click merge, double-click edit, drag-to-unplace all
+invisible), _Help_ (tooltips only). Cognitive-load checklist: 5/8 failures
 (chunking, minimal choices, working memory, progressive disclosure, flat
 ribbon hierarchy) — high.
 
@@ -32,18 +32,18 @@ What already works and must not regress:
 
 ## The findings, ranked
 
-| # | Sev | Finding |
-|---|-----|---------|
-| 1 | P0 | Default black letters/text are invisible on dark micrographs — the core content type |
-| 2 | P1 | Merge is a dead end: two permanently-disabled buttons, shift-click convention communicated nowhere |
-| 3 | P1 | Toolbar PANEL group (8 controls, disabled ~95% of the time) duplicates the properties panel |
-| 4 | P1 | First run dumps ~15 global-style controls into the properties panel; no guidance on canvas; drag is the only placement path |
-| 5 | P2 | Scale-bar tool dead-ends on uncalibrated panels ("click a calibrated panel" — nothing is) |
-| 6 | P2 | Selected (green solid) vs editing (orange dashed) modes use colors unrelated to the app's accent; double-click-to-edit is undiscoverable |
-| 7 | P2 | Export UX: results shown as cramped inline text, menu-bar export items are stubs that tell you to use the toolbar, no output dimensions, cryptic "transparent OK" |
-| 8 | P2 | App bar: no filename, no unsaved indicator, no New / Undo / Redo buttons |
-| 9 | P3 | Microcopy: "Contain/Cover/Stretch", "No selection — editing global style", "Saved → /very/long/path" |
-| 10 | P3 | Placed thumbnails at 55 % opacity read as *disabled*, not *done* |
+| #   | Sev | Finding                                                                                                                                                           |
+| --- | --- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | P0  | Default black letters/text are invisible on dark micrographs — the core content type                                                                              |
+| 2   | P1  | Merge is a dead end: two permanently-disabled buttons, shift-click convention communicated nowhere                                                                |
+| 3   | P1  | Toolbar PANEL group (8 controls, disabled ~95% of the time) duplicates the properties panel                                                                       |
+| 4   | P1  | First run dumps ~15 global-style controls into the properties panel; no guidance on canvas; drag is the only placement path                                       |
+| 5   | P2  | Scale-bar tool dead-ends on uncalibrated panels ("click a calibrated panel" — nothing is)                                                                         |
+| 6   | P2  | Selected (green solid) vs editing (orange dashed) modes use colors unrelated to the app's accent; double-click-to-edit is undiscoverable                          |
+| 7   | P2  | Export UX: results shown as cramped inline text, menu-bar export items are stubs that tell you to use the toolbar, no output dimensions, cryptic "transparent OK" |
+| 8   | P2  | App bar: no filename, no unsaved indicator, no New / Undo / Redo buttons                                                                                          |
+| 9   | P3  | Microcopy: "Contain/Cover/Stretch", "No selection — editing global style", "Saved → /very/long/path"                                                              |
+| 10  | P3  | Placed thumbnails at 55 % opacity read as _disabled_, not _done_                                                                                                  |
 
 Verified during the live run: a text annotation placed with defaults on a
 dark panel disappears entirely once committed (black on black); panel
@@ -109,7 +109,7 @@ always. Merge/Unmerge are disabled with no path to enabling them.
    and `canUnmerge === false`, render a muted inline hint next to the
    buttons: `⇧-click cells to select` (11 px, `--c-text-faint`). When ≥1
    cell is shift-selected but not mergeable, hint becomes `select adjacent
-   cells forming a rectangle`. Selected-cell count badge on the Merge
+cells forming a rectangle`. Selected-cell count badge on the Merge
    button when ≥2 (`Merge (3)`) so progress is visible.
 3. Rename group label `SELECTION` → `MERGE` (that is what it does).
 4. Move the `Letters` checkbox out of ANNOTATE into the GRID group end or
@@ -127,7 +127,7 @@ shortcut regressions (`useKeyboardShortcuts` untouched).
 
 **Problem.** First launch shows the full Subpanel-letters + Scale-bar
 global style stack (~15 controls) in the properties panel before a single
-image exists; empty panels are blank gray boxes; placement works *only*
+image exists; empty panels are blank gray boxes; placement works _only_
 by drag (no keyboard path, no click path).
 
 **Change.**
@@ -145,7 +145,7 @@ by drag (no keyboard path, no click path).
    existing placeholder draw path in `draw-figure.ts` (editor-only: skip
    when rendering for export — placeholders already differ there? verify;
    if not, gate on an `opts` flag threaded from the editor renderer only).
-4. **Click-to-place.** Single-click an *unplaced* tray thumbnail selects it
+4. **Click-to-place.** Single-click an _unplaced_ tray thumbnail selects it
    (visible ring); clicking an empty panel then places it (same
    `placeIntoPanel` action as drop). Escape or clicking elsewhere clears.
    Also: Enter on a focused thumbnail places into the first empty panel.
@@ -154,7 +154,7 @@ by drag (no keyboard path, no click path).
    preview is untouched.
 5. **Placed thumbnails**: drop the 0.55 opacity; instead show a small
    corner check badge + keep normal contrast. "Placed" should read as
-   *done*, not *disabled*.
+   _done_, not _disabled_.
 
 **Files.** `PropertiesPanel.tsx`, `Tray.tsx`, `Thumbnail.tsx`,
 `GridCells.tsx`, `draw-figure.ts`, `App.tsx` (selected-thumb state, place
@@ -202,14 +202,14 @@ shifts on export.
 1. **Unify selection colors on the accent.** Today: merge cells = blue,
    selected panel = green solid (`--c-focus-stroke`), editing = orange
    dashed + green corner handles — three unrelated signals. New scheme:
-   *selected* = 2 px solid `--c-accent`; *editing* = 2 px dashed
+   _selected_ = 2 px solid `--c-accent`; _editing_ = 2 px dashed
    `--c-accent` + accent corner handles; merge cells keep accent fill.
    Retire green/orange from panel chrome (green stays for success toasts).
 2. **Teach double-click.** _Superseded (2026-07-12): the interaction-model
    redesign's always-on hint bar (`components/StatusHints/HintBar.tsx`,
    under the canvas pane) covers this — see
    `2026-07-12-interaction-model-redesign.md` Part 3._ Original idea:
-   while a panel is *selected*, properties subtitle appends " —
+   while a panel is _selected_, properties subtitle appends " —
    double-click panel to pan & zoom"; the same hint renders as the
    existing chip pattern near the canvas the first time a panel is
    selected per session.

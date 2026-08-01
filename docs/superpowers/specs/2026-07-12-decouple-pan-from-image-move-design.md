@@ -50,7 +50,7 @@ Consequences:
   panels.**
 - Panel **selection** (single-click), **edit mode** (double-click →
   `PanelInteractionLayer` image pan/zoom), unmerge, crop badge, and the
-  properties panel are all unchanged. Only the panel *drag* behavior is gone.
+  properties panel are all unchanged. Only the panel _drag_ behavior is gone.
 
 The `{ kind: "panel"; panelId }` variant of `DragPayload`
 (`src/renderer/dnd/drag-payload.ts`) becomes unused in production. Leave the
@@ -69,7 +69,7 @@ New `dispatchDrop` semantics for a `{ kind: "tray"; imageId }` payload dropped
 on `targetPanelId`:
 
 1. Resolve the image's current panel: `sourcePanel = panels.find(p =>
-   p.imageId === imageId)`.
+p.imageId === imageId)`.
 2. **Image not currently placed** (`sourcePanel === undefined`): unchanged
    behavior — `placeIntoPanel` if the target is empty, `replaceIntoPanel` if
    the target is occupied.
@@ -77,10 +77,8 @@ on `targetPanelId`:
    - Dropped on its **own** panel (`sourcePanel.id === targetPanelId`) →
      no-op (`null`).
    - Dropped on any **other** panel → `swapPanels(sourcePanel.id,
-     targetPanelId)`. `SWAP_PANELS` already handles both sub-cases with no
-     reducer change:
-     - target **empty** → the image moves there, source panel empties;
-     - target **occupied** → the two images swap.
+targetPanelId)`. `SWAP_PANELS` already handles both sub-cases with no
+     reducer change: - target **empty** → the image moves there, source panel empties; - target **occupied** → the two images swap.
      It also relocates image-bound annotations, so scale bars / labels follow
      their images.
 
@@ -96,8 +94,8 @@ it to mirror the new semantics:
 
 - Placed-image tray drag onto its **own** panel → `{ valid: false }`.
 - Placed-image tray drag onto a **different** panel → `{ valid: true,
-  targetImageId: <dragged image>, sourceGhost: <target's old image → source
-  panel> when the target is occupied }`. This matches how the removed
+targetImageId: <dragged image>, sourceGhost: <target's old image → source
+panel> when the target is occupied }`. This matches how the removed
   `kind: "panel"` swap branch populated `sourceGhost`, so the preview renders
   the swap on both panels.
 - Remove the now-dead `source.kind === "panel"` branch here too.

@@ -9,8 +9,8 @@ Add a dark theme to Mosaic Builder. This **lifts** the "no dark mode, no
 theming" non-goal from the UI/UX refresh spec
 (`2026-07-11-ui-ux-refresh-design.md`) as an explicit, approved decision. The
 related constraint — **no visual reskin (palette identity, radii, type scale,
-spacing stay)** — remains in force. Dark mode is a *second token set of the
-same design system*, not a redesign. It keeps the "next to ImageJ/GraphPad,
+spacing stay)** — remains in force. Dark mode is a _second token set of the
+same design system_, not a redesign. It keeps the "next to ImageJ/GraphPad,
 not Vercel" restraint.
 
 ### Why (domain justification, not aesthetics)
@@ -36,7 +36,7 @@ is load-bearing; the whole design depends on it.
   their auto-derived halos. **Content is theme-independent** — identical bytes
   in light and dark.
 
-Consequence: a white-gutter figure must render on white *in the editor* even
+Consequence: a white-gutter figure must render on white _in the editor_ even
 in dark mode, and exports must be byte-identical regardless of the user's
 theme. Exports are already content-only by construction (the export renderer
 never receives editor rendering opts); the byte-identical test (below) locks
@@ -48,19 +48,25 @@ that in against regression.
 Add a dark token set wired for three-state override:
 
 ```css
-:root { /* light tokens — unchanged; stays the default */ }
-
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) { /* dark tokens */ }
+:root {
+  /* light tokens — unchanged; stays the default */
 }
 
-:root[data-theme="dark"] { /* dark tokens — explicit override, beats OS */ }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    /* dark tokens */
+  }
+}
+
+:root[data-theme="dark"] {
+  /* dark tokens — explicit override, beats OS */
+}
 ```
 
 **Mechanism.** The renderer stamps `data-theme="light"` or `data-theme="dark"`
 on `<html>` for an explicit pin, or stamps **nothing** for "System" (letting
 the media query drive). The `:not([data-theme="light"])` guard is what lets an
-explicit *light* pin win even when the OS is dark. This is the pair required to
+explicit _light_ pin win even when the OS is dark. This is the pair required to
 "win over the OS setting in both directions."
 
 **Dark token values** stay within the same design system:
@@ -68,7 +74,7 @@ explicit *light* pin win even when the OS is dark. This is the pair required to
 - **Backgrounds** invert the elevation ramp: `--c-bg` becomes the darkest
   (near-black surround), `--c-surface` a lifted panel, muted/sunken between.
 - **Text** inverts: `--c-text` near-white; `--c-text-muted`/`--c-text-faint`
-  step *down* in contrast from there.
+  step _down_ in contrast from there.
 - **Accent** keeps the **same hue** (`#2e5bff`). Solid accent fills already
   carry white text and read fine on dark. `--c-accent-soft` (a pale tint in
   light) becomes a **dark-transparent accent wash** so "selected/active" chips
@@ -154,7 +160,7 @@ boot possible.
    `<html>`. This is CSP-safe (the bundle is `'self'`) and still beats first
    meaningful paint: `index.html`'s `<body>` is just an empty
    `<div id="root">`, so nothing user-visible paints until React renders, which
-   happens *after* the stamp. The only pre-React paintable surface is the
+   happens _after_ the stamp. The only pre-React paintable surface is the
    `body` background, and the module import order stamps `<html>` before that
    matters.
 2. A `useTheme` hook owns the runtime: reads the same key, exposes `choice` +
@@ -183,16 +189,16 @@ criterion made concrete.
 
 ### Bucket A — chrome → CSS token (DOM)
 
-| Site | Current | Action |
-|---|---|---|
-| `styles.css` `.toast--info/success/error` text | `#1a327f`, `#134b30`, `#6e1f1f` | new `--c-*-strong` text tokens that invert |
-| `styles.css` `.thumb-badge` | `#fff` | `--c-on-accent` token (white in both — consistency/auditability, not a value change) |
-| `styles.css` shadows / hover overlays | `rgba(0,0,0,…)`, `rgba(15,23,42,…)` | token-ize backdrop + hover overlays for dark |
-| `EditorCanvas.tsx:51` surround border | `#DDD` | `var(--c-border)` |
-| `PanelInteractionLayer.tsx:379` | `#fff` | token |
-| `AnnotationInteractionLayer.tsx` | `#0066FF`, `#FFF`, `#888`, `#C00` | `--c-accent`, surface/border/danger tokens |
-| `CropImageModal.tsx` | `#F1F5F9`, `#FFF` (DOM styles) | surface tokens |
-| `CalibrationModal.tsx:177` | `#FFF` | token |
+| Site                                           | Current                             | Action                                                                               |
+| ---------------------------------------------- | ----------------------------------- | ------------------------------------------------------------------------------------ |
+| `styles.css` `.toast--info/success/error` text | `#1a327f`, `#134b30`, `#6e1f1f`     | new `--c-*-strong` text tokens that invert                                           |
+| `styles.css` `.thumb-badge`                    | `#fff`                              | `--c-on-accent` token (white in both — consistency/auditability, not a value change) |
+| `styles.css` shadows / hover overlays          | `rgba(0,0,0,…)`, `rgba(15,23,42,…)` | token-ize backdrop + hover overlays for dark                                         |
+| `EditorCanvas.tsx:51` surround border          | `#DDD`                              | `var(--c-border)`                                                                    |
+| `PanelInteractionLayer.tsx:379`                | `#fff`                              | token                                                                                |
+| `AnnotationInteractionLayer.tsx`               | `#0066FF`, `#FFF`, `#888`, `#C00`   | `--c-accent`, surface/border/danger tokens                                           |
+| `CropImageModal.tsx`                           | `#F1F5F9`, `#FFF` (DOM styles)      | surface tokens                                                                       |
+| `CalibrationModal.tsx:177`                     | `#FFF`                              | token                                                                                |
 
 Note on `--c-on-accent`: the accent fill keeps its hue in both themes and
 always carries white text, so this token is white in both. It becomes a token
@@ -234,11 +240,11 @@ implementation step ends green on `pnpm typecheck && pnpm test && pnpm lint`
 Extend `draw-figure.test.ts` against the `DrawCtx` recorder fake:
 
 - **Chrome re-themes:** `drawFigure` with an empty panel and
-  `opts.theme === "dark"` records the *dark* placeholder fill/stroke/label;
+  `opts.theme === "dark"` records the _dark_ placeholder fill/stroke/label;
   with `"light"` (or omitted) records today's `#EEEEEE`/`#CCCCCC`/etc. Assert
   on the recorded `fillStyle`/`strokeStyle` sequence.
 - **Content is theme-invariant:** render a figure with an image panel, a gutter
-  color, and annotations under *both* `theme: "light"` and `theme: "dark"`;
+  color, and annotations under _both_ `theme: "light"` and `theme: "dark"`;
   assert the recorded **content** ops (canvas background fill, gutter fill,
   annotation fills/halos) are **identical** across the flip. This is the
   unit-level guarantee that `opts.theme` never leaks into content.

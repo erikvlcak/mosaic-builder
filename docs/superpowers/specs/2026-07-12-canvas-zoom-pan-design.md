@@ -60,16 +60,16 @@ the ratio self-corrects. The plumbing is there; the constraint was a choice.
 
 The design cleanly separates three resolutions that are conflated today:
 
-| Resolution | What it is | Today | After |
-| --- | --- | --- | --- |
-| **Model figure-px** | Coordinate space of `FigureState` (annotations, panel transforms, gutter) and `.mosaic` files | 800×600 | **800×600 — UNCHANGED** |
-| **Editor backing store** | Pixels the editor `<canvas>` actually rasterizes | 800×600 × dpr | **`computeCanvasDims(pool,…)` × dpr**, capped at source-100% |
-| **CSS view size** | On-screen size of the canvas box — the zoom multiple | 800×600 (fixed = "fit") | **`800 × viewZoom` × `600 × viewZoom`** (variable) |
+| Resolution               | What it is                                                                                    | Today                   | After                                                        |
+| ------------------------ | --------------------------------------------------------------------------------------------- | ----------------------- | ------------------------------------------------------------ |
+| **Model figure-px**      | Coordinate space of `FigureState` (annotations, panel transforms, gutter) and `.mosaic` files | 800×600                 | **800×600 — UNCHANGED**                                      |
+| **Editor backing store** | Pixels the editor `<canvas>` actually rasterizes                                              | 800×600 × dpr           | **`computeCanvasDims(pool,…)` × dpr**, capped at source-100% |
+| **CSS view size**        | On-screen size of the canvas box — the zoom multiple                                          | 800×600 (fixed = "fit") | **`800 × viewZoom` × `600 × viewZoom`** (variable)           |
 
 **The safety property.** The model figure-px space **never changes**.
 `deriveFigure` keeps receiving `{ widthPx: 800, heightPx: 600 }`. `FigureState`,
 `.mosaic` bytes, and `computeExportScale` all operate on that frozen 800×600
-space. Zoom lives entirely in the *editor backing store* and *CSS view*
+space. Zoom lives entirely in the _editor backing store_ and _CSS view_
 layers — pure rendering/view concerns that physically cannot reach the model.
 This is what guarantees the "zero FigureState changes" and "byte-identical
 exports" acceptance criteria: the view layer has no path to the model.
@@ -117,7 +117,7 @@ const [view, setView] = useState<ViewTransform>({ zoom: 1, mode: "fit" });
   export scale; `= 1` when the pool holds no image larger than the 800×600
   baseline). The UI's **"100%"** means **1 source-px = 1 screen-px**, which is
   `zoom = sourceScale`. The % readout is therefore `displayPct =
-  round(100 · zoom / sourceScale)`, and the inverse (typing a %) is
+round(100 · zoom / sourceScale)`, and the inverse (typing a %) is
   `zoom = (pct / 100) · sourceScale`.
 - **Clamp units.** `ZOOM_MIN`/`ZOOM_MAX` are expressed in **display-%** terms
   (10%–800% of source-100%), so `clampViewZoom` clamps `zoom` to
@@ -129,28 +129,36 @@ const [view, setView] = useState<ViewTransform>({ zoom: 1, mode: "fit" });
 The testable heart. No React, no DOM. Unit-tested first (TDD).
 
 ```ts
-export const ZOOM_MIN = 0.1;   // 10% of source-100% (display-% terms)
-export const ZOOM_MAX = 8;     // 800% of source-100% (display-% terms)
+export const ZOOM_MIN = 0.1; // 10% of source-100% (display-% terms)
+export const ZOOM_MAX = 8; // 800% of source-100% (display-% terms)
 
 // Clamps the model→CSS `zoom`. Bounds depend on `sourceScale` because the
 // display-% (which the user sees) is `zoom / sourceScale`.
 export function clampViewZoom(zoom: number, sourceScale: number): number;
 export function fitZoom(
-  containerW: number, containerH: number,
-  cssBaseW: number, cssBaseH: number,
+  containerW: number,
+  containerH: number,
+  cssBaseW: number,
+  cssBaseH: number,
 ): number;
 export function zoomToCssSize(
-  zoom: number, modelW: number, modelH: number,
+  zoom: number,
+  modelW: number,
+  modelH: number,
 ): { cssW: number; cssH: number };
 
 // Cursor-anchored zoom: given the container's pre-zoom scroll offset, the
 // cursor position, and the old/new css sizes, return the scrollLeft/scrollTop
 // that keeps the model point under the cursor fixed.
 export function scrollForCursorZoom(args: {
-  cursorX: number; cursorY: number;          // relative to the scroll container
-  oldScrollLeft: number; oldScrollTop: number;
-  oldCssW: number; oldCssH: number;
-  newCssW: number; newCssH: number;
+  cursorX: number;
+  cursorY: number; // relative to the scroll container
+  oldScrollLeft: number;
+  oldScrollTop: number;
+  oldCssW: number;
+  oldCssH: number;
+  newCssW: number;
+  newCssH: number;
 }): { scrollLeft: number; scrollTop: number };
 ```
 
@@ -175,7 +183,7 @@ Owns the imperative browser wiring:
 - A `wheel` listener bound `{ passive: false }` on the scroll container.
   **Plain wheel → cursor-anchored canvas zoom** (`e.preventDefault()`) — no
   modifier, matching the "scroll to zoom the whole canvas" mental model
-  (Google-Maps/Miro idiom). The routing to *image* zoom is driven by
+  (Google-Maps/Miro idiom). The routing to _image_ zoom is driven by
   **`spacebarHeld`** (see Interaction design): the panel's own wheel listener
   is gated to only consume the event while space is held; otherwise it lets
   the event bubble and the container's canvas-zoom listener begins with
@@ -183,7 +191,7 @@ Owns the imperative browser wiring:
   everywhere (even over an active panel); space+wheel over an active panel
   zooms that image.
 - A **drag-to-pan-view** pointer handler on the scroll container (new — see
-  Pan). Press-drag translates `scrollLeft/scrollTop`. Gated to *not* run while
+  Pan). Press-drag translates `scrollLeft/scrollTop`. Gated to _not_ run while
   `spacebarHeld` (space redirects the drag to the active image's pan).
 - The cursor-anchored scroll adjustment (via `scrollForCursorZoom`).
 
@@ -243,15 +251,15 @@ image's own pan/zoom is the explicit, held-key action.
 
 ### The gesture table
 
-| Context | Gesture | Effect |
-| --- | --- | --- |
-| Anywhere on canvas | plain wheel | **Zoom the canvas** (cursor-anchored) |
-| Anywhere on canvas | press-drag | **Pan the view** |
-| Anywhere on canvas | scrollbars / two-finger trackpad drag | **Pan the view** |
-| Panel in editing mode + **hold Space** | plain wheel | **Zoom the active image** in its frame |
-| Panel in editing mode + **hold Space** | press-drag | **Pan the active image** in its frame |
-| Creation tool active + **hold Cmd/Ctrl** | (temporary) | **Switch to Select** |
-| unchanged | Shift-click | merge-cell toggle / anno multi-select / snap-disable |
+| Context                                  | Gesture                               | Effect                                               |
+| ---------------------------------------- | ------------------------------------- | ---------------------------------------------------- |
+| Anywhere on canvas                       | plain wheel                           | **Zoom the canvas** (cursor-anchored)                |
+| Anywhere on canvas                       | press-drag                            | **Pan the view**                                     |
+| Anywhere on canvas                       | scrollbars / two-finger trackpad drag | **Pan the view**                                     |
+| Panel in editing mode + **hold Space**   | plain wheel                           | **Zoom the active image** in its frame               |
+| Panel in editing mode + **hold Space**   | press-drag                            | **Pan the active image** in its frame                |
+| Creation tool active + **hold Cmd/Ctrl** | (temporary)                           | **Switch to Select**                                 |
+| unchanged                                | Shift-click                           | merge-cell toggle / anno multi-select / snap-disable |
 
 ### Space = "operate on the active image"
 
@@ -264,8 +272,8 @@ Today `spacebarHeld` drives temporary-select. It is **repurposed** to mean
   `spacebarHeld`**: without space, the panel layer does not `preventDefault`
   the wheel and does not `setPointerCapture` the drag, so both bubble to the
   canvas-level handlers.
-- **Space held (over an active panel):** wheel zooms *that image*; press-drag
-  pans *that image* — today's `PanelInteractionLayer` behavior, now
+- **Space held (over an active panel):** wheel zooms _that image_; press-drag
+  pans _that image_ — today's `PanelInteractionLayer` behavior, now
   space-gated. The `SELECT MODE` chip logic that keyed off `spacebarHeld` is
   removed (temporary-select moves to Cmd/Ctrl, below).
 
@@ -279,13 +287,13 @@ click a panel without placing an annotation) moves from **space** to
 **Cmd/Ctrl-hold** — the Illustrator/Figma convention. `effectiveTool` becomes
 `(cmdOrCtrlHeld && activeTool !== "select") ? "select" : activeTool`. This has
 **no collision**: Shift is already taken (merge/multi-select/snap), and the
-Cmd/Ctrl **zoom shortcuts are `Cmd`+*key* presses**, not Cmd-hold-then-click,
+Cmd/Ctrl **zoom shortcuts are `Cmd`+_key_ presses**, not Cmd-hold-then-click,
 so a held Cmd with no key-press unambiguously means temporary-select. The
 `SELECT MODE (release …)` chip updates to say `⌘`/`Ctrl` instead of `␣`.
 
 ### Drag-to-pan-view (new handler)
 
-Default press-drag must pan the *view*, which today has no handler — the
+Default press-drag must pan the _view_, which today has no handler — the
 `overflow: auto` container only pans via scrollbars/trackpad. Add a pointer
 drag handler (in `useCanvasZoom`, on the scroll container) that, on
 `pointerdown`+drag (not while `spacebarHeld`), sets
@@ -302,12 +310,12 @@ Keyboard (added to `hooks/useKeyboardShortcuts.ts` — must **not** collide with
 the existing `M/U/R/H/V/0`, `Delete/Backspace`, `Escape`, `Cmd/Ctrl-Z/Shift-Z`
 bindings, which are all non-modified except undo/redo):
 
-| Shortcut | Action |
-| --- | --- |
-| `Cmd/Ctrl` + `=` (`+`) | Zoom in |
-| `Cmd/Ctrl` + `-` | Zoom out |
-| `Cmd/Ctrl` + `0` | **Fit** to window |
-| `Cmd/Ctrl` + `1` | **100%** (actual source pixels) |
+| Shortcut               | Action                          |
+| ---------------------- | ------------------------------- |
+| `Cmd/Ctrl` + `=` (`+`) | Zoom in                         |
+| `Cmd/Ctrl` + `-`       | Zoom out                        |
+| `Cmd/Ctrl` + `0`       | **Fit** to window               |
+| `Cmd/Ctrl` + `1`       | **100%** (actual source pixels) |
 
 These require a modifier, so they slot in beside the existing
 `Cmd/Ctrl-Z` branch (which already runs before the "no modifier" guard) and
@@ -349,17 +357,17 @@ Today the panel layer unconditionally `preventDefault`s the wheel and
 panel layer's wheel and pointer handlers must **early-return when
 `spacebarHeld` is false** (so the wheel bubbles un-prevented and the pointer
 is never captured). Care: `setPointerCapture` on pointerdown is the point of
-no return — the gate must be checked *before* capture. The panel's pan-drag
+no return — the gate must be checked _before_ capture. The panel's pan-drag
 math (`figurePxW / cssW`) already self-corrects for canvas zoom, so no change
 is needed there beyond the space gate. **Test obligation:** without space, a
-drag starting over an active panel pans the *view*; with space, it pans the
-*image* (Trap C test below).
+drag starting over an active panel pans the _view_; with space, it pans the
+_image_ (Trap C test below).
 
 ### Image-pan delta scales with canvas zoom (no change needed)
 
 When space-panning an active image while the canvas is zoomed, the drag delta
 is `(clientΔ) · (figurePxW / cssW)`. As `cssW = 800·viewZoom` grows, the same
-screen movement yields a *smaller* figure-space delta — which is correct: at
+screen movement yields a _smaller_ figure-space delta — which is correct: at
 high canvas zoom one screen-pixel is a smaller fraction of the figure. The
 existing ratio already handles this; it is called out only so the plan does
 not "fix" it.
@@ -384,7 +392,7 @@ guard the export path does not need:
 
 - **Cap the backing-store multiplier at source-100%.** Never rasterize the
   backing store larger than `computeCanvasDims` (i.e. `editorScale =
-  sourceScale`, not more). Zooming **past** 100% just CSS-upscales the
+sourceScale`, not more). Zooming **past** 100% just CSS-upscales the
   backing store, which is correct — beyond source-100% there is no additional
   detail to reveal. This bounds resident memory at exactly "full source
   resolution," never above it, regardless of how far the user zooms in.
@@ -399,7 +407,7 @@ Written test-first; each increment lands green
 (`pnpm typecheck && pnpm test && pnpm lint`).
 
 1. **`test/unit/view-transform.test.ts`** — `clampViewZoom`, `fitZoom`,
-   `zoomToCssSize`, `scrollForCursorZoom` (pure, no DOM). *First.*
+   `zoomToCssSize`, `scrollForCursorZoom` (pure, no DOM). _First._
 2. **Editor-renderer recorder test** — backing-store dims =
    `round(800·editorScale·dpr)`; the ctx transform composes `editorScale·dpr`;
    `drawFigure` receives **identical** model-space calls regardless of
@@ -476,6 +484,6 @@ Written test-first; each increment lands green
 - **Zoom-to-selected-panel** — nice fast-follow; not in this pass.
 - **Any change to the model figure-px space, `.mosaic` schema, or export
   pipeline** — explicitly none; that is the design's safety property.
-- **The per-panel pan/zoom *math*** — unchanged; only its *trigger* changes
+- **The per-panel pan/zoom _math_** — unchanged; only its _trigger_ changes
   (now space-gated) and it now composes with canvas zoom via the existing
   `cssW` ratio.
