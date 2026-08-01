@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { GLYPHS } from "../../platform/shortcuts";
 
 export interface ZoomControlsProps {
   /** Zoom shown to the user, e.g. 100 for 100%. */
@@ -21,6 +22,7 @@ export function ZoomControls({
   onZoomOut,
   onSetPercent,
 }: ZoomControlsProps): JSX.Element {
+  const { mod, plus, minus, chord } = GLYPHS;
   // Local buffer so typing doesn't fight the controlled displayPct until the
   // user commits with Enter/blur.
   const [draft, setDraft] = useState(String(displayPct));
@@ -39,7 +41,7 @@ export function ZoomControls({
         className={`btn${isFit ? " btn-active" : ""}`}
         data-testid="zoom-fit"
         onClick={onFit}
-        title="Fit to window (⌘0)"
+        title={`Fit to window (${chord(mod, "0")})`}
       >
         Fit
       </button>
@@ -48,7 +50,7 @@ export function ZoomControls({
         className="btn"
         data-testid="zoom-actual"
         onClick={onActualSize}
-        title="Actual pixels — 100% (⌘1)"
+        title={`Actual pixels — 100% (${chord(mod, "1")})`}
       >
         100%
       </button>
@@ -57,7 +59,7 @@ export function ZoomControls({
         className="btn btn-icon"
         data-testid="zoom-out"
         onClick={onZoomOut}
-        title="Zoom out (⌘−)"
+        title={`Zoom out (${chord(mod, minus)})`}
         aria-label="Zoom out"
       >
         −
@@ -80,7 +82,7 @@ export function ZoomControls({
         className="btn btn-icon"
         data-testid="zoom-in"
         onClick={onZoomIn}
-        title="Zoom in (⌘+)"
+        title={`Zoom in (${chord(mod, plus)})`}
         aria-label="Zoom in"
       >
         +
