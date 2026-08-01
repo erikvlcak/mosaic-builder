@@ -1,6 +1,6 @@
 {
   "name": "mosaic-builder",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Standalone desktop app for assembling multi-panel scientific image figures.",
   "private": true,
   "author": "Mosaic Builder contributors",
