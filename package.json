@@ -14,6 +14,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "version": "node scripts/sync-version.mjs && git add src/renderer/app-version.ts",
     "typecheck": "tsc -b --pretty && tsc -p tsconfig.test.json --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",

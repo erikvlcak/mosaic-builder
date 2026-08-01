@@ -37,6 +37,7 @@ export default tseslint.config(
             "vite.config.ts",
             "vitest.config.ts",
             "scripts/generate-icons.mjs",
+            "scripts/sync-version.mjs",
           ],
         },
         tsconfigRootDir: import.meta.dirname,

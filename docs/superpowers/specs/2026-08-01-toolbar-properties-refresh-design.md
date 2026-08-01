@@ -49,7 +49,7 @@ Net: ~130px → ~88px of chrome; ~44px returned to the canvas.
 **Amendment (found by measuring the running app).** `margin-left: auto`
 alone does not reclaim the row. The ribbon is a single wrapping flex
 line, so when its contents exceed the width, Zoom wraps first and the
-auto-margin merely right-aligns it *on the second line* — cosmetically
+auto-margin merely right-aligns it _on the second line_ — cosmetically
 correct, no space saved. Measured at a 1470px ribbon: 1519px needed.
 
 Two compressions close the 49px gap, both verified by re-measuring:
@@ -102,7 +102,7 @@ wrong-key bug.
 "Shift-click cells to select" whenever nothing was selected, reserving
 ~135px of ribbon permanently to teach a convention the hint bar already
 teaches ("Shift-click cells to merge" on any panel selection). That
-starter hint is removed; the *corrective* hint ("select adjacent cells
+starter hint is removed; the _corrective_ hint ("select adjacent cells
 forming a rectangle") stays, because only MergeControls knows why a
 particular selection is rejected. `merge-controls.test.tsx` is updated
 accordingly — this is a deliberate behavior change, approved during
