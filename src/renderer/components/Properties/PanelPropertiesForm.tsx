@@ -48,144 +48,137 @@ export function PanelPropertiesForm({
 }: Props): JSX.Element {
   const t = panel.transform;
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-      <SelectField
-        label="Fit"
-        value={t.fit}
-        options={
-          [
-            {
-              value: "contain",
-              label: "Fit",
-              title: "Fit — whole image visible",
-            },
-            {
-              value: "cover",
-              label: "Fill",
-              title: "Fill — panel fully covered, image may be cropped",
-            },
-            {
-              value: "stretch",
-              label: "Stretch",
-              title: "Stretch — ignore aspect ratio",
-            },
-          ] as const
-        }
-        onChange={(fit) => {
-          dispatch(setPanelFit(panel.id, fit));
-          commit.flush();
-        }}
-      />
+    <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+      <section className="prop-section">
+        <span className="prop-section-label">Placement</span>
 
-      <div className="field">
-        <span className="field-label">Transform</span>
-        <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
-          <button
-            type="button"
-            className="btn"
-            onClick={() => {
-              dispatch(rotatePanel90(panel.id));
-              commit.flush();
-            }}
-            title="Rotate 90° clockwise (R)"
-          >
-            ↻ 90°
-          </button>
-          <button
-            type="button"
-            className="btn"
-            aria-pressed={t.flipH}
-            onClick={() => {
-              dispatch(flipPanelH(panel.id));
-              commit.flush();
-            }}
-            title="Flip horizontally (H)"
-          >
-            ⇄ H
-          </button>
-          <button
-            type="button"
-            className="btn"
-            aria-pressed={t.flipV}
-            onClick={() => {
-              dispatch(flipPanelV(panel.id));
-              commit.flush();
-            }}
-            title="Flip vertically (V)"
-          >
-            ⇅ V
-          </button>
-          <button
-            type="button"
-            className="btn"
-            onClick={() => {
-              dispatch(resetPanelTransform(panel.id));
-              commit.flush();
-            }}
-            title="Reset pan, zoom, and rotation (0)"
-          >
-            Reset
-          </button>
-        </div>
-      </div>
-
-      <dl
-        style={{
-          margin: 0,
-          padding: "8px 10px",
-          background: "var(--c-surface-muted)",
-          borderRadius: "var(--r-md)",
-          fontSize: 11,
-          color: "var(--c-text-muted)",
-          display: "grid",
-          gridTemplateColumns: "auto 1fr",
-          rowGap: 3,
-          columnGap: 10,
-          fontVariantNumeric: "tabular-nums",
-        }}
-      >
-        <dt>Pan</dt>
-        <dd style={{ margin: 0 }}>
-          {t.panX.toFixed(0)}, {t.panY.toFixed(0)} px
-        </dd>
-        <dt>Zoom</dt>
-        <dd style={{ margin: 0 }}>{t.zoom.toFixed(2)}×</dd>
-        <dt>Rotation</dt>
-        <dd style={{ margin: 0 }}>{t.rotation}°</dd>
-      </dl>
-
-      <TextField
-        label="Subpanel letter"
-        value={letterOverrideText ?? ""}
-        placeholder="(auto)"
-        onChange={(s) => {
-          if (s === "") {
-            // Clearing the text leaves any style override intact: an
-            // empty-text + null-style override normalizes to null in the
-            // reducer, but a style-only override survives.
-            const nextOverride: LetterOverride | null =
-              letterOverride?.style !== undefined
-                ? { style: letterOverride.style }
-                : null;
-            dispatch(setLetterOverride(panel.id, nextOverride));
-          } else {
-            const nextOverride: LetterOverride = { text: s };
-            if (letterOverride?.style !== undefined) {
-              nextOverride.style = letterOverride.style;
-            }
-            dispatch(setLetterOverride(panel.id, nextOverride));
+        <SelectField
+          label="Fit"
+          value={t.fit}
+          options={
+            [
+              {
+                value: "contain",
+                label: "Fit",
+                title: "Fit — whole image visible",
+              },
+              {
+                value: "cover",
+                label: "Fill",
+                title: "Fill — panel fully covered, image may be cropped",
+              },
+              {
+                value: "stretch",
+                label: "Stretch",
+                title: "Stretch — ignore aspect ratio",
+              },
+            ] as const
           }
-          commit.markDirty();
-        }}
-        onBlur={commit.flush}
-      />
+          onChange={(fit) => {
+            dispatch(setPanelFit(panel.id, fit));
+            commit.flush();
+          }}
+        />
 
-      <button type="button" className="btn" onClick={onCalibrate}>
-        Calibrate scale…
-      </button>
+        <div className="field">
+          <span className="field-label">Transform</span>
+          <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+            <button
+              type="button"
+              className="btn"
+              onClick={() => {
+                dispatch(rotatePanel90(panel.id));
+                commit.flush();
+              }}
+              title="Rotate 90° clockwise (R)"
+            >
+              ↻ 90°
+            </button>
+            <button
+              type="button"
+              className="btn"
+              aria-pressed={t.flipH}
+              onClick={() => {
+                dispatch(flipPanelH(panel.id));
+                commit.flush();
+              }}
+              title="Flip horizontally (H)"
+            >
+              ⇄ H
+            </button>
+            <button
+              type="button"
+              className="btn"
+              aria-pressed={t.flipV}
+              onClick={() => {
+                dispatch(flipPanelV(panel.id));
+                commit.flush();
+              }}
+              title="Flip vertically (V)"
+            >
+              ⇅ V
+            </button>
+            <button
+              type="button"
+              className="btn"
+              onClick={() => {
+                dispatch(resetPanelTransform(panel.id));
+                commit.flush();
+              }}
+              title="Reset pan, zoom, and rotation (0)"
+            >
+              Reset
+            </button>
+          </div>
+        </div>
 
-      <div className="field">
-        <span className="field-label">Crop</span>
+        <dl className="prop-readout">
+          <dt>Pan</dt>
+          <dd>
+            {t.panX.toFixed(0)}, {t.panY.toFixed(0)} px
+          </dd>
+          <dt>Zoom</dt>
+          <dd>{t.zoom.toFixed(2)}×</dd>
+          <dt>Rotation</dt>
+          <dd>{t.rotation}°</dd>
+        </dl>
+      </section>
+
+      <section className="prop-section">
+        <span className="prop-section-label">Appearance</span>
+
+        <TextField
+          label="Subpanel letter"
+          value={letterOverrideText ?? ""}
+          placeholder="(auto)"
+          onChange={(s) => {
+            if (s === "") {
+              // Clearing the text leaves any style override intact: an
+              // empty-text + null-style override normalizes to null in the
+              // reducer, but a style-only override survives.
+              const nextOverride: LetterOverride | null =
+                letterOverride?.style !== undefined
+                  ? { style: letterOverride.style }
+                  : null;
+              dispatch(setLetterOverride(panel.id, nextOverride));
+            } else {
+              const nextOverride: LetterOverride = { text: s };
+              if (letterOverride?.style !== undefined) {
+                nextOverride.style = letterOverride.style;
+              }
+              dispatch(setLetterOverride(panel.id, nextOverride));
+            }
+            commit.markDirty();
+          }}
+          onBlur={commit.flush}
+        />
+
+        <button type="button" className="btn" onClick={onCalibrate}>
+          Calibrate scale…
+        </button>
+      </section>
+
+      <div className="prop-actions">
         <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
           <button type="button" className="btn" onClick={onCrop}>
             Crop…
@@ -204,19 +197,19 @@ export function PanelPropertiesForm({
             </button>
           )}
         </div>
-      </div>
 
-      <button
-        type="button"
-        className="btn"
-        onClick={() => {
-          dispatch(unplacePanel(panel.id));
-          commit.flush();
-        }}
-        title="Return this image to the tray (the panel becomes empty)"
-      >
-        Remove from panel
-      </button>
+        <button
+          type="button"
+          className="btn btn-danger"
+          onClick={() => {
+            dispatch(unplacePanel(panel.id));
+            commit.flush();
+          }}
+          title="Return this image to the tray (the panel becomes empty)"
+        >
+          Remove from panel
+        </button>
+      </div>
     </div>
   );
 }

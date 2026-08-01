@@ -281,7 +281,9 @@ body {
   width: 1px;
   align-self: stretch;
   background: var(--c-divider);
-  margin: 4px 4px;
+  /* Horizontal breathing room does the separating; the rule itself only has
+     to hint at it. Tight margins made adjacent groups read as one run. */
+  margin: 4px 2px;
 }
 
 .input {
@@ -355,6 +357,63 @@ body {
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: var(--c-text-muted);
+}
+
+/* Properties-panel grouping. The panel was a flat stack of equal-weight
+   controls; these split it into named concepts so the eye can skip to one.
+   A rule separates groups instead of extra whitespace — at 300px wide,
+   whitespace alone reads as "unrelated", not "grouped". */
+
+.prop-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--c-divider);
+}
+/* The first section sits directly under the panel title, which already
+   provides separation — a second rule there would double up. */
+.prop-section:first-of-type {
+  padding-top: 0;
+  border-top: none;
+}
+.prop-section-label {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--c-text-faint);
+  user-select: none;
+}
+/* Read-only transform readout. Tabular numerals keep the values from
+   shifting horizontally as the user drags — a proportional font makes the
+   pan figures jitter on every pointermove. */
+.prop-readout {
+  margin: 0;
+  padding: 8px 10px;
+  background: var(--c-surface-muted);
+  border-radius: var(--r-md);
+  font-size: 11px;
+  color: var(--c-text-muted);
+  display: grid;
+  grid-template-columns: auto 1fr;
+  row-gap: 3px;
+  column-gap: 10px;
+  font-variant-numeric: tabular-nums;
+}
+.prop-readout dd {
+  margin: 0;
+}
+
+/* Trailing actions. Destructive work is pushed away from the controls above
+   so it can't be hit on the way past. */
+.prop-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 4px;
+  padding-top: 12px;
+  border-top: 1px solid var(--c-divider);
 }
 
 .surface-panel {
@@ -483,11 +542,23 @@ body {
 .tool-ribbon {
   background: var(--c-surface-muted);
   border-bottom: 1px solid var(--c-divider);
-  padding: 4px 12px;
+  padding: 6px 10px;
   display: flex;
   align-items: center;
   gap: 8px;
+  /* Wrapping is the narrow-window fallback, not the normal case. At usable
+     widths everything fits on one line and the zoom group is pushed to the
+     right edge below; only a genuinely cramped window drops it to line 2. */
   flex-wrap: wrap;
+  row-gap: 6px;
+}
+
+/* Zoom is a VIEW control — it never mutates FigureState (see
+   zoom-no-dirty.test.ts), unlike every other ribbon group. Pushing it to the
+   far edge encodes that boundary and fills width that was otherwise dead.
+   `margin-left: auto` collapses harmlessly if the row wraps. */
+.tool-group-end {
+  margin-left: auto;
 }
 
 .tool-group {

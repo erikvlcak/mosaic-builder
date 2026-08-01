@@ -19,11 +19,12 @@ function renderMerge(
 }
 
 describe("MergeControls hints", () => {
-  it("shows the shift-click hint when nothing is selected", () => {
+  // Teaching shift-click belongs to the hint bar (see hint-bar.test.tsx);
+  // reserving ribbon width for it here duplicated that guidance on every
+  // frame. Only the corrective hint, which the hint bar can't derive, remains.
+  it("shows no hint when nothing is selected", () => {
     renderMerge({ selectedCount: 0 });
-    expect(screen.getByTestId("merge-hint").textContent).toMatch(
-      /click cells to select/i,
-    );
+    expect(screen.queryByTestId("merge-hint")).toBeNull();
   });
 
   it("shows the 'form a rectangle' hint when cells are selected but not mergeable", () => {

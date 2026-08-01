@@ -38,7 +38,14 @@ export function GridControls({
       data-testid="grid-controls"
       style={{ display: "flex", gap: 10, alignItems: "center" }}
     >
-      <Field label="Rows">
+      {/* "Rows 2 Cols 2" spends ~70px of ribbon on words a "×" says better:
+          two number fields flanking a multiplication sign read as a grid
+          without labels. The aria-labels carry the naming for screen readers,
+          which is where it actually matters. */}
+      <span
+        style={{ display: "inline-flex", alignItems: "center", gap: 4 }}
+        title="Grid size — rows × columns (1–10 each)"
+      >
         <input
           type="number"
           className="input input-num"
@@ -48,10 +55,14 @@ export function GridControls({
           onChange={(e) => onChangeRows(Number(e.target.value))}
           data-testid="grid-rows-input"
           aria-label="Rows"
-          title="1–10"
+          title="Rows (1–10)"
         />
-      </Field>
-      <Field label="Cols">
+        <span
+          aria-hidden="true"
+          style={{ fontSize: 11, color: "var(--c-text-faint)" }}
+        >
+          ×
+        </span>
         <input
           type="number"
           className="input input-num"
@@ -61,9 +72,9 @@ export function GridControls({
           onChange={(e) => onChangeCols(Number(e.target.value))}
           data-testid="grid-cols-input"
           aria-label="Columns"
-          title="1–10"
+          title="Columns (1–10)"
         />
-      </Field>
+      </span>
       <Field label="Gutter">
         <input
           type="number"
@@ -74,10 +85,10 @@ export function GridControls({
           onChange={(e) => onChangeGutterPx(Number(e.target.value))}
           data-testid="gutter-px-input"
           aria-label="Gutter (pixels)"
+          title="Gutter width in pixels"
         />
-        <span style={{ fontSize: 11, color: "var(--c-text-faint)" }}>px</span>
-      </Field>
-      <Field label="Color">
+        {/* The swatch is self-evident next to the gutter size; the word
+            "Color" was label-for-a-label. */}
         <input
           type="color"
           className="input-color"
@@ -85,6 +96,7 @@ export function GridControls({
           onChange={(e) => onChangeGutterColor(e.target.value.toUpperCase())}
           data-testid="gutter-color-input"
           aria-label="Gutter color"
+          title="Gutter color"
         />
       </Field>
       <label

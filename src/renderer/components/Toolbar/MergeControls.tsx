@@ -14,16 +14,15 @@ export function MergeControls({
   onMerge,
   onUnmerge,
 }: Props): JSX.Element {
-  // The merge convention (shift-click cells, then Merge) is invisible without
-  // a prompt. Show a muted inline hint that adapts to how far along the user
-  // is: no selection → how to start; a partial/invalid selection → what makes
-  // it mergeable. Once mergeable, the enabled button speaks for itself.
+  // Only the CORRECTIVE hint lives here. Teaching the shift-click convention
+  // is the hint bar's job ("Shift-click cells to merge" whenever a panel is
+  // selected), and duplicating it inline reserved ~150px of ribbon on every
+  // frame for advice that applies before the first merge only. What the hint
+  // bar cannot know is why a specific selection is rejected, so that stays.
   const hint =
-    selectedCount === 0
-      ? "⇧-click cells to select"
-      : !canMerge
-        ? "select adjacent cells forming a rectangle"
-        : null;
+    selectedCount > 0 && !canMerge
+      ? "select adjacent cells forming a rectangle"
+      : null;
 
   const mergeLabel = selectedCount >= 2 ? `Merge (${selectedCount})` : "Merge";
 

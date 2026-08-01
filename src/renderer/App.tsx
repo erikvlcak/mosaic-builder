@@ -14,6 +14,7 @@ import { CropImageModal } from "./components/Modals/CropImageModal";
 import { Tray } from "./components/Sidebar/Tray";
 import { PropertiesPanel } from "./components/Properties/PropertiesPanel";
 import { HintBar, type HintContext } from "./components/StatusHints/HintBar";
+import { GLYPHS } from "./platform/shortcuts";
 import { GridCells, type DropEvent } from "./components/Grid/GridCells";
 import { FrameChrome } from "./components/Grid/FrameChrome";
 import { SelectedPanelHandles } from "./components/Grid/SelectedPanelHandles";
@@ -989,7 +990,7 @@ export function App(): JSX.Element {
                 void onNew();
               }}
               data-testid="new-project"
-              title="New figure (⌘N)"
+              title={`New figure (${GLYPHS.chord(GLYPHS.mod, "N")})`}
             >
               New
             </button>
@@ -1020,7 +1021,7 @@ export function App(): JSX.Element {
               onClick={history.undo}
               disabled={!history.canUndo}
               data-testid="undo-btn"
-              title="Undo (⌘Z)"
+              title={`Undo (${GLYPHS.chord(GLYPHS.mod, "Z")})`}
               aria-label="Undo"
             >
               ↶ Undo
@@ -1031,7 +1032,7 @@ export function App(): JSX.Element {
               onClick={history.redo}
               disabled={!history.canRedo}
               data-testid="redo-btn"
-              title="Redo (⇧⌘Z)"
+              title={`Redo (${GLYPHS.chord(GLYPHS.shift, GLYPHS.mod, "Z")})`}
               aria-label="Redo"
             >
               ↷ Redo
@@ -1121,8 +1122,7 @@ export function App(): JSX.Element {
           <ToolGroup label="Annotate">
             <AnnotationToolbar active={activeTool} onChange={setActiveTool} />
           </ToolGroup>
-          <span className="toolbar-divider" aria-hidden="true" />
-          <ToolGroup label="Zoom">
+          <ToolGroup label="Zoom" atEnd>
             <ZoomControls
               displayPct={zoom.displayPct}
               isFit={zoom.isFit}
@@ -1401,12 +1401,15 @@ export function App(): JSX.Element {
 function ToolGroup({
   label,
   children,
+  atEnd = false,
 }: {
   label: string;
   children: React.ReactNode;
+  /** Pin this group to the ribbon's trailing edge. */
+  atEnd?: boolean;
 }): JSX.Element {
   return (
-    <div className="tool-group">
+    <div className={`tool-group${atEnd ? " tool-group-end" : ""}`}>
       <span className="tool-group-label">{label}</span>
       <div className="tool-group-body">{children}</div>
     </div>
